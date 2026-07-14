@@ -1,0 +1,114 @@
+# Reglas de dominio — Digraf
+
+Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálogos, imágenes, historial o anulaciones.
+
+## Roles
+
+| Capacidad | Super admin | Admin | Atención | Empleado |
+| --- | ---: | ---: | ---: | ---: |
+| Control técnico total | Sí | No | No | No |
+| Crear/desactivar cualquier usuario | Sí | No | No | No |
+| Crear/desactivar Atención y Empleado | Sí | Sí | No | No |
+| Crear pedido manual | Sí | Sí | No | No |
+| Administrar etapas y catálogos | Sí | Sí | No | No |
+| Mover pedido | Sí | Sí | Sí | Sí, excepto Pagado |
+| Confirmar pago | Sí | Sí | Sí | No |
+| Ver y operar caja | Sí | Sí | Sí | No |
+| Cerrar caja | Sí | Sí | No | No |
+| Comentar pedido | Sí | Sí | Sí | Sí |
+| Editar datos sensibles | Sí | Sí | No | No |
+
+`super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
+
+## Pedidos y tablero
+
+Un pedido se representa como tarjeta Kanban. Se puede crear manualmente por Admin/Super admin.
+
+Etapas iniciales:
+
+1. Pedido recibido.
+2. Diseño.
+3. Corte.
+4. Estampado.
+5. Costura.
+6. Control de calidad.
+7. Pagado.
+8. Entregado.
+
+Admin puede crear, renombrar, reordenar y eliminar etapas. Las reglas no deben depender del texto visible: las etapas de pago y entrega requieren claves semánticas estables, por ejemplo `paid` y `delivered`. Si se pretende eliminar o cambiar el significado de una etapa especial, presentar el impacto en modo Plan.
+
+Los pedidos pueden moverse hacia adelante y atrás. Cada movimiento debe registrar pedido, etapa anterior, etapa siguiente, actor y timestamp del servidor. El drag and drop debe manejar rechazo del servidor y revertir su estado optimista.
+
+Un pedido pagado puede no estar entregado. No derivar uno de otro.
+
+## Campos del pedido
+
+Campos mínimos:
+
+- Cliente/equipo como texto libre.
+- Cantidad total de unidades.
+- Tipo de pedido: conjunto o prenda individual.
+- Fecha de pedido y fecha prometida de entrega.
+- Tipo de prenda, cuello, molde, tela y extras desde catálogos.
+- Descripción libre.
+- Imagen actual del diseño.
+- Seña manual y monto total manual.
+
+Los catálogos son listas simples sin precio. Los moldes de prendas superiores y de short/pollera deben mantenerse diferenciados para evitar combinaciones inválidas.
+
+Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Empleado puede modificar descripción e imagen cuando se le solicita, sin alterar datos sensibles.
+
+El MVP conserva una sola imagen vigente de diseño; no implementar historial de versiones todavía.
+
+## Pago y caja
+
+Al mover a `Pagado`, Super admin/Admin/Atención deben confirmar explícitamente el cobro. El movimiento, la confirmación y la creación del ingreso automático deben ocurrir como una operación atómica e idempotente.
+
+Decisión confirmada:
+
+- La seña se guarda como dato informativo del pedido y no crea un movimiento de caja.
+- Al confirmar `Pagado`, caja registra un único ingreso automático por el monto total completo del pedido.
+
+No cambiar esta regla para registrar seña y saldo por separado sin aprobación explícita.
+
+Admin puede revertir el pago solamente mientras la caja del día correspondiente esté abierta. La reversión anula el ingreso automático; no lo elimina. Atención puede confirmar pago, pero no revertirlo salvo decisión futura.
+
+## Caja diaria
+
+- Cada día operativo tiene una caja en `America/Argentina/Cordoba`.
+- Admin/Atención cargan el saldo inicial y pueden editarlo mientras la caja está abierta.
+- La edición de saldo inicial requiere auditoría de valor anterior, valor nuevo, actor y timestamp; incluir motivo cuando corresponda.
+- Saldo final = saldo inicial + ingresos válidos − egresos válidos.
+- Admin/Atención pueden crear ingresos y egresos manuales.
+- Egresos iniciales: materiales/insumos, sueldos, servicios, mantenimiento/equipos y otros. Admin puede sumar categorías.
+- Movimientos manuales se editan solo con caja abierta.
+- Cualquiera de los dos Admin puede cerrar caja manualmente. Atención no puede cerrarla.
+- Al iniciar el día siguiente, la caja anterior se cierra automáticamente si sigue abierta.
+- La caja cerrada bloquea toda edición y debe mostrar un mensaje claro.
+- Los movimientos anulados se conservan con actor y timestamp de anulación.
+- El historial diferencia ingresos por pedido, ingresos manuales y egresos manuales.
+
+## Comentarios, imágenes y auditoría
+
+Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan con políticas de Storage que reflejen los permisos del pedido.
+
+Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
+
+## Pedidos anulados
+
+- Admin puede anular un pedido indicando motivo.
+- Los anulados se ven en un archivo solo para Admin/Super admin.
+- Se pueden restaurar o eliminar definitivamente antes de 30 días.
+- Al cumplir 30 días se eliminan automáticamente.
+- Antes de implementar la eliminación programada, definir retención de datos relacionados y probar restauración, autorización y vencimiento.
+
+## Fuera del MVP
+
+No implementar sin aprobación explícita:
+
+- Formulario público con enlace único para clientes. Será la siguiente fase tras el MVP; su objetivo es crear o completar un pedido e ingresarlo al Kanban.
+- Integración automática de pagos.
+- Cuenta corriente de clientes.
+- Proveedores y cuentas por pagar.
+- Reportes avanzados, gráficos o exportaciones.
+
