@@ -17,12 +17,12 @@ Digraf es una aplicación interna para una gráfica textil: pedidos de producci�
 
 Leer únicamente la guía relevante antes de actuar; su contenido es obligatorio para la tarea correspondiente.
 
-| Si la tarea toca…                                                     | Leer primero                        |
-| --------------------------------------------------------------------- | ----------------------------------- |
-| Roles, pedidos, tablero, pagos, caja, catálogos o anulaciones         | `docs/agent-guides/domain-rules.md` |
-| Next.js, Supabase, RLS, Storage, migraciones o estructura             | `docs/agent-guides/architecture.md` |
-| Tests, validación, CI o comandos de desarrollo                        | `docs/agent-guides/verification.md` |
-| Una decisión confirmada, un cambio de alcance o una ambigüedad previa | `docs/decisions.md`                 |
+| Si la tarea toca…                                                        | Leer primero                                                                             |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Roles, pedidos, tablero, pagos, caja, catálogos, cotizador o anulaciones | `docs/agent-guides/domain-rules.md` y, para el cotizador, `docs/agent-guides/quoting.md` |
+| Next.js, Supabase, RLS, Storage, migraciones o estructura                | `docs/agent-guides/architecture.md`                                                      |
+| Tests, validación, CI o comandos de desarrollo                           | `docs/agent-guides/verification.md`                                                      |
+| Una decisión confirmada, un cambio de alcance o una ambigüedad previa    | `docs/decisions.md`                                                                      |
 
 No cargar todas las guías por rutina. Si una guía y una instrucción reciente del usuario difieren, prevalece la instrucción reciente y debe actualizarse la documentación durable al cerrar la tarea.
 
@@ -84,10 +84,13 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 
 ## Git y operaciones externas
 
-- No hacer commit, push, deploy, aplicar migraciones remotas ni tocar `main` sin una petición explícita.
+- Usar `git` CLI para ramas, staging, commits y push; usar `gh` CLI para repositorios, issues, PRs y releases.
+- No usar un MCP de GitHub para operaciones normales de repositorio.
+- El agente puede crear ramas `feat/*`, hacer commits locales y pushear esas ramas después de validar el cambio.
+- Antes de cada commit o acción externa, resumir qué se creará o modificará y su impacto.
+- `main` es la rama estable: no hacer push directo, merge, release, deploy, migraciones remotas ni cambios de configuración de producción sin aprobación explícita.
 - No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni reescritura de historial sin autorización explícita.
-- Mantener commits pequeños y coherentes cuando se soliciten; usar Conventional Commits.
-- Nunca convertir una tarea de código en una operación externa por implicación.
+- Usar Conventional Commits.
 
 ## Agentes, skills y MCPs
 
@@ -107,12 +110,3 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 - Mantener este archivo corto, concreto y libre de duplicaciones; las reglas detalladas pertenecen a las guías enlazadas.
 - Tras descubrir una fricción repetida, proponer el cambio mínimo en la guía o skill adecuada.
 - No agregar reglas universales por una excepción local; usar una guía, skill o agente especializado.
-
-## Git y GitHub
-
-- Usar `git` CLI para ramas, staging, commits y push; usar `gh` CLI para repositorios, issues, PRs y releases.
-- No usar un MCP de GitHub para operaciones normales de repositorio.
-- El agente puede crear ramas `feat/*`, hacer commits locales y pushear esas ramas después de validar el cambio.
-- `main` es la rama estable: no hacer push directo, merge, release, deploy ni cambios de configuración de producción sin aprobación explícita.
-- Antes de cada commit, revisar `git diff` y ejecutar las verificaciones relevantes.
-- Usar Conventional Commits.
