@@ -23,6 +23,7 @@ Leer únicamente la guía relevante antes de actuar; su contenido es obligatorio
 | Next.js, Supabase, RLS, Storage, migraciones o estructura                | `docs/agent-guides/architecture.md`                                                      |
 | Tests, validación, CI o comandos de desarrollo                           | `docs/agent-guides/verification.md`                                                      |
 | Una decisión confirmada, un cambio de alcance o una ambigüedad previa    | `docs/decisions.md`                                                                      |
+| Planificación, fases, dependencias o inicio de implementación del MVP    | `docs/plans/mvp-plan.md` y las guías temáticas que correspondan                          |
 
 No cargar todas las guías por rutina. Si una guía y una instrucción reciente del usuario difieren, prevalece la instrucción reciente y debe actualizarse la documentación durable al cerrar la tarea.
 
@@ -86,8 +87,13 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 
 - Usar `git` CLI para ramas, staging, commits y push; usar `gh` CLI para repositorios, issues, PRs y releases.
 - No usar un MCP de GitHub para operaciones normales de repositorio.
-- El agente puede crear ramas `feat/*`, hacer commits locales y pushear esas ramas después de validar el cambio.
-- Antes de cada commit o acción externa, resumir qué se creará o modificará y su impacto.
+- El agente puede crear ramas `feat/*` y commits locales al finalizar una tarjeta
+  aprobada, después de ejecutar y validar las verificaciones pertinentes.
+- El agente no debe hacer `push` automáticamente. Solo puede pushear una rama
+  cuando el usuario lo solicite explícitamente
+- Antes de cada commit, resumir brevemente los cambios y verificaciones.
+- Antes de cada acción externa, como push, PR, deploy o migración remota,
+  resumir el recurso afectado y esperar aprobación explícita.
 - `main` es la rama estable: no hacer push directo, merge, release, deploy, migraciones remotas ni cambios de configuración de producción sin aprobación explícita.
 - No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni reescritura de historial sin autorización explícita.
 - Usar Conventional Commits.

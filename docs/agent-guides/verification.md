@@ -17,16 +17,17 @@ Una vez configurado el proyecto, los scripts esperados son:
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:integration
 pnpm test:e2e
 pnpm build
 pnpm dev
 ```
 
-Para cambios de esquema, usar los comandos locales definidos por el repositorio; el objetivo será incluir equivalentes a:
+Para cambios de esquema, usar los scripts locales del repositorio:
 
 ```bash
-supabase start
-supabase db reset
+pnpm db:start
+pnpm db:reset
 pnpm db:types
 ```
 
@@ -40,6 +41,7 @@ pnpm db:types
 | Lógica de dominio | test unitario del caso principal, bordes y regresión |
 | Server Action o endpoint | validación de entrada, caso autorizado y denegado |
 | RLS/roles/Storage | policy o integración para cada rol permitido y rechazado |
+| Auth y usuarios | creación exclusiva de Super admin, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin |
 | Migración | reset local, tipos generados y prueba del contrato afectado |
 | Caja/pago/anulación | atomicidad, idempotencia, estado abierto/cerrado y auditoría |
 | Kanban | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor |
@@ -54,3 +56,4 @@ pnpm db:types
 
 Una tarea no está terminada si deja una migración sin tipos, un bypass conocido de permisos, un error silencioso o una verificación crítica omitida sin explicación.
 
+Para administración de usuarios, verificar además que Admin no pueda crear cuentas ni asignar o restablecer credenciales, que solo pueda cambiar roles entre Atención y Empleado, y que una contraseña temporal o restablecida no habilite el resto de la aplicación hasta ser reemplazada por el usuario.
