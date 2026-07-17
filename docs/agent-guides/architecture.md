@@ -53,6 +53,9 @@ No crear una capa, carpeta o patrón nuevo solo por simetría. Si el repositorio
 - Un restablecimiento de contraseña realizado por Super admin vuelve a activar la obligación de cambio.
 - Toda policy y función de negocio debe comprobar que el perfil está activo. No alcanza con cerrar u ocultar la navegación del usuario desactivado.
 - Las operaciones de roles deben impedir la autoelevación y conservar al menos un `super_admin` activo.
+- El bootstrap del primer Super admin es un script administrativo manual, separado de las rutas de la aplicación. Puede usar una clave privilegiada solo en proceso server-side y nunca debe incluirla en variables públicas, migraciones o logs.
+- El script crea Auth y perfil con `role = 'super_admin'`, `is_active = true` y `must_change_password = true`; debe informar y permitir reparación explícita ante fallos parciales entre ambos sistemas.
+- Las cuentas creadas por bootstrap se confirman automáticamente. No se agrega confirmación por email ni recuperación pública en M1.
 
 ## Operaciones sensibles
 

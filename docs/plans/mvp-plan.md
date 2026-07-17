@@ -33,6 +33,10 @@ El formulario público, pagos automáticos, cuenta corriente, proveedores, repor
 - No se puede desactivar o degradar al último Super admin activo.
 - Un usuario desactivado pierde acceso a los datos protegidos aunque conserve una sesión previa.
 - No hay registro público.
+- El primer Super admin de cada entorno se crea mediante un script administrativo manual ejecutado por un desarrollador autorizado, como excepción inicial documentada.
+- El bootstrap crea Auth y perfil con `role = 'super_admin'`, `is_active = true`, `must_change_password = true` y email confirmado automáticamente.
+- El bootstrap usa una clave privilegiada solo en ejecución server-side; recibe credenciales por variable de entorno o entrada interactiva y nunca las persiste ni registra.
+- Un fallo parcial informa el estado y permite reparar el perfil o limpiar Auth con confirmación explícita. Solo hay un Super admin sintético local; las cuentas reales remotas exigen autorización.
 
 Las contraseñas no se guardan en tablas de aplicación, auditorías ni logs. Supabase Auth es la única fuente de credenciales.
 
@@ -180,7 +184,7 @@ Las operaciones reintentables reciben una clave de idempotencia. Las funciones s
 | Fase | Entregable | Dependencias | Evidencia mínima | Terminado cuando |
 | --- | --- | --- | --- | --- |
 | 0 | Scaffold reproducible | Ninguna | Reset local, lint, typecheck, unit, build y smoke E2E | Un desarrollador levanta app y Supabase desde cero |
-| 1 | Login y usuarios internos | Fase 0 | Matriz de Auth/RLS, contraseña temporal, usuario inactivo | Las cuentas operan solo dentro de su autoridad |
+| 1 | Login y usuarios internos | Fase 0 | Matriz de Auth/RLS, bootstrap, contraseña temporal, usuario inactivo | Las cuentas operan solo dentro de su autoridad |
 | 2 | Alta de pedido y Kanban no financiero | Fase 1 y decisiones de pedido | Creación, denegaciones, movimientos, auditoría y rollback UI | Un pedido recorre etapas productivas; `paid` sigue protegido |
 | 3 | Detalle, comentarios, imagen y etapas | Fase 2 | RLS, Storage, accesibilidad y referencias históricas | El equipo colabora sin romper semántica ni historial |
 | 4 | Caja y movimientos manuales | Fase 1 y decisiones de caja | Día Córdoba, caja abierta/cerrada, roles y cálculo exacto | La caja diaria es operable y auditable |
@@ -278,7 +282,7 @@ Nombre: `Digraf - MVP operativo`
 | ID | Tarjeta | Dependencias | Checklist específico resumido |
 | --- | --- | --- | --- |
 | M0 | Scaffold reproducible | Ninguna | Next/pnpm; Supabase local; env/gitignore; scripts; CI/smoke |
-| M1 | Login, sesión y perfil activo | M0 | Perfil; contraseña temporal; cambio obligatorio; usuario inactivo; navegación protegida |
+| M1 | Login, sesión y perfil activo | M0 | Perfil; bootstrap; contraseña temporal; cambio obligatorio; usuario inactivo; navegación protegida |
 | M2 | Gestión segura de usuarios | M1 | Alta exclusiva Super admin; roles; desactivación; restablecimiento; auditoría |
 | M3 | Catálogos y alta manual de pedido | M2, D-02, D-05 | Catálogos; moldes separados; formulario; importes; etapa inicial |
 | M4 | Kanban y movimientos auditados | M3 | Etapas; dnd-kit; alternativa accesible; historial; rollback optimista |

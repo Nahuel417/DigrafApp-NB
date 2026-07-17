@@ -29,6 +29,16 @@ Nadie puede elevar su propio privilegio. Admin solo puede cambiar roles entre `a
 
 Las contraseñas se almacenan únicamente en Supabase Auth y nunca en perfiles, auditorías o logs. Toda autorización debe exigir un perfil activo para bloquear a un usuario desactivado aunque conserve una sesión previa.
 
+## Bootstrap inicial
+
+La primera cuenta `super_admin` de cada entorno es una excepción inicial: un desarrollador autorizado la crea mediante un script administrativo manual. El script crea el usuario en Supabase Auth y el perfil asociado con `role = 'super_admin'`, `is_active = true` y `must_change_password = true`.
+
+- Recibe email y contraseña temporal por variables de entorno o entrada interactiva; nunca los persiste en Git, migraciones, perfiles, auditorías o logs.
+- Usa una clave privilegiada solo durante la ejecución administrativa server-side; nunca llega al navegador ni a variables públicas.
+- Confirma el email automáticamente. M1 no implementa confirmación por email ni recuperación pública.
+- Ante un fallo parcial, informa el `user_id` y el estado de Auth/perfil. La reparación debe reintentar el perfil o eliminar el usuario Auth únicamente con confirmación explícita; no debe ocultar usuarios huérfanos.
+- Solo se crea un Super admin sintético en el entorno local de pruebas. Crear usuarios reales en desarrollo remoto o producción exige autorización explícita.
+
 ## Pedidos y tablero
 
 Un pedido se representa como tarjeta Kanban. Se puede crear manualmente por Admin/Super admin.

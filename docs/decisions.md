@@ -10,6 +10,7 @@ Este documento registra decisiones confirmadas. Actualizarlo cuando se cierre un
 | Cuentas internas       | Confirmada       | Solo Super admin crea cuentas y credenciales. Define el email y una contraseña temporal que el usuario debe cambiar en su primer ingreso; no hay registro público interno.                                                                          |
 | Gestión de credenciales | Confirmada      | Super admin puede activar, desactivar y restablecer la contraseña de cualquier usuario. Un restablecimiento vuelve a exigir cambio de contraseña. Admin no crea cuentas ni asigna o restablece credenciales.                                       |
 | Cambios de rol         | Confirmada       | Admin puede cambiar roles únicamente entre Atención y Empleado y puede desactivar esos usuarios. Nadie puede elevar su propio privilegio y no se puede desactivar o degradar al último Super admin activo.                                           |
+| Bootstrap Super admin  | Confirmada       | El primer Super admin de cada entorno lo crea manualmente un desarrollador autorizado, como excepción inicial documentada. Crea Auth y perfil `super_admin` activo con cambio obligatorio de contraseña; los usuarios reales remotos requieren autorización explícita. |
 | Cliente                | Confirmada       | En MVP es solo un nombre de texto en el pedido.                                                                                                                                                                                                     |
 | Tablero                | Confirmada       | Kanban estilo Trello.                                                                                                                                                                                                                               |
 | Imágenes               | Confirmada       | Una imagen vigente por pedido en MVP.                                                                                                                                                                                                               |
@@ -23,6 +24,8 @@ Este documento registra decisiones confirmadas. Actualizarlo cuando se cierre un
 | Cotizador interno      | Confirmada       | Admin y Atención pueden cotizar. Solo Super admin administra precios. Calcula productos unitarios por cantidad, adicionales TPU y banderas desde una base de 1 m × 1,5 m. Genera PDF descargable sin historial ni persistencia de cotizaciones/PDF. |
 
 Las contraseñas pertenecen exclusivamente a Supabase Auth: no se guardan en perfiles, tablas de auditoría ni logs de la aplicación. La desactivación debe cortar el acceso a datos protegidos aunque el usuario conserve una sesión previa.
+
+El bootstrap administrativo recibe credenciales por variables de entorno o entrada interactiva, las comunica fuera de la aplicación y usa una clave privilegiada solo en ejecución server-side. Las cuentas creadas por este flujo se confirman automáticamente; no hay confirmación por email ni recuperación pública en M1. Si Auth y perfil quedan desincronizados, el procedimiento debe informar el estado y permitir reparar el perfil o limpiar Auth con confirmación explícita, sin ocultar huérfanos.
 
 ## Preguntas abiertas no bloqueantes
 

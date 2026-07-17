@@ -41,7 +41,7 @@ pnpm db:types
 | Lógica de dominio | test unitario del caso principal, bordes y regresión |
 | Server Action o endpoint | validación de entrada, caso autorizado y denegado |
 | RLS/roles/Storage | policy o integración para cada rol permitido y rechazado |
-| Auth y usuarios | creación exclusiva de Super admin, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin |
+| Auth y usuarios | creación exclusiva de Super admin, bootstrap inicial, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin |
 | Migración | reset local, tipos generados y prueba del contrato afectado |
 | Caja/pago/anulación | atomicidad, idempotencia, estado abierto/cerrado y auditoría |
 | Kanban | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor |
@@ -57,3 +57,5 @@ pnpm db:types
 Una tarea no está terminada si deja una migración sin tipos, un bypass conocido de permisos, un error silencioso o una verificación crítica omitida sin explicación.
 
 Para administración de usuarios, verificar además que Admin no pueda crear cuentas ni asignar o restablecer credenciales, que solo pueda cambiar roles entre Atención y Empleado, y que una contraseña temporal o restablecida no habilite el resto de la aplicación hasta ser reemplazada por el usuario.
+
+Para bootstrap, probar localmente la creación de Auth y perfil, el email confirmado, `must_change_password`, la ausencia de secretos en salida y el reporte de fallo parcial. La limpieza de un usuario Auth huérfano debe requerir confirmación explícita. No crear usuarios reales remotos como parte de pruebas automáticas.
