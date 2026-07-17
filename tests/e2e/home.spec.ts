@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("loads the Digraf technical shell", async ({ page }) => {
+test("redirects anonymous visitors to login", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Digraf" })).toBeVisible();
-  await expect(page.getByText("Scaffold operativo")).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Ingresar" })).toBeVisible();
 });

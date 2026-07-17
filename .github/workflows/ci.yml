@@ -40,7 +40,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:start
       - run: pnpm db:reset
-      - run: pnpm test:integration
+      - run: |
+          eval "$(pnpm exec supabase status -o env)"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          export SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          pnpm test:integration
       - run: pnpm db:types
       - run: git diff --exit-code -- src/lib/supabase/database.types.ts
       - if: always()
@@ -60,4 +65,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: |
+          pnpm db:start
+          pnpm db:reset
+          eval "$(pnpm exec supabase status -o env)"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          pnpm test:e2e
+      - if: always()
+        run: pnpm db:stop

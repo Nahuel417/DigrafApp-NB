@@ -139,3 +139,6 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 - Mantener este archivo corto, concreto y libre de duplicaciones; las reglas detalladas pertenecen a las guías enlazadas.
 - Tras descubrir una fricción repetida, proponer el cambio mínimo en la guía o skill adecuada.
 - No agregar reglas universales por una excepción local; usar una guía, skill o agente especializado.
+- Al cerrar una tarea, si se confirmó una decisión, regla, comando, limitación
+  o aprendizaje reutilizable, actualizar el documento durable correspondiente.
+  No documentar detalles transitorios ni duplicar información.
