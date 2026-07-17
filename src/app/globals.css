@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #f3f0e8;
+  --foreground: #18201c;
+  --surface: #fffdf7;
+  --muted: #667069;
+  --accent: #b93820;
+  --border: #d7d1c3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(90deg, rgb(24 32 28 / 4%) 1px, transparent 1px),
+    linear-gradient(rgb(24 32 28 / 4%) 1px, transparent 1px),
+    var(--background);
+  background-size: 28px 28px;
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}

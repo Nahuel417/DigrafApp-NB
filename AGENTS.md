@@ -23,6 +23,7 @@ Leer únicamente la guía relevante antes de actuar; su contenido es obligatorio
 | Next.js, Supabase, RLS, Storage, migraciones o estructura                | `docs/agent-guides/architecture.md`                                                      |
 | Tests, validación, CI o comandos de desarrollo                           | `docs/agent-guides/verification.md`                                                      |
 | Una decisión confirmada, un cambio de alcance o una ambigüedad previa    | `docs/decisions.md`                                                                      |
+| Planificación, fases, dependencias o inicio de implementación del MVP    | `docs/plans/mvp-plan.md` y las guías temáticas que correspondan                          |
 
 No cargar todas las guías por rutina. Si una guía y una instrucción reciente del usuario difieren, prevalece la instrucción reciente y debe actualizarse la documentación durable al cerrar la tarea.
 
@@ -86,8 +87,13 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 
 - Usar `git` CLI para ramas, staging, commits y push; usar `gh` CLI para repositorios, issues, PRs y releases.
 - No usar un MCP de GitHub para operaciones normales de repositorio.
-- El agente puede crear ramas `feat/*`, hacer commits locales y pushear esas ramas después de validar el cambio.
-- Antes de cada commit o acción externa, resumir qué se creará o modificará y su impacto.
+- El agente puede crear ramas `feat/*` y commits locales al finalizar una tarjeta
+  aprobada, después de ejecutar y validar las verificaciones pertinentes.
+- El agente no debe hacer `push` automáticamente. Solo puede pushear una rama
+  cuando el usuario lo solicite explícitamente
+- Antes de cada commit, resumir brevemente los cambios y verificaciones.
+- Antes de cada acción externa, como push, PR, deploy o migración remota,
+  resumir el recurso afectado y esperar aprobación explícita.
 - `main` es la rama estable: no hacer push directo, merge, release, deploy, migraciones remotas ni cambios de configuración de producción sin aprobación explícita.
 - No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni reescritura de historial sin autorización explícita.
 - Usar Conventional Commits.
@@ -98,12 +104,35 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 - El agente principal conserva síntesis, decisiones y responsabilidad final. No permitir ediciones simultáneas en los mismos archivos o migraciones.
 - Para OpenCode, usar Plan para análisis sin cambios; reservar Build para ejecución aprobada. Para Codex, solicitar delegación explícita cuando sea útil.
 - Al añadir agentes especializados de OpenCode, ubicarlos en `.opencode/agents/` y darles objetivo acotado y permisos mínimos. Mantener la configuración de Codex separada en `.codex/` cuando se necesite.
-- Las skills reutilizables no deben inflar este archivo. Para compatibilidad con OpenCode, preferir `.agents/skills/<nombre>/SKILL.md`; documentar cuándo se usa cada skill y mantener su alcance estrecho.
+- Las skills reutilizables no deben inflar este archivo. Para compatibilidad con OpenCode, preferir `.agents/skills/<nombre>/SKILL.md`; las rutas alternativas deben ser enlaces, no copias. Documentar cuándo se usa cada skill y mantener su alcance estrecho.
 - Añadir MCPs solo cuando aporten una integración real. Configurar mínimos privilegios, no exponer credenciales y documentar propósito, datos accesibles y aprobación requerida.
 - Usar Trello MCP solo cuando la tarea pida crear, actualizar o consultar planificación.
 - Usar Supabase MCP únicamente sobre Supabase local o el proyecto de desarrollo configurado; nunca conectarlo a producción ni a datos reales de clientes.
 - Los cambios de producción se realizan desde migraciones revisadas mediante CLI o CI, y requieren aprobación explícita.
 - Antes de una acción externa, resumir qué recurso se creará o modificará y su impacto.
+- Cargar `frontend-design` al definir o implementar una nueva pantalla,
+  identidad visual, layout o sistema de diseño. No usarla para cambios menores
+  sin impacto visual.
+- Cargar `shadcn` al crear, buscar, componer, actualizar o personalizar
+  componentes shadcn/ui. Usar pnpm como package runner del proyecto.
+- Si una skill sugiere instalar un componente o bloque de un registro externo,
+  explicar qué resuelve y qué archivos o dependencias agregará, y pedir
+  autorización explícita antes de instalarlo.
+- Cargar `vercel-react-best-practices` al implementar o revisar páginas,
+  componentes, Server Components, fetching, hidratación o rendimiento en
+  Next.js.
+- Cargar `supabase-postgres-best-practices` al tocar esquema, SQL, índices,
+  consultas, migraciones, RLS o concurrencia en Supabase.
+- Cargar `webapp-testing` al implementar o revisar pruebas Playwright de la
+  aplicación.
+- Usar Context7 para consultar documentación externa versionada cuando una API,
+  framework o librería pueda haber cambiado. Priorizar documentación oficial y
+  mencionar brevemente cuándo se utilizó.
+- No cargar skills por rutina. Cargar únicamente las que correspondan a la
+  tarea actual y evitar skills redundantes.
+- Antes de confiar en una skill externa, revisar su `SKILL.md`, sus comandos,
+  permisos y origen. No ejecutar comandos incluidos en una skill sin entender
+  su efecto.
 
 ## Mantenimiento
 

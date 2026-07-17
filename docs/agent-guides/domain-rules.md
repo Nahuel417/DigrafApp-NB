@@ -7,8 +7,11 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Capacidad | Super admin | Admin | Atención | Empleado |
 | --- | ---: | ---: | ---: | ---: |
 | Control técnico total | Sí | No | No | No |
-| Crear/desactivar cualquier usuario | Sí | No | No | No |
-| Crear/desactivar Atención y Empleado | Sí | Sí | No | No |
+| Crear cuenta y asignar contraseña temporal | Sí | No | No | No |
+| Activar/desactivar cualquier usuario | Sí | No | No | No |
+| Desactivar Atención y Empleado | Sí | Sí | No | No |
+| Cambiar rol entre Atención y Empleado | Sí | Sí | No | No |
+| Restablecer contraseña de cualquier usuario | Sí | No | No | No |
 | Crear pedido manual | Sí | Sí | No | No |
 | Administrar etapas y catálogos | Sí | Sí | No | No |
 | Mover pedido | Sí | Sí | Sí | Sí, excepto Pagado |
@@ -19,6 +22,22 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Editar datos sensibles | Sí | Sí | No | No |
 
 `super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
+
+Solo Super admin crea credenciales. Define el email y una contraseña temporal, la comunica fuera de la aplicación y el usuario debe cambiarla en su primer ingreso. Super admin puede restablecer la contraseña de cualquier cuenta; cada restablecimiento vuelve a exigir el cambio en el siguiente ingreso. Admin no crea cuentas ni asigna o restablece contraseñas.
+
+Nadie puede elevar su propio privilegio. Admin solo puede cambiar roles entre `attention` y `employee` y desactivar usuarios con esos roles. Super admin puede administrar cualquier rol, pero el sistema debe impedir desactivar o degradar al último `super_admin` activo.
+
+Las contraseñas se almacenan únicamente en Supabase Auth y nunca en perfiles, auditorías o logs. Toda autorización debe exigir un perfil activo para bloquear a un usuario desactivado aunque conserve una sesión previa.
+
+## Bootstrap inicial
+
+La primera cuenta `super_admin` de cada entorno es una excepción inicial: un desarrollador autorizado la crea mediante un script administrativo manual. El script crea el usuario en Supabase Auth y el perfil asociado con `role = 'super_admin'`, `is_active = true` y `must_change_password = true`.
+
+- Recibe email y contraseña temporal por variables de entorno o entrada interactiva; nunca los persiste en Git, migraciones, perfiles, auditorías o logs.
+- Usa una clave privilegiada solo durante la ejecución administrativa server-side; nunca llega al navegador ni a variables públicas.
+- Confirma el email automáticamente. M1 no implementa confirmación por email ni recuperación pública.
+- Ante un fallo parcial, informa el `user_id` y el estado de Auth/perfil. La reparación debe reintentar el perfil o eliminar el usuario Auth únicamente con confirmación explícita; no debe ocultar usuarios huérfanos.
+- Solo se crea un Super admin sintético en el entorno local de pruebas. Crear usuarios reales en desarrollo remoto o producción exige autorización explícita.
 
 ## Pedidos y tablero
 
@@ -111,4 +130,3 @@ No implementar sin aprobación explícita:
 - Cuenta corriente de clientes.
 - Proveedores y cuentas por pagar.
 - Reportes avanzados, gráficos o exportaciones.
-
