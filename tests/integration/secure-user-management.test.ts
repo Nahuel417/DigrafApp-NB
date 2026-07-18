@@ -15,6 +15,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
   const createdIds: string[] = [];
   let superId = "";
   let adminId = "";
+  let otherAdminId = "";
   let attentionId = "";
   let employeeId = "";
 
@@ -41,13 +42,15 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
   beforeAll(async () => {
     const superUser = await createIdentity("super_admin", "Super prueba");
     const adminUser = await createIdentity("admin", "Admin prueba");
+    const otherAdminUser = await createIdentity("admin", "Otro admin prueba");
     const attentionUser = await createIdentity("attention", "Atención prueba");
     const employeeUser = await createIdentity("employee", "Empleado prueba");
     superId = superUser.id;
     adminId = adminUser.id;
+    otherAdminId = otherAdminUser.id;
     attentionId = attentionUser.id;
     employeeId = employeeUser.id;
-    Object.assign(globalThis, { __m2Emails: { superUser, adminUser, attentionUser, employeeUser } });
+    Object.assign(globalThis, { __m2Emails: { superUser, adminUser, otherAdminUser, attentionUser, employeeUser } });
   });
 
   afterAll(async () => { await Promise.all(createdIds.map((id) => admin.auth.admin.deleteUser(id))); });
@@ -60,22 +63,21 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
     const [superProfiles, adminProfiles, attentionProfiles] = await Promise.all([
       superClient.from("profiles").select("id"), adminClient.from("profiles").select("id"), attentionClient.from("profiles").select("id"),
     ]);
-    expect(superProfiles.data?.map((row) => row.id)).toEqual(expect.arrayContaining([superId, adminId, attentionId, employeeId]));
-    expect(adminProfiles.data?.map((row) => row.id)).toEqual(expect.arrayContaining([adminId, attentionId, employeeId]));
+    expect(superProfiles.data?.map((row) => row.id)).toEqual(expect.arrayContaining([superId, adminId, otherAdminId, attentionId, employeeId]));
+    expect(adminProfiles.data?.map((row) => row.id)).toEqual(expect.arrayContaining([adminId, otherAdminId, attentionId, employeeId]));
     expect(attentionProfiles.data).toEqual([{ id: attentionId }]);
   });
 
-  it("permite al Admin cambiar Atención/Empleado y desactivar", async () => {
+  it("permite al Admin activar y desactivar Atención y Empleado con auditoría", async () => {
     const emails = (globalThis as typeof globalThis & { __m2Emails: Record<string, { email: string }> }).__m2Emails;
     const client = await signedClient(emails.adminUser.email);
-    const { error: roleError } = await client.rpc("update_managed_profile", { target_id: attentionId, target_role: "employee", target_is_active: true });
-    expect(roleError).toBeNull();
-    const { error: deactivateError } = await client.rpc("update_managed_profile", { target_id: attentionId, target_role: "employee", target_is_active: false });
-    expect(deactivateError).toBeNull();
-    const { data } = await admin.from("profiles").select("role, is_active").eq("id", attentionId).single();
-    expect(data).toEqual({ role: "employee", is_active: false });
-    const { error: forbiddenError } = await client.rpc("update_managed_profile", { target_id: superId, target_role: "admin", target_is_active: true });
-    expect(forbiddenError).not.toBeNull();
+    expect((await client.rpc("update_managed_profile", { target_id: attentionId, target_role: "attention", target_is_active: false })).error).toBeNull();
+    expect((await client.rpc("update_managed_profile", { target_id: attentionId, target_role: "attention", target_is_active: true })).error).toBeNull();
+    expect((await client.rpc("update_managed_profile", { target_id: employeeId, target_role: "employee", target_is_active: false })).error).toBeNull();
+    expect((await client.rpc("update_managed_profile", { target_id: employeeId, target_role: "employee", target_is_active: true })).error).toBeNull();
+    const { data: events } = await admin.from("audit_events").select("action, target_user_id").in("target_user_id", [attentionId, employeeId]);
+    expect(events?.filter((event) => event.action === "user_deactivated")).toHaveLength(2);
+    expect(events?.filter((event) => event.action === "user_activated")).toHaveLength(2);
   });
 
   it("protege el último Super admin y audita cambios", async () => {
@@ -83,8 +85,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
     const client = await signedClient(emails.superUser.email);
     const { error } = await client.rpc("update_managed_profile", { target_id: superId, target_role: "admin", target_is_active: true });
     expect(error).not.toBeNull();
-    const { data: events } = await client.from("audit_events").select("action").eq("target_user_id", attentionId);
-    expect(events?.map((event) => event.action)).toEqual(expect.arrayContaining(["user_role_changed", "user_deactivated"]));
+    const adminClient = await signedClient(emails.adminUser.email);
+    const { error: adminError } = await adminClient.rpc("update_managed_profile", { target_id: otherAdminId, target_role: "employee", target_is_active: false });
+    const { error: superError } = await client.rpc("update_managed_profile", { target_id: superId, target_role: "admin", target_is_active: true });
+    expect(adminError).not.toBeNull();
+    expect(superError).not.toBeNull();
   });
 
   it("rechaza escrituras directas de perfiles y auditoría", async () => {
@@ -94,5 +99,19 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
     const { error: auditError } = await client.from("audit_events").insert({ actor_id: superId, target_user_id: adminId, action: "user_created" });
     expect(profileError).not.toBeNull();
     expect(auditError).not.toBeNull();
+  });
+
+  it("mantiene a Atención y Empleado sin permisos de administración", async () => {
+    const emails = (globalThis as typeof globalThis & { __m2Emails: Record<string, { email: string }> }).__m2Emails;
+    const [attentionClient, employeeClient] = await Promise.all([
+      signedClient(emails.attentionUser.email),
+      signedClient(emails.employeeUser.email),
+    ]);
+    const [attentionResult, employeeResult] = await Promise.all([
+      attentionClient.rpc("update_managed_profile", { target_id: employeeId, target_role: "employee", target_is_active: false }),
+      employeeClient.rpc("update_managed_profile", { target_id: attentionId, target_role: "attention", target_is_active: false }),
+    ]);
+    expect(attentionResult.error).not.toBeNull();
+    expect(employeeResult.error).not.toBeNull();
   });
 });

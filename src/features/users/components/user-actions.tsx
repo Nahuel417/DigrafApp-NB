@@ -15,9 +15,14 @@ type UserActionsProps = {
 export function UserActions({ currentRole, user }: UserActionsProps) {
   const [updateState, updateAction] = useActionState(updateUserAction, initialState);
   const [resetState, resetAction] = useActionState(resetPasswordAction, initialState);
+  const canManage = currentRole === "super_admin" || (currentRole === "admin" && (user.role === "attention" || user.role === "employee"));
   const allowedRoles = currentRole === "admin" ? appRoles.filter((role) => role === "attention" || role === "employee") : appRoles;
   const canReset = currentRole === "super_admin";
-  const canActivate = currentRole === "super_admin";
+  const canActivate = canManage;
+
+  if (!canManage) {
+    return <p className="text-xs text-[var(--muted)]">Solo lectura</p>;
+  }
 
   return (
     <div className="flex flex-col gap-2">
