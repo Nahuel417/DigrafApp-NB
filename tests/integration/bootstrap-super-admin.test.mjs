@@ -24,11 +24,13 @@ describe.skipIf(!url || !serviceRoleKey)("Bootstrap de Super admin", () => {
     await Promise.all([...createdUserIds].map((id) => admin.auth.admin.deleteUser(id)));
     createdUserIds.clear();
     delete process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    delete process.env.BOOTSTRAP_SUPER_ADMIN_NAME;
     delete process.env.BOOTSTRAP_SUPER_ADMIN_PASSWORD;
   });
 
   it("crea Auth confirmado y perfil sin exponer secretos", async () => {
     process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL = `bootstrap-${runId}@digraf.local`;
+    process.env.BOOTSTRAP_SUPER_ADMIN_NAME = "Super admin de prueba";
     process.env.BOOTSTRAP_SUPER_ADMIN_PASSWORD = temporaryPassword;
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -106,6 +108,7 @@ describe.skipIf(!url || !serviceRoleKey)("Bootstrap de Super admin", () => {
 
   it("informa el user_id y opciones ante un fallo parcial sin mostrar secretos", async () => {
     process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL = `partial-bootstrap-${runId}@digraf.local`;
+    process.env.BOOTSTRAP_SUPER_ADMIN_NAME = "Super admin parcial";
     process.env.BOOTSTRAP_SUPER_ADMIN_PASSWORD = temporaryPassword;
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const userId = "00000000-0000-4000-8000-000000000001";

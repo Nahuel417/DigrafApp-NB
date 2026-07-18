@@ -11,7 +11,9 @@ export default async function AppLayout({ children }: Readonly<{ children: React
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-[var(--accent)]">
             Digraf interno
           </p>
-          <p className="mt-1 text-sm text-[var(--muted)]">{profile.role.replace("_", " ")}</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {profile.displayName} · {profile.role.replace("_", " ")}
+          </p>
         </div>
         <form action={logoutAction}>
           <button

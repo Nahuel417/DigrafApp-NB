@@ -39,6 +39,7 @@ Con Supabase local iniciado, definir credenciales sintéticas únicas en `.env.l
 
 ```bash
 BOOTSTRAP_SUPER_ADMIN_EMAIL=<email-sintetico-local> \
+BOOTSTRAP_SUPER_ADMIN_NAME=<nombre-descriptivo> \
 BOOTSTRAP_SUPER_ADMIN_PASSWORD=<contrasena-sintetica-local> \
 pnpm bootstrap:super-admin
 ```

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export type CurrentProfile = {
   id: string;
+  displayName: string;
   role: "super_admin" | "admin" | "attention" | "employee";
   mustChangePassword: boolean;
 };
@@ -20,7 +21,7 @@ export const getCurrentProfile = cache(async (): Promise<CurrentProfile | null> 
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, role, must_change_password")
+    .select("id, display_name, role, must_change_password")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -30,6 +31,7 @@ export const getCurrentProfile = cache(async (): Promise<CurrentProfile | null> 
 
   return {
     id: profile.id,
+    displayName: profile.display_name,
     role: profile.role,
     mustChangePassword: profile.must_change_password,
   };

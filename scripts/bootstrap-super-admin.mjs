@@ -8,6 +8,7 @@ const passwordSchema = z
   .regex(/\d/, "La contraseña debe incluir al menos un número.");
 
 const emailSchema = z.string().trim().email("Ingresá un email válido.");
+const displayNameSchema = z.string().trim().min(2).max(100);
 const role = "super_admin";
 
 function readArgument(name) {
@@ -64,6 +65,10 @@ function getMode() {
 
 export async function createSuperAdmin(admin) {
   const email = parseOrThrow(emailSchema, process.env.BOOTSTRAP_SUPER_ADMIN_EMAIL);
+  const displayName = parseOrThrow(
+    displayNameSchema,
+    process.env.BOOTSTRAP_SUPER_ADMIN_NAME,
+  );
   const password = parseOrThrow(passwordSchema, process.env.BOOTSTRAP_SUPER_ADMIN_PASSWORD);
 
   const { count, error: countError } = await admin
@@ -91,6 +96,7 @@ export async function createSuperAdmin(admin) {
 
   const { error: profileError } = await admin.from("profiles").insert({
     id: authData.user.id,
+    display_name: displayName,
     role,
     is_active: true,
     must_change_password: true,
@@ -126,6 +132,7 @@ export async function repairProfile(admin, requestedUserId) {
 
   const { error } = await admin.from("profiles").insert({
     id: authData.user.id,
+    display_name: "Super admin reparado",
     role,
     is_active: true,
     must_change_password: true,
