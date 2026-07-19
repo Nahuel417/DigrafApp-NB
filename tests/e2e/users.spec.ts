@@ -18,6 +18,7 @@ test("Super admin crea un usuario desde la gestión interna", async ({ page }) =
   const admin = adminClient();
   const managerEmail = `manager-${randomUUID()}@digraf.local`;
   const newUserEmail = `new-user-${randomUUID()}@digraf.local`;
+  const newUserName = `Operario de prueba ${randomUUID().slice(0, 8)}`;
   const { data, error } = await admin.auth.admin.createUser({ email: managerEmail, password, email_confirm: true });
   if (error || !data.user) throw new Error("No se pudo crear el Super admin E2E.");
 
@@ -38,12 +39,34 @@ test("Super admin crea un usuario desde la gestión interna", async ({ page }) =
     await page.goto("/users");
     await expect(page.getByRole("heading", { name: "Usuarios" })).toBeVisible();
 
-    await page.getByLabel("Nombre descriptivo").fill("Operario de prueba");
+    await page.getByLabel("Nombre descriptivo").fill(newUserName);
     await page.getByLabel("Email").last().fill(newUserEmail);
-    await page.getByLabel("Contraseña temporal").fill(`Temp${randomUUID().replaceAll("-", "")}7`);
+    await page.getByLabel("Contraseña temporal", { exact: true }).fill(`Temp${randomUUID().replaceAll("-", "")}7`);
+    const createForm = page.getByRole("heading", { name: "Nuevo usuario" }).locator("xpath=ancestor::form");
+    await createForm.getByRole("combobox", { name: "Rol" }).click();
+    await page.getByRole("option", { name: "Admin", exact: true }).click();
     await page.getByRole("button", { name: "Crear usuario" }).click();
-    await expect(page.getByText("Usuario creado. Comunicá la contraseña temporal por un canal seguro.")).toBeVisible();
-    await expect(page.getByText("Operario de prueba").first()).toBeVisible();
+    await expect(page.getByRole("alertdialog", { name: "Confirmar creación de usuario" })).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toContainText(`${newUserName} (${newUserEmail})`);
+    await expect(page.getByRole("alertdialog")).toContainText("rol Admin");
+    await page.getByRole("button", { name: "Confirmar creación" }).click();
+    await expect(page.getByText("Usuario creado. Comunicá la contraseña temporal por un canal seguro.").first()).toBeVisible();
+    await expect(page.getByText(newUserName).first()).toBeVisible();
+    await expect(createForm.getByRole("combobox", { name: "Rol" })).toHaveText("Empleado");
+
+    const row = page.getByText(newUserName).locator("xpath=ancestor::tr");
+    await row.getByRole("combobox", { name: `Rol de ${newUserName}` }).click();
+    await page.getByRole("option", { name: "Atención" }).click();
+    await row.getByRole("button", { name: `Guardar rol de ${newUserName}` }).click();
+    await expect(page.getByRole("alertdialog", { name: "Confirmar cambio de rol" })).toBeVisible();
+    await page.getByRole("button", { name: "Confirmar cambio" }).click();
+    await expect(page.getByText("Rol actualizado correctamente.").first()).toBeVisible();
+
+    await row.getByLabel(`Nueva contraseña temporal para ${newUserName}`).fill(`Reset${randomUUID().replaceAll("-", "")}8`);
+    await row.getByRole("button", { name: `Restablecer contraseña de ${newUserName}` }).click();
+    await expect(page.getByRole("alertdialog", { name: "Confirmar restablecimiento" })).toBeVisible();
+    await page.getByRole("button", { name: "Confirmar restablecimiento" }).click();
+    await expect(page.getByText("Contraseña restablecida. Comunicá la temporal por un canal seguro.").first()).toBeVisible();
   } finally {
     const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const created = users.users.find((user) => user.email === newUserEmail);
@@ -88,10 +111,24 @@ test("Admin visualiza otros Admin y activa o desactiva personal operativo", asyn
 
     for (const name of [attentionName, employeeName]) {
       const row = page.getByText(name).locator("xpath=ancestor::tr");
-      await row.getByRole("button", { name: "Desactivar", exact: true }).click();
-      await expect(row.getByRole("button", { name: "Activar", exact: true })).toBeVisible();
-      await row.getByRole("button", { name: "Activar", exact: true }).click();
-      await expect(row.getByRole("button", { name: "Desactivar", exact: true })).toBeVisible();
+      const deactivate = row.getByRole("button", { name: `Desactivar a ${name}` });
+      await deactivate.click();
+      await expect(page.getByRole("alertdialog", { name: "Desactivar usuario" })).toBeVisible();
+
+      if (name === attentionName) {
+        await page.getByRole("button", { name: "Cancelar" }).click();
+        await expect(deactivate).toBeFocused();
+        await deactivate.click();
+      }
+
+      await page.getByRole("button", { name: "Confirmar desactivación" }).click();
+      const activate = row.getByRole("button", { name: `Activar a ${name}` });
+      await expect(activate).toBeVisible();
+      await expect(activate).toBeFocused();
+      await activate.click();
+      await expect(page.getByRole("alertdialog", { name: "Activar usuario" })).toBeVisible();
+      await page.getByRole("button", { name: "Confirmar activación" }).click();
+      await expect(row.getByRole("button", { name: `Desactivar a ${name}` })).toBeVisible();
     }
   } finally {
     await Promise.all(users.map((user) => admin.auth.admin.deleteUser(user.id)));

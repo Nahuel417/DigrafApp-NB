@@ -24,6 +24,7 @@ Leer únicamente la guía relevante antes de actuar; su contenido es obligatorio
 | Tests, validación, CI o comandos de desarrollo                           | `docs/agent-guides/verification.md`                                                      |
 | Una decisión confirmada, un cambio de alcance o una ambigüedad previa    | `docs/decisions.md`                                                                      |
 | Planificación, fases, dependencias o inicio de implementación del MVP    | `docs/plans/mvp-plan.md` y las guías temáticas que correspondan                          |
+| UI, UX, responsive, accesibilidad, identidad visual o componentes        | `docs/agent-guides/design-system.md`                                                     |
 
 No cargar todas las guías por rutina. Si una guía y una instrucción reciente del usuario difieren, prevalece la instrucción reciente y debe actualizarse la documentación durable al cerrar la tarea.
 
@@ -133,6 +134,10 @@ La entrega final debe indicar: resultado, archivos relevantes, verificaciones ej
 - Antes de confiar en una skill externa, revisar su `SKILL.md`, sus comandos,
   permisos y origen. No ejecutar comandos incluidos en una skill sin entender
   su efecto.
+    - Delegar en `ui-designer`, ubicado en `.opencode/agents/ui-designer.md`,
+      la planificación o revisión especializada de identidad visual, UX,
+      responsive y accesibilidad cuando la tarea tenga impacto relevante en la
+      interfaz.la implementación y la decisión final permanecen en el agente principal.
 
 ## Mantenimiento
 

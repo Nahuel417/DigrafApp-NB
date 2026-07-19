@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { getCurrentProfile } from "@/lib/auth/current-profile";
+import { mutationResult, type MutationState } from "@/lib/action-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "./schemas";
 
-export type UserActionState = { error?: string; success?: string };
+export type UserActionState = MutationState;
 
 function formValues(formData: FormData) {
   return Object.fromEntries(formData.entries());
@@ -25,15 +26,22 @@ async function currentManager() {
 }
 
 export async function createUserAction(
-  _previous: UserActionState,
+  previous: UserActionState,
   formData: FormData,
 ): Promise<UserActionState> {
+  const failure = (message: string, fieldErrors?: UserActionState["fieldErrors"]) => ({
+    ...mutationResult("error", message, fieldErrors),
+    resetKey: previous.resetKey,
+  });
   const parsed = createUserSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Revisá los datos ingresados.";
+    return failure(message, parsed.error.flatten().fieldErrors);
+  }
 
   const actor = await currentManager();
   if (!actor || actor.role !== "super_admin") {
-    return { error: "No tenés permiso para crear usuarios." };
+    return failure("No tenés permiso para crear usuarios.");
   }
 
   const admin = createAdminClient();
@@ -44,7 +52,7 @@ export async function createUserAction(
   });
 
   if (authError || !authData.user) {
-    return { error: "No se pudo crear la cuenta. Verificá que el email no esté en uso." };
+    return failure("No se pudo crear la cuenta. Verificá que el email no esté en uso.");
   }
 
   const supabase = await createClient();
@@ -57,13 +65,16 @@ export async function createUserAction(
   if (profileError) {
     const { error: cleanupError } = await admin.auth.admin.deleteUser(authData.user.id);
     if (cleanupError) {
-      return { error: `La cuenta quedó pendiente de reparación: ${authData.user.id}` };
+      return failure(`La cuenta quedó pendiente de reparación: ${authData.user.id}`);
     }
-    return { error: "No se pudo crear el perfil. La cuenta fue limpiada." };
+    return failure("No se pudo crear el perfil. La cuenta fue limpiada.");
   }
 
   revalidatePath("/users");
-  return { success: "Usuario creado. Comunicá la contraseña temporal por un canal seguro." };
+  return {
+    ...mutationResult("success", "Usuario creado. Comunicá la contraseña temporal por un canal seguro."),
+    resetKey: crypto.randomUUID(),
+  };
 }
 
 export async function updateUserAction(
@@ -71,9 +82,12 @@ export async function updateUserAction(
   formData: FormData,
 ): Promise<UserActionState> {
   const parsed = updateUserSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Revisá el cambio solicitado.";
+    return mutationResult("error", message, parsed.error.flatten().fieldErrors);
+  }
 
-  if (!await currentManager()) return { error: "No tenés permiso para administrar usuarios." };
+  if (!await currentManager()) return mutationResult("error", "No tenés permiso para administrar usuarios.");
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_managed_profile", {
@@ -82,10 +96,19 @@ export async function updateUserAction(
     target_is_active: parsed.data.isActive,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    const knownMessage = [
+      "Debe existir al menos un Super admin activo.",
+      "El usuario seleccionado no existe.",
+      "No tenés permiso para realizar este cambio.",
+      "No tenés permiso para administrar usuarios.",
+    ].find((message) => error.message.includes(message));
+    return mutationResult("error", knownMessage ?? "No se pudo actualizar el usuario. Intentá nuevamente.");
+  }
 
   revalidatePath("/users");
-  return { success: "Usuario actualizado." };
+  if (parsed.data.intent === "role") return mutationResult("success", "Rol actualizado correctamente.");
+  return mutationResult("success", parsed.data.isActive ? "Usuario activado correctamente." : "Usuario desactivado correctamente.");
 }
 
 export async function resetPasswordAction(
@@ -93,18 +116,28 @@ export async function resetPasswordAction(
   formData: FormData,
 ): Promise<UserActionState> {
   const parsed = resetPasswordSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Revisá la contraseña temporal.";
+    return mutationResult("error", message, parsed.error.flatten().fieldErrors);
+  }
 
   const actor = await currentManager();
   if (!actor || actor.role !== "super_admin") {
-    return { error: "No tenés permiso para restablecer contraseñas." };
+    return mutationResult("error", "No tenés permiso para restablecer contraseñas.");
   }
 
   const supabase = await createClient();
   const { error: preparationError } = await supabase.rpc("prepare_password_reset", {
     target_id: parsed.data.userId,
   });
-  if (preparationError) return { error: preparationError.message };
+  if (preparationError) {
+    const message = preparationError.message.includes("El usuario seleccionado no existe.")
+      ? "El usuario seleccionado no existe."
+      : preparationError.message.includes("No tenés permiso")
+        ? "No tenés permiso para restablecer contraseñas."
+        : "No se pudo preparar el restablecimiento. Intentá nuevamente.";
+    return mutationResult("error", message);
+  }
 
   const admin = createAdminClient();
   const { error: authError } = await admin.auth.admin.updateUserById(parsed.data.userId, {
@@ -117,9 +150,9 @@ export async function resetPasswordAction(
   });
 
   if (authError) {
-    return { error: "No se pudo actualizar la contraseña. El usuario permanece bloqueado hasta cambiarla." };
+    return mutationResult("error", "No se pudo actualizar la contraseña. El usuario permanece bloqueado hasta cambiarla.");
   }
 
   revalidatePath("/users");
-  return { success: "Contraseña restablecida. Comunicá la temporal por un canal seguro." };
+  return mutationResult("success", "Contraseña restablecida. Comunicá la temporal por un canal seguro.");
 }

@@ -2,51 +2,60 @@
 
 import { useActionState } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { useMutationToast } from "@/hooks/use-mutation-toast";
+import type { MutationState } from "@/lib/action-state";
+
 import { changePasswordAction } from "../actions";
 import { AuthSubmitButton } from "./auth-submit-button";
 
-const initialState: { error?: string } = {};
+const initialState: MutationState = {};
 
 export function ChangePasswordForm() {
   const [state, formAction] = useActionState(changePasswordAction, initialState);
+  useMutationToast(state);
+  const passwordErrors = state.fieldErrors?.password?.map((message) => ({ message }));
+  const confirmationErrors = state.fieldErrors?.passwordConfirmation?.map((message) => ({ message }));
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-bold" htmlFor="password">
-          Nueva contraseña
-        </label>
-        <input
-          autoComplete="new-password"
-          className="border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-base outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-          id="password"
-          minLength={8}
-          name="password"
-          required
-          type="password"
-        />
-        <p className="text-sm text-[var(--muted)]">
-          Usá al menos 8 caracteres e incluí un número.
-        </p>
-      </div>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-bold" htmlFor="passwordConfirmation">
-          Repetí la nueva contraseña
-        </label>
-        <input
-          autoComplete="new-password"
-          className="border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-base outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-          id="passwordConfirmation"
-          minLength={8}
-          name="passwordConfirmation"
-          required
-          type="password"
-        />
-      </div>
-      {state.error ? (
-        <p aria-live="polite" className="border-l-4 border-[var(--accent)] bg-[var(--background)] px-3 py-2 text-sm">
-          {state.error}
-        </p>
+      <FieldGroup className="gap-5">
+        <Field data-invalid={Boolean(passwordErrors?.length)}>
+          <FieldLabel htmlFor="password">Nueva contraseña</FieldLabel>
+          <Input
+            aria-describedby={passwordErrors?.length ? "new-password-help new-password-error" : "new-password-help"}
+            aria-invalid={Boolean(passwordErrors?.length)}
+            autoComplete="new-password"
+            id="password"
+            minLength={8}
+            name="password"
+            required
+            type="password"
+          />
+          <FieldDescription id="new-password-help">Usá al menos 8 caracteres e incluí un número.</FieldDescription>
+          <FieldError errors={passwordErrors} id="new-password-error" />
+        </Field>
+        <Field data-invalid={Boolean(confirmationErrors?.length)}>
+          <FieldLabel htmlFor="passwordConfirmation">Repetí la nueva contraseña</FieldLabel>
+          <Input
+            aria-describedby={confirmationErrors?.length ? "password-confirmation-error" : undefined}
+            aria-invalid={Boolean(confirmationErrors?.length)}
+            autoComplete="new-password"
+            id="passwordConfirmation"
+            minLength={8}
+            name="passwordConfirmation"
+            required
+            type="password"
+          />
+          <FieldError errors={confirmationErrors} id="password-confirmation-error" />
+        </Field>
+      </FieldGroup>
+      {state.status === "error" && !state.fieldErrors ? (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
       ) : null}
       <AuthSubmitButton idleLabel="Guardar contraseña" pendingLabel="Guardando" />
     </form>

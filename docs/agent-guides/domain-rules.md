@@ -29,6 +29,16 @@ Nadie puede elevar su propio privilegio. Admin solo puede cambiar roles entre `a
 
 Las contraseñas se almacenan únicamente en Supabase Auth y nunca en perfiles, auditorías o logs. Toda autorización debe exigir un perfil activo para bloquear a un usuario desactivado aunque conserve una sesión previa.
 
+## Operaciones sensibles
+
+- Toda acción sensible iniciada desde la interfaz usa dos pasos y confirma mediante `AlertDialog`. Incluye activar o desactivar usuarios, cambiar permisos, restablecer credenciales, anular, eliminar y operaciones equivalentes.
+- La confirmación identifica la entidad afectada, explica la consecuencia y declara si puede revertirse. Una acción destructiva se distingue visualmente de cancelar o continuar.
+- Cerrar el diálogo restaura el foco al disparador. Mientras una mutación está pendiente se impide el doble envío.
+- Toda mutación comunica éxito o error mediante toast accesible. Los errores de campos y resultados que deban releerse permanecen también inline; el toast no los reemplaza.
+- La confirmación de interfaz no sustituye autorización, atomicidad, idempotencia ni auditoría de servidor/base de datos.
+- No se implementan borrados físicos cuando las reglas exigen archivo, anulación, retención o conservación de auditoría. Las eliminaciones expresamente permitidas conservan sus condiciones de dominio.
+- La limpieza compensatoria de una identidad Auth creada durante un fallo parcial no es una eliminación operativa: conserva el contrato específico de bootstrap/creación y no habilita borrado de usuarios administrables.
+
 ## Bootstrap inicial
 
 La primera cuenta `super_admin` de cada entorno es una excepción inicial: un desarrollador autorizado la crea mediante un script administrativo manual. El script crea el usuario en Supabase Auth y el perfil asociado con `role = 'super_admin'`, `is_active = true` y `must_change_password = true`.
