@@ -18,17 +18,18 @@ export async function getManagedUsers() {
   if (!actor || (actor.role !== "super_admin" && actor.role !== "admin")) return null;
 
   const supabase = await createClient();
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("id, display_name, role, is_active, must_change_password")
-    .order("display_name");
-  if (error) throw new Error("No se pudieron cargar los usuarios.");
-
   const admin = createAdminClient();
-  const { data: authData, error: authError } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
+  const [{ data: profiles, error }, { data: authData, error: authError }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, display_name, role, is_active, must_change_password")
+      .order("display_name"),
+    admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    }),
+  ]);
+  if (error) throw new Error("No se pudieron cargar los usuarios.");
   if (authError) throw new Error("No se pudieron cargar los emails de usuarios.");
 
   const emailById = new Map(authData.users.map((user) => [user.id, user.email ?? "Sin email"]));

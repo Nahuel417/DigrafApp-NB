@@ -70,13 +70,26 @@ test("requires changing the temporary password before entering the app", async (
     await page.getByRole("button", { name: "Guardar contraseña" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("heading", { name: "Digraf" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Panel general" })).toBeVisible();
+    await expect(page.getByText("Contraseña actualizada. Tu acceso ya está habilitado.")).toBeVisible();
 
     await page.getByRole("button", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByText("Sesión cerrada correctamente.")).toBeVisible();
   } finally {
     await user.cleanup();
   }
+});
+
+test("associates validation errors with login fields", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("email-invalido");
+  await page.getByRole("button", { name: "Ingresar" }).click();
+
+  await expect(page.getByLabel("Email")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Ingresá un email válido.").first()).toBeVisible();
+  await expect(page.getByLabel("Contraseña")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Ingresá tu contraseña.").first()).toBeVisible();
 });
 
 test("rejects a new password without a number", async ({ page }) => {
@@ -93,7 +106,7 @@ test("rejects a new password without a number", async ({ page }) => {
     await page.getByRole("button", { name: "Guardar contraseña" }).click();
 
     await expect(page).toHaveURL(/\/change-password$/);
-    await expect(page.getByText("La contraseña debe incluir al menos un número.")).toBeVisible();
+    await expect(page.getByText("La contraseña debe incluir al menos un número.").first()).toBeVisible();
   } finally {
     await user.cleanup();
   }
@@ -109,7 +122,7 @@ test("blocks an inactive user even with valid credentials", async ({ page }) => 
     await page.getByRole("button", { name: "Ingresar" }).click();
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByText("Tu cuenta no tiene acceso a Digraf.")).toBeVisible();
+    await expect(page.getByText("Tu cuenta no tiene acceso a Digraf.").first()).toBeVisible();
   } finally {
     await user.cleanup();
   }

@@ -4,12 +4,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { changePasswordSchema } from "@/lib/auth/password";
+import { mutationResult, type MutationState } from "@/lib/action-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-
-type AuthActionState = {
-  error?: string;
-};
 
 const loginSchema = z.object({
   email: z.string().trim().email("Ingresá un email válido."),
@@ -21,20 +18,21 @@ function readFormData(formData: FormData) {
 }
 
 export async function loginAction(
-  _previousState: AuthActionState,
+  _previousState: MutationState,
   formData: FormData,
-): Promise<AuthActionState> {
+): Promise<MutationState> {
   const parsed = loginSchema.safeParse(readFormData(formData));
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+    const message = parsed.error.issues[0]?.message ?? "Revisá los datos ingresados.";
+    return mutationResult("error", message, parsed.error.flatten().fieldErrors);
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    return { error: "Email o contraseña incorrectos." };
+    return mutationResult("error", "Email o contraseña incorrectos.");
   }
 
   const {
@@ -43,7 +41,7 @@ export async function loginAction(
 
   if (!user) {
     await supabase.auth.signOut();
-    return { error: "No se pudo validar tu sesión. Intentá nuevamente." };
+    return mutationResult("error", "No se pudo validar tu sesión. Intentá nuevamente.");
   }
 
   const { data: profile } = await supabase
@@ -54,20 +52,21 @@ export async function loginAction(
 
   if (!profile) {
     await supabase.auth.signOut();
-    return { error: "Tu cuenta no tiene acceso a Digraf." };
+    return mutationResult("error", "Tu cuenta no tiene acceso a Digraf.");
   }
 
-  redirect(profile.must_change_password ? "/change-password" : "/dashboard");
+  redirect(profile.must_change_password ? "/change-password?notice=signed-in" : "/dashboard?notice=signed-in");
 }
 
 export async function changePasswordAction(
-  _previousState: AuthActionState,
+  _previousState: MutationState,
   formData: FormData,
-): Promise<AuthActionState> {
+): Promise<MutationState> {
   const parsed = changePasswordSchema.safeParse(readFormData(formData));
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+    const message = parsed.error.issues[0]?.message ?? "Revisá los datos ingresados.";
+    return mutationResult("error", message, parsed.error.flatten().fieldErrors);
   }
 
   const supabase = await createClient();
@@ -99,7 +98,7 @@ export async function changePasswordAction(
   });
 
   if (updateError) {
-    return { error: "No se pudo actualizar la contraseña. Intentá nuevamente." };
+    return mutationResult("error", "No se pudo actualizar la contraseña. Intentá nuevamente.");
   }
 
   const admin = createAdminClient();
@@ -116,17 +115,19 @@ export async function changePasswordAction(
     .single();
 
   if (completionError) {
-    return {
-      error:
-        "La contraseña se actualizó, pero falta habilitar tu acceso. Reintentá para completar el proceso.",
-    };
+    return mutationResult(
+      "error",
+      "La contraseña se actualizó, pero falta habilitar tu acceso. Reintentá para completar el proceso.",
+    );
   }
 
-  redirect("/dashboard");
+  redirect("/dashboard?notice=password-updated");
 }
 
-export async function logoutAction() {
+export async function logoutAction(_previousState: MutationState): Promise<MutationState> {
+  void _previousState;
   const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
+  const { error } = await supabase.auth.signOut();
+  if (error) return mutationResult("error", "No se pudo cerrar la sesión. Intentá nuevamente.");
+  redirect("/login?notice=signed-out");
 }

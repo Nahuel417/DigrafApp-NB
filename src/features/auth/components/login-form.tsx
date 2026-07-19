@@ -2,46 +2,57 @@
 
 import { useActionState } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { useMutationToast } from "@/hooks/use-mutation-toast";
+import type { MutationState } from "@/lib/action-state";
+
 import { loginAction } from "../actions";
 import { AuthSubmitButton } from "./auth-submit-button";
 
-const initialState: { error?: string } = {};
+const initialState: MutationState = {};
 
 export function LoginForm() {
   const [state, formAction] = useActionState(loginAction, initialState);
+  useMutationToast(state);
+  const emailErrors = state.fieldErrors?.email?.map((message) => ({ message }));
+  const passwordErrors = state.fieldErrors?.password?.map((message) => ({ message }));
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-bold" htmlFor="email">
-          Email
-        </label>
-        <input
-          autoComplete="email"
-          className="border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-base outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-          id="email"
-          name="email"
-          required
-          type="email"
-        />
-      </div>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-bold" htmlFor="password">
-          Contraseña
-        </label>
-        <input
-          autoComplete="current-password"
-          className="border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-base outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-          id="password"
-          name="password"
-          required
-          type="password"
-        />
-      </div>
-      {state.error ? (
-        <p aria-live="polite" className="border-l-4 border-[var(--accent)] bg-[var(--background)] px-3 py-2 text-sm">
-          {state.error}
-        </p>
+      <FieldGroup className="gap-5">
+        <Field data-invalid={Boolean(emailErrors?.length)}>
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <Input
+            aria-describedby={emailErrors?.length ? "email-error" : undefined}
+            aria-invalid={Boolean(emailErrors?.length)}
+            autoComplete="email"
+            id="email"
+            name="email"
+            required
+            type="email"
+          />
+          <FieldError errors={emailErrors} id="email-error" />
+        </Field>
+        <Field data-invalid={Boolean(passwordErrors?.length)}>
+          <FieldLabel htmlFor="password">Contraseña</FieldLabel>
+          <Input
+            aria-describedby={passwordErrors?.length ? "password-error" : undefined}
+            aria-invalid={Boolean(passwordErrors?.length)}
+            autoComplete="current-password"
+            id="password"
+            name="password"
+            required
+            type="password"
+          />
+          <FieldError errors={passwordErrors} id="password-error" />
+        </Field>
+      </FieldGroup>
+      {state.status === "error" && !state.fieldErrors ? (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
       ) : null}
       <AuthSubmitButton idleLabel="Ingresar" pendingLabel="Ingresando" />
     </form>
