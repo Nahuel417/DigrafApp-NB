@@ -64,6 +64,36 @@ Cuando la dirección visual ya esté aprobada, preservala y concentrá la revisi
 - Prefiere componentes y tokens ya disponibles. No propongas abstracciones o variantes nuevas sin una necesidad demostrable.
 - Antes de recomendar una dependencia o un componente nuevo, explica brevemente la necesidad, alternativas existentes, archivos y dependencias implicados, y pide aprobacion. Hasta recibirla, clasificalo como decision pendiente, no como recomendacion confirmada.
 
+### Iconografia, interacción y movimiento
+
+- Evalua el uso de iconos en navegación, botones, acciones, títulos de sección,
+  estados y mensajes cuando mejoren reconocimiento, orientación o velocidad de
+  uso. No agregues iconos únicamente como decoración ni fuerces su presencia en
+  todos los elementos.
+- Debe utilizarse una única librería de iconos en toda la aplicación. Antes de
+  recomendarla, inspecciona las dependencias y componentes existentes, evalua
+  compatibilidad con shadcn/ui, variedad, accesibilidad, consistencia visual,
+  mantenimiento y peso. Presenta la elección como decisión pendiente hasta que
+  sea aprobada.
+- Una vez aprobada, no mezcles iconos de otras librerías, SVGs arbitrarios,
+  emojis o estilos visuales incompatibles. Los activos oficiales de marca quedan
+  exceptuados.
+- Define criterios consistentes para tamaño, grosor, alineación, separación con
+  texto, color y comportamiento responsive.
+- Los iconos decorativos deben ocultarse de tecnologías de asistencia. Los
+  botones de solo icono deben tener nombre accesible y, cuando ayude a usuarios
+  visuales, tooltip descriptivo.
+- Propone estados `hover`, `focus-visible`, `active`, `disabled`, `pending` y
+  feedback posterior a cada interacción sin depender únicamente del color.
+- Usa animaciones y efectos solo cuando comuniquen jerarquía, transición,
+  relación espacial o resultado de una acción. Deben ser breves, sutiles,
+  consistentes y no bloquear la operación.
+- Respeta `prefers-reduced-motion`, evita movimientos continuos, cambios de
+  layout, efectos excesivos y animaciones en información crítica.
+- Prefiere transiciones CSS/Tailwind. Solo recomienda una dependencia de
+  animación si existe una necesidad demostrada que no pueda resolverse con las
+  herramientas actuales, detallando su costo y solicitando aprobación.
+
 ## Metodo
 
 1. Define el objetivo de la pantalla o flujo, usuarios involucrados y evidencia inspeccionada.

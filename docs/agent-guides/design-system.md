@@ -64,35 +64,35 @@ La primera implementación es exclusivamente light. Los tokens dark se conservan
 
 ### Mapeo semántico
 
-| Token | Uso |
-| --- | --- |
-| `background` | Canvas general |
-| `foreground` | Texto principal |
-| `card` | Superficie contenida |
-| `popover` | Superficie flotante no modal |
-| `primary` | Acción principal y selección fuerte |
-| `secondary` | Acción o superficie secundaria |
-| `muted` | Superficie de baja prominencia |
-| `muted-foreground` | Texto secundario |
-| `accent` | Selección o énfasis contextual |
-| `destructive` | Acción destructiva o de riesgo |
-| `error` | Operación fallida o entrada inválida |
-| `border` | Separación de superficies |
-| `input` | Límite de controles |
-| `ring` | Foco visible |
-| `sidebar-*` | Shell y navegación autenticada |
-| `chart-*` | Reserva para visualizaciones futuras |
+| Token              | Uso                                  |
+| ------------------ | ------------------------------------ |
+| `background`       | Canvas general                       |
+| `foreground`       | Texto principal                      |
+| `card`             | Superficie contenida                 |
+| `popover`          | Superficie flotante no modal         |
+| `primary`          | Acción principal y selección fuerte  |
+| `secondary`        | Acción o superficie secundaria       |
+| `muted`            | Superficie de baja prominencia       |
+| `muted-foreground` | Texto secundario                     |
+| `accent`           | Selección o énfasis contextual       |
+| `destructive`      | Acción destructiva o de riesgo       |
+| `error`            | Operación fallida o entrada inválida |
+| `border`           | Separación de superficies            |
+| `input`            | Límite de controles                  |
+| `ring`             | Foco visible                         |
+| `sidebar-*`        | Shell y navegación autenticada       |
+| `chart-*`          | Reserva para visualizaciones futuras |
 
 `primary` no significa éxito. `destructive` representa acciones de riesgo; `error` representa fallos y validación. Ambos pueden compartir temporalmente un valor cromático sin compartir semántica.
 
 ### Feedback semántico
 
-| Rol | Significado |
-| --- | --- |
-| `success` | Operación completada correctamente |
-| `warning` | Situación que requiere atención o confirmación |
-| `info` | Orientación o contexto neutral |
-| Error | Operación fallida o entrada inválida; no equivale siempre a una acción destructiva |
+| Rol       | Significado                                                                        |
+| --------- | ---------------------------------------------------------------------------------- |
+| `success` | Operación completada correctamente                                                 |
+| `warning` | Situación que requiere atención o confirmación                                     |
+| `info`    | Orientación o contexto neutral                                                     |
+| Error     | Operación fallida o entrada inválida; no equivale siempre a una acción destructiva |
 
 El color nunca es la única señal. Alertas y mensajes incluyen texto explícito y, cuando ayuda, icono o título.
 
@@ -102,23 +102,23 @@ Los estados de negocio conservan badges específicos: rol, activo/inactivo, camb
 
 Las mediciones usan conversión OKLCH a sRGB lineal con clipping de gamut y la fórmula de contraste WCAG 2.x. Deben volver a comprobarse sobre colores computados en navegador durante la validación visual.
 
-| Token | Valor original | Valor aplicado | Par medido | Original | Aplicado | Justificación |
-| --- | --- | --- | --- | ---: | ---: | --- |
-| `background` / `sidebar` | `oklch(0.9841 0.0017 145.5622)` | `oklch(0.9771 0.0034 145.55)` (`#F6F8F6`) | Texto principal / borde de input | 16.38:1 / 3.07:1 | 16.06:1 / 3.01:1 | Reduce deslumbramiento sin volver gris el canvas; cards y popovers permanecen blancos |
-| `primary` | `oklch(0.5745 0.1033 130.8937)` | `oklch(0.54 0.1033 130.8937)` | Blanco | 4.23:1 | 4.89:1 | Permite texto normal blanco con margen AA sin cambiar tono ni croma |
-| `border` | `oklch(0.9168 0.0034 145.5475)` | Sin cambio | Card blanco | 1.28:1 | 1.28:1 | Es separador estructural secundario, no única señal de un control o estado |
-| `input` | `oklch(0.9168 0.0034 145.5475)` | `oklch(0.65 0.015 145.5)` | Blanco | 1.28:1 | 3.21:1 | Hace identificable el límite del control sin depender del fondo |
-| `ring` | `oklch(0.5745 0.1033 130.8937)` | Sin cambio, opaco | Background | 4.05:1 | 3.97:1 | El problema era usar alpha 20–50%; el ring completo supera 3:1 sobre el fondo aprobado |
+| Token                    | Valor original                  | Valor aplicado                            | Par medido                       |         Original |         Aplicado | Justificación                                                                          |
+| ------------------------ | ------------------------------- | ----------------------------------------- | -------------------------------- | ---------------: | ---------------: | -------------------------------------------------------------------------------------- |
+| `background` / `sidebar` | `oklch(0.9841 0.0017 145.5622)` | `oklch(0.9771 0.0034 145.55)` (`#F6F8F6`) | Texto principal / borde de input | 16.38:1 / 3.07:1 | 16.06:1 / 3.01:1 | Reduce deslumbramiento sin volver gris el canvas; cards y popovers permanecen blancos  |
+| `primary`                | `oklch(0.5745 0.1033 130.8937)` | `oklch(0.54 0.1033 130.8937)`             | Blanco                           |           4.23:1 |           4.89:1 | Permite texto normal blanco con margen AA sin cambiar tono ni croma                    |
+| `border`                 | `oklch(0.9168 0.0034 145.5475)` | Sin cambio                                | Card blanco                      |           1.28:1 |           1.28:1 | Es separador estructural secundario, no única señal de un control o estado             |
+| `input`                  | `oklch(0.9168 0.0034 145.5475)` | `oklch(0.65 0.015 145.5)`                 | Blanco                           |           1.28:1 |           3.21:1 | Hace identificable el límite del control sin depender del fondo                        |
+| `ring`                   | `oklch(0.5745 0.1033 130.8937)` | Sin cambio, opaco                         | Background                       |           4.05:1 |           3.97:1 | El problema era usar alpha 20–50%; el ring completo supera 3:1 sobre el fondo aprobado |
 
 Los componentes usan ring de 2 px y offset de 2 px. No se usa `ring/50` como única señal de foco.
 
 ### Valores de feedback light
 
-| Rol | Fondo | Foreground | Contraste calculado |
-| --- | --- | --- | ---: |
-| Success | `oklch(0.92 0.04 145)` | `oklch(0.34 0.09 145)` | 9.08:1 |
-| Warning | `oklch(0.94 0.05 85)` | `oklch(0.35 0.09 65)` | 9.67:1 |
-| Info | `oklch(0.93 0.035 240)` | `oklch(0.35 0.08 245)` | 9.20:1 |
+| Rol     | Fondo                   | Foreground             | Contraste calculado |
+| ------- | ----------------------- | ---------------------- | ------------------: |
+| Success | `oklch(0.92 0.04 145)`  | `oklch(0.34 0.09 145)` |              9.08:1 |
+| Warning | `oklch(0.94 0.05 85)`   | `oklch(0.35 0.09 65)`  |              9.67:1 |
+| Info    | `oklch(0.93 0.035 240)` | `oklch(0.35 0.08 245)` |              9.20:1 |
 
 Error usa inicialmente `oklch(0.5771 0.2152 27.325)` sobre background, separado del token `destructive` aunque ambos compartan valor.
 
@@ -151,17 +151,56 @@ Mappings:
 
 ### Roles y tracking
 
-| Rol | Fuente | Tracking |
-| --- | --- | --- |
-| Cuerpo y labels | Inter | Normal |
-| Títulos de sección | Inter | Normal |
-| Títulos de página | Inter | `tracking-display`, moderado |
-| Etiquetas uppercase breves | Inter | `tracking-label`, positivo y controlado |
-| IDs, importes, fechas y estados | Source Code Pro | `tracking-data`, normal |
+| Rol                             | Fuente          | Tracking                                |
+| ------------------------------- | --------------- | --------------------------------------- |
+| Cuerpo y labels                 | Inter           | Normal                                  |
+| Títulos de sección              | Inter           | Normal                                  |
+| Títulos de página               | Inter           | `tracking-display`, moderado            |
+| Etiquetas uppercase breves      | Inter           | `tracking-label`, positivo y controlado |
+| IDs, importes, fechas y estados | Source Code Pro | `tracking-data`, normal                 |
 
 No se aplica letter spacing global al `body`. Se evita uppercase en texto largo, tracking extremo y mono en instrucciones.
 
 Aplicar `font-variant-numeric: tabular-nums` a importes, cantidades comparables, fechas, horas, totales e IDs numéricos. Importes y columnas numéricas se alinean a la derecha y no se parten.
+
+## Iconografía y movimiento
+
+### Iconografía
+
+Lucide React es la única librería de iconos de interfaz de Digraf. No mezclar
+otras librerías, emojis o SVGs personalizados, excepto activos oficiales de
+marca o elementos de dominio aprobados.
+
+- Usar iconos solo cuando mejoren reconocimiento, orientación o feedback.
+- Mantener el mismo icono para cada acción y usar `currentColor`.
+- No reemplazar etiquetas visibles en acciones ambiguas, operativas o sensibles.
+- Tamaños: `16 px` en controles; `18 px` en navegación y acciones destacadas;
+  `20 px` en alertas y estados vacíos.
+- Usar `data-icon="inline-start|inline-end"` cuando el componente shadcn/ui lo
+  soporte.
+- Los iconos decorativos usan `aria-hidden="true"`. Los botones de solo icono
+  requieren nombre accesible y tooltip cuando ayude visualmente.
+- Color, iconos y movimiento nunca son la única señal de estado.
+
+### Interacción
+
+- Todo control debe distinguir `hover`, `active`, `focus-visible`, `disabled` y
+  `pending` cuando corresponda.
+- El foco mantiene ring opaco de `2 px` con offset de `2 px`, sin animación.
+- `pending` conserva tamaño y etiqueta, bloquea repeticiones y utiliza
+  `aria-busy` cuando corresponda.
+- Acciones sensibles conservan texto explícito y confirmación.
+- Usar `aria-pressed` para toggles y `aria-current` para navegación activa.
+
+### Movimiento
+
+- Usar movimiento funcional y discreto: `150 ms` en controles y hasta `200 ms`
+  en overlays, toasts y reordenamientos.
+- Preferir transiciones de color, borde, opacidad y sombra, sin rebotes,
+  parallax, animaciones repetitivas ni cambios de geometría.
+- `Skeleton` reserva espacio y `pending` no cambia las dimensiones del control.
+- Con `prefers-reduced-motion: reduce`, eliminar movimiento no esencial sin
+  perder foco, feedback ni estado.
 
 ## Espaciado, radios, sombras y densidad
 
@@ -340,28 +379,28 @@ Estos son los valores recibidos antes de los ajustes light documentados. Se cons
 
 ```css
 :root {
-  --background: oklch(0.9841 0.0017 145.5622);
-  --foreground: oklch(0.2235 0.0049 145.4099);
-  --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0.2235 0.0049 145.4099);
-  --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.2235 0.0049 145.4099);
-  --primary: oklch(0.5745 0.1033 130.8937);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.9621 0.0034 145.5491);
-  --secondary-foreground: oklch(0.2235 0.0049 145.4099);
-  --muted: oklch(0.9621 0.0034 145.5491);
-  --muted-foreground: oklch(0.4913 0.0140 145.3581);
-  --accent: oklch(0.9220 0.0223 123.6501);
-  --accent-foreground: oklch(0.3182 0.0361 127.9930);
-  --destructive: oklch(0.5771 0.2152 27.3250);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0.9168 0.0034 145.5475);
-  --input: oklch(0.9168 0.0034 145.5475);
-  --ring: oklch(0.5745 0.1033 130.8937);
-  --radius: 0.6rem;
-  --tracking-normal: 0.01em;
-  --spacing: 0.25rem;
+    --background: oklch(0.9841 0.0017 145.5622);
+    --foreground: oklch(0.2235 0.0049 145.4099);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.2235 0.0049 145.4099);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.2235 0.0049 145.4099);
+    --primary: oklch(0.5745 0.1033 130.8937);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.9621 0.0034 145.5491);
+    --secondary-foreground: oklch(0.2235 0.0049 145.4099);
+    --muted: oklch(0.9621 0.0034 145.5491);
+    --muted-foreground: oklch(0.4913 0.014 145.3581);
+    --accent: oklch(0.922 0.0223 123.6501);
+    --accent-foreground: oklch(0.3182 0.0361 127.993);
+    --destructive: oklch(0.5771 0.2152 27.325);
+    --destructive-foreground: oklch(1 0 0);
+    --border: oklch(0.9168 0.0034 145.5475);
+    --input: oklch(0.9168 0.0034 145.5475);
+    --ring: oklch(0.5745 0.1033 130.8937);
+    --radius: 0.6rem;
+    --tracking-normal: 0.01em;
+    --spacing: 0.25rem;
 }
 ```
 
@@ -373,33 +412,33 @@ Sombras light originales: x 0, y 2 px, blur 10 px; 2xs/xs con opacidad 0.03; sm 
 
 ```css
 .dark {
-  --background: oklch(0.1822 0 0);
-  --foreground: oklch(0.9328 0.0119 145.4789);
-  --card: oklch(0.2264 0 0);
-  --card-foreground: oklch(0.9328 0.0119 145.4789);
-  --popover: oklch(0.2264 0 0);
-  --popover-foreground: oklch(0.9328 0.0119 145.4789);
-  --primary: oklch(0.6689 0.1154 130.1150);
-  --primary-foreground: oklch(0.1822 0 0);
-  --secondary: oklch(0.2727 0.0070 145.3813);
-  --secondary-foreground: oklch(0.9328 0.0119 145.4789);
-  --muted: oklch(0.2727 0.0070 145.3813);
-  --muted-foreground: oklch(0.6969 0.0201 145.3548);
-  --accent: oklch(0.3316 0.0154 145.2173);
-  --accent-foreground: oklch(0.9328 0.0119 145.4789);
-  --destructive: oklch(0.4437 0.1613 26.8994);
-  --destructive-foreground: oklch(0.9356 0.0309 17.7172);
-  --border: oklch(0.2850 0 0);
-  --input: oklch(0.2850 0 0);
-  --ring: oklch(0.6689 0.1154 130.1150);
-  --sidebar: oklch(0.2090 0 0);
-  --sidebar-foreground: oklch(0.9328 0.0119 145.4789);
-  --sidebar-primary: oklch(0.6689 0.1154 130.1150);
-  --sidebar-primary-foreground: oklch(0.1822 0 0);
-  --sidebar-accent: oklch(0.2727 0.0070 145.3813);
-  --sidebar-accent-foreground: oklch(0.9328 0.0119 145.4789);
-  --sidebar-border: oklch(0.2850 0 0);
-  --sidebar-ring: oklch(0.6689 0.1154 130.1150);
+    --background: oklch(0.1822 0 0);
+    --foreground: oklch(0.9328 0.0119 145.4789);
+    --card: oklch(0.2264 0 0);
+    --card-foreground: oklch(0.9328 0.0119 145.4789);
+    --popover: oklch(0.2264 0 0);
+    --popover-foreground: oklch(0.9328 0.0119 145.4789);
+    --primary: oklch(0.6689 0.1154 130.115);
+    --primary-foreground: oklch(0.1822 0 0);
+    --secondary: oklch(0.2727 0.007 145.3813);
+    --secondary-foreground: oklch(0.9328 0.0119 145.4789);
+    --muted: oklch(0.2727 0.007 145.3813);
+    --muted-foreground: oklch(0.6969 0.0201 145.3548);
+    --accent: oklch(0.3316 0.0154 145.2173);
+    --accent-foreground: oklch(0.9328 0.0119 145.4789);
+    --destructive: oklch(0.4437 0.1613 26.8994);
+    --destructive-foreground: oklch(0.9356 0.0309 17.7172);
+    --border: oklch(0.285 0 0);
+    --input: oklch(0.285 0 0);
+    --ring: oklch(0.6689 0.1154 130.115);
+    --sidebar: oklch(0.209 0 0);
+    --sidebar-foreground: oklch(0.9328 0.0119 145.4789);
+    --sidebar-primary: oklch(0.6689 0.1154 130.115);
+    --sidebar-primary-foreground: oklch(0.1822 0 0);
+    --sidebar-accent: oklch(0.2727 0.007 145.3813);
+    --sidebar-accent-foreground: oklch(0.9328 0.0119 145.4789);
+    --sidebar-border: oklch(0.285 0 0);
+    --sidebar-ring: oklch(0.6689 0.1154 130.115);
 }
 ```
 
