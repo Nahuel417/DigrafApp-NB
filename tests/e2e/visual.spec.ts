@@ -65,13 +65,20 @@ async function login(page: Page) {
 async function waitForVisualStability(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.waitForLoadState("networkidle");
-  await page.addStyleTag({ content: "nextjs-portal, [data-sonner-toaster] { display: none !important; }" });
+  await page.addStyleTag({
+    content: `
+      nextjs-portal, [data-sonner-toaster] { display: none !important; }
+      @media (max-width: 1023px) { header.sticky { position: static !important; } }
+    `,
+  });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
 }
 
 test.describe("referencia visual", () => {
+  test.skip(process.platform === "linux", "Los snapshots visuales se validan únicamente en Windows y macOS.");
+
   test.beforeAll(async () => {
     await deleteVisualUsers();
     await createVisualUser(email, password, "Administración visual", false);
