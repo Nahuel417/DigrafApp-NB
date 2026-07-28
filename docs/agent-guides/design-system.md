@@ -221,6 +221,7 @@ Las sombras dark originales quedan diferidas. Antes de una fase dark se debe red
 - No mostrar módulos inexistentes para completar el layout.
 - Los destinos visibles reflejan permisos, pero no sustituyen autorización.
 - El shell autenticado usa un sidebar compacto con únicamente los destinos reales y autorizados para la sesión; en mobile conserva acceso equivalente sin ocultar información operativa.
+- Cuando la cantidad de destinos autorizados no entra en una fila mobile, la navegación puede reacomodarse en una cuadrícula compacta de dos columnas. Debe conservar todos los destinos, targets de al menos 44 px y el estado activo sin crear un drawer nuevo.
 - Canvas, sidebar y cabecera mobile comparten `background`/`sidebar` en `#F6F8F6`; la continuidad no se rompe con una sidebar blanca. Cards y popovers continúan en blanco.
 
 ## Formularios
@@ -233,6 +234,7 @@ Cada campo incluye label persistente, control, ayuda cuando corresponde y error 
 - Pending bloquea el doble envío y conserva la geometría del control.
 - Success usa una región de estado.
 - Error se anuncia cuando requiere atención inmediata.
+- En formularios extensos, un error de servidor enfoca el primer campo inválido o un resumen enlazado; no devuelve automáticamente el foco al botón de envío.
 - No depender del rojo.
 - Toda acción sensible usa un flujo de dos pasos con `AlertDialog`; explica entidad, consecuencia y reversibilidad, distingue la acción destructiva y devuelve foco al disparador al cerrar.
 

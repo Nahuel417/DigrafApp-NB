@@ -129,8 +129,8 @@ Después de un cambio de esquema se ejecutan reset local, generación de tipos y
 | `workflow_stages` | Código estable, nombre visible, orden y semántica especial |
 | `catalog_items` | Prendas, cuellos, moldes, telas y extras sin precios |
 | `orders` | Datos operativos, etapa actual y anulación |
-| `order_financials` | Total y seña con permisos diferenciados |
-| `order_catalog_items` | Especificaciones elegidas |
+| `order_financials` | Total, seña, estado de seña pagada y permisos financieros diferenciados |
+| `order_catalog_items` | Especificaciones elegidas y snapshot histórico de tipo/nombre |
 | `order_stage_events` | Historial append-only de movimientos |
 | `order_comments` | Comentarios con actor y timestamp del servidor |
 | `audit_events` | Cambios sensibles no cubiertos por otro historial |
@@ -156,6 +156,9 @@ Las tablas históricas no exponen actualización o borrado directo. Los importes
 
 Funciones previstas:
 
+- `create_catalog_item`
+- `rename_catalog_item`
+- `delete_catalog_item`
 - `create_order`
 - `move_order`
 - `confirm_order_payment`
@@ -169,7 +172,7 @@ Funciones previstas:
 - `cancel_order`
 - `restore_order`
 
-Las operaciones reintentables reciben una clave de idempotencia. Las funciones sensibles obtienen actor y hora desde el servidor, validan el rol vigente y usan bloqueos transaccionales cuando existe concurrencia sobre pedido o caja.
+Las operaciones reintentables reciben una clave de idempotencia. `create_order` permite `super_admin`, `admin` y `attention`; la administración de catálogos permite solo `super_admin` y `admin`. Las funciones sensibles obtienen actor y hora desde el servidor, validan el rol vigente y usan bloqueos transaccionales cuando existe concurrencia sobre pedido o caja.
 
 ### Storage
 
@@ -178,6 +181,8 @@ Las operaciones reintentables reciben una clave de idempotencia. Las funciones s
 - Policies ligadas a la visibilidad y los permisos del pedido.
 - Sin historial de versiones en el MVP.
 - La carga contempla el fallo parcial entre Storage y PostgreSQL y permite reintento o limpieza controlada.
+
+M3 no crea el bucket ni carga imágenes. `orders` permite ausencia de imagen hasta M7.
 
 ## Fases y criterio de terminado
 
@@ -228,19 +233,17 @@ La librería de generación de PDF requiere una decisión específica antes de i
 
 ## Decisiones todavía pendientes
 
-La aprobación de este plan no resuelve estas reglas de producto:
+La implementación aprobada de M3 resuelve D-02 y D-05 para el alcance de pedidos y catálogos. D-05 permite borrar catálogos físicamente porque las especificaciones del pedido conservan su snapshot histórico. Las decisiones restantes son:
 
 | ID | Decisión | Bloquea |
 | --- | --- | --- |
-| D-02 | Saldo restante, escala y restricciones de la seña | Pedido y cotizador |
 | D-03 | Conducta al salir de `paid`, revertir o reconfirmar | Pago |
 | D-04 | Apertura, cierre automático y anulación manual de caja | Caja |
-| D-05 | Eliminación de etapas y catálogos referenciados | Administración |
 | D-06 | Anulación de pedidos pagados y retención por entidad | Archivo y purga |
 | D-07 | Uso del cotizador por Super admin, vigencia, branding y PDF | Cotizador |
-| D-08 | Permisos y límites de imágenes, catálogos y precios iniciales | Storage y cotizador |
+| D-08 | Permisos y límites de imágenes, productos y precios iniciales | Storage y cotizador; las combinaciones de catálogos de M3 ya están resueltas |
 
-También deben definirse campos obligatorios y combinaciones válidas por tipo de pedido, visibilidad financiera para Empleado, permisos de Atención sobre descripción e imagen y formato del identificador visible del pedido.
+Para M3 quedan confirmados los campos obligatorios y las combinaciones por tipo de pedido, la visibilidad financiera para Empleado, el permiso de creación manual de Atención y el identificador visible `PED-000001`. D-08 continúa abierta únicamente para límites de imagen y datos de productos/precios posteriores.
 
 ## Riesgos y controles
 

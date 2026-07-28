@@ -2,10 +2,15 @@ import { AppNavigation } from "@/components/app-navigation";
 import { LogoutForm } from "@/features/auth/components/logout-form";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
+import { canCreateManualOrder, canManageCatalogs, canManageUsers } from "@/lib/auth/permissions";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const profile = await requireActiveProfile();
-  const canManageUsers = profile.role === "super_admin" || profile.role === "admin";
+  const capabilities = {
+    canCreateOrders: canCreateManualOrder(profile.role),
+    canManageCatalogs: canManageCatalogs(profile.role),
+    canManageUsers: canManageUsers(profile.role),
+  };
   const initials = profile.displayName
     .split(/\s+/)
     .slice(0, 2)
@@ -33,7 +38,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
           <p className="mb-2 px-3 text-[0.6875rem] font-semibold uppercase tracking-label text-muted-foreground">
             Navegación
           </p>
-          <AppNavigation canManageUsers={canManageUsers} />
+           <AppNavigation capabilities={capabilities} />
         </div>
 
         <div className="border-t border-sidebar-border p-3">
@@ -65,7 +70,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
             <LogoutForm buttonClassName="h-11" />
           </div>
           <div className="mt-3">
-            <AppNavigation canManageUsers={canManageUsers} compact />
+             <AppNavigation capabilities={capabilities} compact />
           </div>
         </header>
 

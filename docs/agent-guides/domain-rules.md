@@ -12,7 +12,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Desactivar Atención y Empleado | Sí | Sí | No | No |
 | Cambiar rol entre Atención y Empleado | Sí | Sí | No | No |
 | Restablecer contraseña de cualquier usuario | Sí | No | No | No |
-| Crear pedido manual | Sí | Sí | No | No |
+| Crear pedido manual | Sí | Sí | Sí | No |
 | Administrar etapas y catálogos | Sí | Sí | No | No |
 | Mover pedido | Sí | Sí | Sí | Sí, excepto Pagado |
 | Confirmar pago | Sí | Sí | Sí | No |
@@ -51,7 +51,7 @@ La primera cuenta `super_admin` de cada entorno es una excepción inicial: un de
 
 ## Pedidos y tablero
 
-Un pedido se representa como tarjeta Kanban. Se puede crear manualmente por Admin/Super admin.
+Un pedido se representa como tarjeta Kanban. Se puede crear manualmente por Super admin, Admin o Atención. Empleado no puede crear pedidos manuales.
 
 Etapas iniciales:
 
@@ -81,11 +81,32 @@ Campos mínimos:
 - Tipo de prenda, cuello, molde, tela y extras desde catálogos.
 - Descripción libre.
 - Imagen actual del diseño.
-- Seña manual y monto total manual.
+- Monto total manual, monto de seña y estado de seña pagada.
 
-Los catálogos son listas simples sin precio. Los moldes de prendas superiores y de short/pollera deben mantenerse diferenciados para evitar combinaciones inválidas.
+Los catálogos son listas simples sin precio. Los moldes de prendas superiores y de short/pollera deben mantenerse diferenciados para evitar combinaciones inválidas. Los extras admiten selección múltiple.
 
-Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Empleado puede modificar descripción e imagen cuando se le solicita, sin alterar datos sensibles.
+La matriz de especificaciones del alta manual es:
+
+- Conjunto: una prenda superior, una prenda inferior, cuello, molde superior, molde inferior y tela.
+- Prenda individual superior: una prenda superior, cuello, molde superior y tela.
+- Prenda individual inferior: una prenda inferior, molde inferior y tela; no lleva cuello.
+- Cualquier tipo puede tener cero o más extras.
+
+La imagen de diseño queda nullable y fuera del alta de M3; se incorpora en M7.
+
+Los importes del pedido se almacenan como `numeric(14,2)`:
+
+- `total_amount` es obligatorio y no puede ser negativo.
+- `deposit_amount` es obligatorio, puede ser `0` y no puede superar `total_amount`.
+- `deposit_paid` indica si la seña fue abonada; una seña no pagada puede tener monto `0`.
+- `saldo_visible` se calcula y no se persiste: si la seña fue pagada, es `total_amount - deposit_amount`; si no, es `total_amount`.
+- Registrar la seña no genera caja. Al confirmar el estado `Pagado`, caja registra un único ingreso por `total_amount`.
+
+Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super admin y Admin pueden administrar catálogos. Empleado no obtiene permisos adicionales en M3. Los importes son visibles para Super admin, Admin y Atención; Empleado no puede leerlos.
+
+Los ítems de catálogo se pueden borrar físicamente. Los pedidos conservan un snapshot del tipo y nombre de cada selección, por lo que la eliminación del catálogo no altera su historia.
+
+Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Empleado puede modificar descripción e imagen cuando se le solicita, sin alterar datos sensibles.
 
 El MVP conserva una sola imagen vigente de diseño; no implementar historial de versiones todavía.
 

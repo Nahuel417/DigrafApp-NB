@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const appPort = process.env.PLAYWRIGHT_PORT ?? "3000";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}-{projectName}{ext}",
@@ -9,7 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${appPort}`,
     trace: "on-first-retry",
   },
   expect: {
@@ -30,8 +32,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:3000",
+    command: `pnpm exec next dev -p ${appPort}`,
+    url: `http://localhost:${appPort}`,
     reuseExistingServer: !process.env.CI,
   },
 });
