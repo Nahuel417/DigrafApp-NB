@@ -55,6 +55,13 @@ pnpm db:types
 4. Para frontend relevante, comprobar estados de carga, vacío, error, éxito y una resolución móvil/desktop representativa.
 5. Para datos sensibles, revisar permisos y trazabilidad además del comportamiento feliz.
 
+## Pruebas visuales
+
+- Los snapshots visuales de Playwright no se ejecutan ni bloquean CI en Linux.
+- GitHub Actions debe continuar ejecutando todos los recorridos E2E funcionales y los demás controles; cualquier fallo funcional sigue bloqueando CI.
+- No reproducir Linux localmente para ejecutar o actualizar pruebas visuales.
+- Ejecutar y actualizar snapshots visuales únicamente en Windows o macOS cuando corresponda.
+
 Una tarea no está terminada si deja una migración sin tipos, un bypass conocido de permisos, un error silencioso o una verificación crítica omitida sin explicación.
 
 Para administración de usuarios, verificar además que Admin no pueda crear cuentas ni asignar o restablecer credenciales, que solo pueda cambiar roles entre Atención y Empleado, y que una contraseña temporal o restablecida no habilite el resto de la aplicación hasta ser reemplazada por el usuario.
