@@ -45,6 +45,7 @@ pnpm db:types
 | Migración | reset local, tipos generados y prueba del contrato afectado |
 | Caja/pago/anulación | atomicidad, idempotencia, estado abierto/cerrado y auditoría |
 | Kanban | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor |
+| Catálogos y alta manual de pedido | Super admin/Admin/Atención pueden crear; solo Super admin/Admin administran catálogos; Empleado es rechazado; borrado físico conserva snapshots históricos; combinaciones, importes, saldo derivado, atomicidad, idempotencia, etapa inicial y visibilidad financiera |
 
 ## Antes de finalizar
 

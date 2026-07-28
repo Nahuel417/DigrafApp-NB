@@ -76,6 +76,310 @@ export type Database = {
           },
         ]
       }
+      catalog_item_events: {
+        Row: {
+          action: string
+          actor_id: string
+          catalog_item_id: string | null
+          catalog_item_name: string
+          created_at: string
+          details: Json
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          catalog_item_id?: string | null
+          catalog_item_name: string
+          created_at?: string
+          details?: Json
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          catalog_item_id?: string | null
+          catalog_item_name?: string
+          created_at?: string
+          details?: Json
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_item_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_item_events_catalog_item_id_fkey"
+            columns: ["catalog_item_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          garment_layer: Database["public"]["Enums"]["garment_layer"] | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["catalog_item_kind"]
+          name: string
+          name_key: string | null
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["catalog_item_kind"]
+          name: string
+          name_key?: string | null
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["catalog_item_kind"]
+          name?: string
+          name_key?: string | null
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_catalog_items: {
+        Row: {
+          catalog_item_id: string | null
+          catalog_kind: Database["public"]["Enums"]["catalog_item_kind"]
+          created_at: string
+          garment_layer: Database["public"]["Enums"]["garment_layer"] | null
+          id: string
+          item_name: string
+          order_id: string
+          selection_key: string
+        }
+        Insert: {
+          catalog_item_id?: string | null
+          catalog_kind: Database["public"]["Enums"]["catalog_item_kind"]
+          created_at?: string
+          garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
+          id?: string
+          item_name: string
+          order_id: string
+          selection_key: string
+        }
+        Update: {
+          catalog_item_id?: string | null
+          catalog_kind?: Database["public"]["Enums"]["catalog_item_kind"]
+          created_at?: string
+          garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
+          id?: string
+          item_name?: string
+          order_id?: string
+          selection_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_catalog_items_catalog_item_id_fkey"
+            columns: ["catalog_item_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_catalog_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_financials: {
+        Row: {
+          created_at: string
+          deposit_amount: number
+          deposit_paid: boolean
+          order_id: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_amount: number
+          deposit_paid?: boolean
+          order_id: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_amount?: number
+          deposit_paid?: boolean
+          order_id?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_financials_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_stage_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          from_stage_id: string | null
+          id: string
+          order_id: string
+          to_stage_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          from_stage_id?: string | null
+          id?: string
+          order_id: string
+          to_stage_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          from_stage_id?: string | null
+          id?: string
+          order_id?: string
+          to_stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_stage_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_stage_events_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_stage_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_stage_events_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          created_by: string
+          current_stage_id: string
+          customer_name: string
+          description: string | null
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_date: string
+          order_type: Database["public"]["Enums"]["order_type"]
+          promised_delivery_date: string
+          public_number: number
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          current_stage_id: string
+          customer_name: string
+          description?: string | null
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_date: string
+          order_type: Database["public"]["Enums"]["order_type"]
+          promised_delivery_date: string
+          public_number?: number
+          quantity: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          current_stage_id?: string
+          customer_name?: string
+          description?: string | null
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          order_date?: string
+          order_type?: Database["public"]["Enums"]["order_type"]
+          promised_delivery_date?: string
+          public_number?: number
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -106,11 +410,49 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_stages: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      create_catalog_item: {
+        Args: {
+          target_garment_layer: string
+          target_kind: Database["public"]["Enums"]["catalog_item_kind"]
+          target_name: string
+        }
+        Returns: string
+      }
       create_managed_profile: {
         Args: {
           target_display_name: string
@@ -119,16 +461,47 @@ export type Database = {
         }
         Returns: undefined
       }
+      create_order: {
+        Args: {
+          p_customer_name: string
+          p_deposit_amount: string
+          p_deposit_paid: boolean
+          p_description: string
+          p_extra_ids: string[]
+          p_fabric_id: string
+          p_garment_lower_id: string
+          p_garment_upper_id: string
+          p_idempotency_key: string
+          p_lower_pattern_id: string
+          p_neckline_id: string
+          p_order_date: string
+          p_order_type: Database["public"]["Enums"]["order_type"]
+          p_promised_delivery_date: string
+          p_quantity: number
+          p_total_amount: string
+          p_upper_pattern_id: string
+        }
+        Returns: {
+          order_id: string
+          public_number: number
+          stage_code: string
+        }[]
+      }
       current_active_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
       prepare_password_reset: {
         Args: { target_id: string }
         Returns: undefined
       }
       record_password_reset_result: {
         Args: { succeeded: boolean; target_id: string }
+        Returns: undefined
+      }
+      rename_catalog_item: {
+        Args: { target_id: string; target_name: string }
         Returns: undefined
       }
       update_managed_profile: {
@@ -142,6 +515,15 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "admin" | "attention" | "employee"
+      catalog_item_kind:
+        | "garment"
+        | "neckline"
+        | "upper_pattern"
+        | "lower_pattern"
+        | "fabric"
+        | "extra"
+      garment_layer: "upper" | "lower"
+      order_type: "set" | "individual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -273,6 +655,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "admin", "attention", "employee"],
+      catalog_item_kind: [
+        "garment",
+        "neckline",
+        "upper_pattern",
+        "lower_pattern",
+        "fabric",
+        "extra",
+      ],
+      garment_layer: ["upper", "lower"],
+      order_type: ["set", "individual"],
     },
   },
 } as const

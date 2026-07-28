@@ -18,7 +18,11 @@ function formValues(formData: FormData) {
 async function currentManager() {
   const profile = await getCurrentProfile();
 
-  if (!profile || (profile.role !== "super_admin" && profile.role !== "admin")) {
+  if (
+    !profile
+    || profile.mustChangePassword
+    || (profile.role !== "super_admin" && profile.role !== "admin")
+  ) {
     return null;
   }
 

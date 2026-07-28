@@ -4,7 +4,8 @@
     "trello": {
       "type": "remote",
       "url": "https://mcp.trello.com/v1",
-      "oauth": {}
+      "oauth": {},
+      "enabled": true
     }
   }
 }

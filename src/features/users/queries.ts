@@ -15,7 +15,11 @@ export type ManagedUser = {
 
 export async function getManagedUsers() {
   const actor = await getCurrentProfile();
-  if (!actor || (actor.role !== "super_admin" && actor.role !== "admin")) return null;
+  if (
+    !actor
+    || actor.mustChangePassword
+    || (actor.role !== "super_admin" && actor.role !== "admin")
+  ) return null;
 
   const supabase = await createClient();
   const admin = createAdminClient();

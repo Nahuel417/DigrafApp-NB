@@ -1,149 +1,135 @@
 # Digraf — guía para agentes
 
-Aplicar estas instrucciones antes de trabajar en este repositorio. `AGENTS.md` es la fuente canónica para Codex y OpenCode; no crear ni mantener un `CLAUDE.md` duplicado.
+Instrucciones obligatorias para Codex y OpenCode. Digraf es una aplicación
+interna para una gráfica textil: el MVP prioriza confiabilidad, seguridad,
+trazabilidad, claridad y baja carga cognitiva.
 
-Digraf es una aplicación interna para una gráfica textil: pedidos de producción en Kanban, roles, caja diaria y trazabilidad. El objetivo del MVP es un flujo operativo confiable, no una plataforma genérica.
+## Límites críticos
 
-## Contrato operativo
+- No ejecutar `git commit` ni crear tags hasta que el usuario lo solicite
+  explícitamente. Aprobar un plan o implementación no autoriza un commit.
+- Trello es estrictamente de solo lectura: nunca crear, editar, mover, archivar,
+  eliminar, comentar ni marcar ítems.
+- `push`, PR, merge, deploy, release, migraciones remotas y configuración externa
+  requieren una solicitud explícita para esa acción concreta.
+- No modificar producción, datos reales, credenciales ni infraestructura como
+  efecto colateral de una tarea local.
 
-- Trabajar hacia el resultado pedido, sus restricciones y criterio de terminado; elegir el camino técnico más simple que los cumpla.
-- No inventar reglas de negocio ni sustituir decisiones confirmadas por supuestos técnicos.
-- Preservar cambios ajenos y limitar la modificación al alcance de la tarea.
-- No afirmar que algo funciona sin evidencia de la verificación pertinente.
-- Preferir decisiones reversibles. Explicar las suposiciones no bloqueantes y detenerse solo ante una decisión material.
-- Usar `rg` para búsquedas y `pnpm` como gestor de paquetes, salvo que el repositorio establezca otra cosa.
+## Fuentes y contexto
 
-## Carga de contexto bajo demanda
+Leer solo lo necesario. Ante diferencias, aplicar este orden:
 
-Leer únicamente la guía relevante antes de actuar; su contenido es obligatorio para la tarea correspondiente.
+1. Instrucción explícita más reciente del usuario.
+2. `docs/decisions.md` y guías canónicas de `docs/agent-guides/`.
+3. Alcance y criterios de aceptación del módulo aprobado.
+4. `docs/plans/mvp-plan.md` para orden y dependencias.
+5. Historias originales, Trello y resúmenes como contexto histórico.
+6. Código existente como evidencia del estado actual, no como regla de producto.
 
-| Si la tarea toca…                                                        | Leer primero                                                                             |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| Roles, pedidos, tablero, pagos, caja, catálogos, cotizador o anulaciones | `docs/agent-guides/domain-rules.md` y, para el cotizador, `docs/agent-guides/quoting.md` |
-| Next.js, Supabase, RLS, Storage, migraciones o estructura                | `docs/agent-guides/architecture.md`                                                      |
-| Tests, validación, CI o comandos de desarrollo                           | `docs/agent-guides/verification.md`                                                      |
-| Una decisión confirmada, un cambio de alcance o una ambigüedad previa    | `docs/decisions.md`                                                                      |
-| Planificación, fases, dependencias o inicio de implementación del MVP    | `docs/plans/mvp-plan.md` y las guías temáticas que correspondan                          |
-| UI, UX, responsive, accesibilidad, identidad visual o componentes        | `docs/agent-guides/design-system.md`                                                     |
+Si una contradicción afecta alcance, permisos, seguridad, datos o comportamiento,
+señalarla y pedir decisión. Registrar toda decisión nueva durable en su guía.
 
-No cargar todas las guías por rutina. Si una guía y una instrucción reciente del usuario difieren, prevalece la instrucción reciente y debe actualizarse la documentación durable al cerrar la tarea.
+| Área | Leer primero |
+| --- | --- |
+| Roles, pedidos, tablero, pagos, caja, catálogos, imágenes o anulaciones | `docs/agent-guides/domain-rules.md` |
+| Cotizador | `docs/agent-guides/domain-rules.md` y `docs/agent-guides/quoting.md` |
+| Next.js, Supabase, Auth, RLS, Storage, migraciones o dependencias | `docs/agent-guides/architecture.md` |
+| Tests, CI, validación o comandos | `docs/agent-guides/verification.md` |
+| Decisiones o ambigüedades | `docs/decisions.md` |
+| Inicio o planificación de módulo | `docs/plans/mvp-plan.md` y guías aplicables |
+| UI, UX, responsive, accesibilidad o componentes | `docs/agent-guides/design-system.md` |
 
-## Stack y convenciones
+No cargar guías, archivos, historiales, MCPs ni agentes sin necesidad.
 
-- Next.js 16 estable, App Router y TypeScript `strict`.
-- Supabase: PostgreSQL, Auth, Storage y RLS.
-- Tailwind CSS, shadcn/ui, dnd-kit, Zustand, Zod y React Hook Form.
-- Vitest para reglas de dominio; Playwright para recorridos críticos.
-- Vercel para hosting y CI/CD; Supabase CLI para desarrollo y migraciones.
-- Código, tablas y nombres técnicos en inglés. Interfaz y mensajes en español.
-- Usar `numeric` para dinero, nunca `float`; moneda ARS.
-- Persistir instantes en UTC y usar `America/Argentina/Cordoba` para día operativo y presentación.
-- No usar `any`, supresiones de TypeScript/lint, secretos, datos reales ni logs de depuración en código entregado.
+## Trabajo y calidad
 
-## Invariantes no negociables
+- Cumplir objetivo, restricciones y criterios con la solución más simple que
+  preserve seguridad y mantenibilidad.
+- No inventar reglas, ampliar el MVP ni adelantar módulos sin aprobación.
+- Limitar cambios al alcance y preservar modificaciones ajenas.
+- Resolver autónomamente detalles locales, reversibles y no sensibles; detenerse
+  ante decisiones materiales, destructivas, externas o fuera de alcance.
+- Escribir código claro, cohesivo, tipado y fácil de probar. Aplicar SOLID,
+  separación de responsabilidades y abstracciones solo cuando reduzcan
+  complejidad real; evitar sobrearquitectura y duplicación prematura.
+- No afirmar que algo funciona sin evidencia. Usar `rg` y `pnpm`.
 
-- RLS y validación de servidor son la frontera de permisos. La interfaz nunca es autorización.
-- Un rol, actor o importe enviado por el cliente no es confiable hasta validarse en servidor/base de datos.
-- Cambios de pago, caja, anulación y auditoría deben ser atómicos, trazables e idempotentes cuando puedan reintentarse.
-- No borrar movimientos de caja; se anulan y conservan actor y timestamp.
-- No borrar pedidos operativos de inmediato; seguir el flujo de archivo de 30 días definido en las reglas de dominio.
-- No exponer claves privilegiadas de Supabase al navegador.
-- No implementar funcionalidades fuera del MVP sin aprobación explícita.
+## Stack, convenciones y seguridad
 
-## Arquitectura y datos
+- Next.js 16, App Router y TypeScript `strict`; preferir Server Components.
+- Supabase PostgreSQL, Auth, Storage y RLS; Tailwind CSS y shadcn/ui.
+- Zod, React Hook Form, dnd-kit y Zustand solo cuando el módulo los requiera.
+- Vitest para dominio/integración y Playwright para recorridos críticos.
+- `package.json` define dependencias y scripts disponibles. Instalar paquetes,
+  componentes, servicios o infraestructura requiere aprobación.
+- Código, esquema y nombres técnicos en inglés; interfaz y mensajes en español.
+- Dinero ARS en `numeric`, nunca `float`; instantes en UTC y día operativo o
+  presentación en `America/Argentina/Cordoba`.
+- No entregar `any`, supresiones injustificadas, secretos, datos reales ni logs.
+- RLS y validación de servidor son la frontera de autorización; la UI no concede
+  permisos. Validar sesión, perfil activo, `must_change_password`, rol, actor,
+  identificadores, importes y entradas no confiables.
+- Mantener claves privilegiadas en módulos `server-only` y usarlas solo en
+  operaciones administrativas autorizadas.
+- Zustand es solo estado efímero de UI, nunca sesión, permisos o negocio.
+- Usar migraciones versionadas y regenerar tipos de Supabase; no editarlos a mano.
+- Operaciones sensibles multi-escritura deben ser atómicas, trazables e
+  idempotentes cuando puedan reintentarse. No borrar registros auditables.
 
-- Preferir Server Components. Crear Client Components solo para interacción, APIs del navegador o estado local.
-- Toda entrada no confiable se valida con Zod en el límite de servidor.
-- Zustand es solo estado efímero de UI; no es fuente de verdad para sesión, permisos, pedidos, tablero ni caja.
-- Usar migraciones versionadas para cualquier cambio de esquema. No compensar con cambios manuales en entornos remotos.
-- Generar tipos desde Supabase después de cambios de esquema; no editar tipos generados a mano.
-- Para operaciones multi-escritura sensibles, preferir transacciones o funciones PostgreSQL seguras antes que coordinación desde el cliente.
-- No agregar dependencias de producción, servicios externos o infraestructura nueva sin aprobación en el plan.
+## Planificación e implementación
 
-## Modo Plan y autonomía
+Usar Plan Mode antes de editar si la tarea es ambigua o transversal; afecta datos,
+permisos, seguridad, caja o arquitectura; cambia reglas; abarca varios cortes
+verticales; o implica una operación destructiva o externa.
 
-Usar modo Plan para tareas ambiguas, transversales, de datos, seguridad, permisos, caja, arquitectura o más de un corte vertical. Antes de editar, presentar:
+En Plan Mode solo inspeccionar. No editar, crear ramas, instalar, mutar bases,
+crear credenciales ni ejecutar acciones externas. El plan debe cubrir resultado,
+alcance y fuera de alcance, hallazgos, solución, permisos/datos/archivos, pruebas,
+riesgos y decisiones pendientes. Tareas pequeñas y reversibles pueden ejecutarse
+directamente; un módulo comienza solo tras su aprobación.
 
-1. Resultado y criterios de aceptación entendidos.
-2. Hallazgos relevantes del repositorio y guías leídas.
-3. Propuesta recomendada, archivos/datos afectados y pruebas.
-4. Riesgos o tradeoffs reales.
-5. Decisiones que requieren aprobación.
+Antes de editar:
 
-El agente puede proponer mejoras, detectar inconsistencias, decidir detalles locales y hacer refactors pequeños necesarios. Debe pedir aprobación antes de cambiar reglas confirmadas, ampliar el MVP, introducir dependencias/costos, hacer migraciones destructivas, debilitar controles o modificar producción/datos reales.
+1. Revisar `git status`, rama y cambios existentes.
+2. Crear o usar una rama `feat/*` para el módulo aprobado.
+3. Identificar guías, permisos y verificaciones aplicables.
 
-Para tareas pequeñas, bien delimitadas y sin esos riesgos, implementar directamente y explicar cualquier suposición relevante al finalizar.
+Implementar secuencialmente: invariantes/autorización/migraciones, servidor, UI,
+pruebas y revisión del diff. Ejecutar pruebas específicas durante el desarrollo;
+repetir solo las fallidas y correr la suite completa una vez al cierre, según
+`docs/agent-guides/verification.md`.
 
-## Implementación y verificación
+Antes de `pnpm db:reset`, verificar un procedimiento autorizado y reproducible
+para restaurar cuentas locales. Si no existe, advertir que elimina usuarios y
+detenerse. El reset no autoriza crear o cambiar credenciales.
 
-1. Inspeccionar el código y estado de Git antes de editar.
-2. Implementar primero invariantes, autorización y migraciones; luego lógica de servidor y UI.
-3. Cubrir permisos y comportamiento afectado con pruebas proporcionales al riesgo.
-4. Ejecutar las verificaciones definidas en `docs/agent-guides/verification.md`.
-5. Revisar el diff por regresiones, bypasses de permisos, datos inconsistentes y cambios accidentales.
+Una tarea queda lista para validar cuando cumple criterios, prueba casos permitidos
+y rechazados, supera verificaciones aplicables, no deja problemas críticos ni
+cambios accidentales y actualiza decisiones durables. La entrega debe resumir
+resultado, archivos/migraciones, verificaciones, riesgos y prueba manual; explicar
+comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 
-La entrega final debe indicar: resultado, archivos relevantes, verificaciones ejecutadas y bloqueos/riesgos pendientes. Si una verificación no pudo ejecutarse, decir por qué y cuál es el siguiente mejor control.
+## Git, skills y herramientas
 
-## Git y operaciones externas
-
-- Usar `git` CLI para ramas, staging, commits y push; usar `gh` CLI para repositorios, issues, PRs y releases.
-- No usar un MCP de GitHub para operaciones normales de repositorio.
-- El agente puede crear ramas `feat/*` y commits locales al finalizar una tarjeta
-  aprobada, después de ejecutar y validar las verificaciones pertinentes.
-- El agente no debe hacer `push` automáticamente. Solo puede pushear una rama
-  cuando el usuario lo solicite explícitamente
-- Antes de cada commit, resumir brevemente los cambios y verificaciones.
-- Antes de cada acción externa, como push, PR, deploy o migración remota,
-  resumir el recurso afectado y esperar aprobación explícita.
-- `main` es la rama estable: no hacer push directo, merge, release, deploy, migraciones remotas ni cambios de configuración de producción sin aprobación explícita.
-- No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni reescritura de historial sin autorización explícita.
-- Usar Conventional Commits.
-
-## Agentes, skills y MCPs
-
-- Usar subagentes solo para trabajo independiente que mejore calidad o velocidad: exploración, revisión de seguridad/RLS, análisis de pruebas o revisión final.
-- El agente principal conserva síntesis, decisiones y responsabilidad final. No permitir ediciones simultáneas en los mismos archivos o migraciones.
-- Para OpenCode, usar Plan para análisis sin cambios; reservar Build para ejecución aprobada. Para Codex, solicitar delegación explícita cuando sea útil.
-- Al añadir agentes especializados de OpenCode, ubicarlos en `.opencode/agents/` y darles objetivo acotado y permisos mínimos. Mantener la configuración de Codex separada en `.codex/` cuando se necesite.
-- Las skills reutilizables no deben inflar este archivo. Para compatibilidad con OpenCode, preferir `.agents/skills/<nombre>/SKILL.md`; las rutas alternativas deben ser enlaces, no copias. Documentar cuándo se usa cada skill y mantener su alcance estrecho.
-- Añadir MCPs solo cuando aporten una integración real. Configurar mínimos privilegios, no exponer credenciales y documentar propósito, datos accesibles y aprobación requerida.
-- Usar Trello MCP solo cuando la tarea pida crear, actualizar o consultar planificación.
-- Usar Supabase MCP únicamente sobre Supabase local o el proyecto de desarrollo configurado; nunca conectarlo a producción ni a datos reales de clientes.
-- Los cambios de producción se realizan desde migraciones revisadas mediante CLI o CI, y requieren aprobación explícita.
-- Antes de una acción externa, resumir qué recurso se creará o modificará y su impacto.
-- Cargar `frontend-design` al definir o implementar una nueva pantalla,
-  identidad visual, layout o sistema de diseño. No usarla para cambios menores
-  sin impacto visual.
-- Cargar `shadcn` al crear, buscar, componer, actualizar o personalizar
-  componentes shadcn/ui. Usar pnpm como package runner del proyecto.
-- Si una skill sugiere instalar un componente o bloque de un registro externo,
-  explicar qué resuelve y qué archivos o dependencias agregará, y pedir
-  autorización explícita antes de instalarlo.
-- Cargar `vercel-react-best-practices` al implementar o revisar páginas,
-  componentes, Server Components, fetching, hidratación o rendimiento en
-  Next.js.
-- Cargar `supabase-postgres-best-practices` al tocar esquema, SQL, índices,
-  consultas, migraciones, RLS o concurrencia en Supabase.
-- Cargar `webapp-testing` al implementar o revisar pruebas Playwright de la
-  aplicación.
-- Usar Context7 para consultar documentación externa versionada cuando una API,
-  framework o librería pueda haber cambiado. Priorizar documentación oficial y
-  mencionar brevemente cuándo se utilizó.
-- No cargar skills por rutina. Cargar únicamente las que correspondan a la
-  tarea actual y evitar skills redundantes.
-- Antes de confiar en una skill externa, revisar su `SKILL.md`, sus comandos,
-  permisos y origen. No ejecutar comandos incluidos en una skill sin entender
-  su efecto.
-    - Delegar en `ui-designer`, ubicado en `.opencode/agents/ui-designer.md`,
-      la planificación o revisión especializada de identidad visual, UX,
-      responsive y accesibilidad cuando la tarea tenga impacto relevante en la
-      interfaz.la implementación y la decisión final permanecen en el agente principal.
+- Usar `git` para el repositorio y `gh` para GitHub; no usar GitHub MCP.
+- `main` es estable: nunca hacer push directo. Usar Conventional Commits.
+- Tras implementar, presentar cambios y verificaciones y esperar la orden de
+  commit. Esa orden no autoriza push, PR, merge, deploy ni Trello.
+- No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni
+  reescribir historial sin autorización explícita.
+- Cargar `frontend-design` para cambios visuales importantes; `shadcn` para sus
+  componentes; `vercel-react-best-practices` para Next.js/React;
+  `supabase-postgres-best-practices` para SQL/RLS/concurrencia; `webapp-testing`
+  para Playwright; Context7 para documentación externa versionada.
+- Leer el `SKILL.md` antes de usar una skill y no cargar recursos redundantes.
+- Usar subagentes solo con autorización y para trabajo independiente; el agente
+  principal integra. No editar simultáneamente los mismos archivos o migraciones.
+- `.opencode/agents/ui-designer.md` es solo para planificar/revisar UX/UI.
+- Trello MCP: solo lecturas necesarias. Supabase MCP: solo local/desarrollo con
+  datos sintéticos; preferir migraciones y CLI. Aplicar mínimos privilegios.
 
 ## Mantenimiento
 
-- Mantener este archivo corto, concreto y libre de duplicaciones; las reglas detalladas pertenecen a las guías enlazadas.
-- Tras descubrir una fricción repetida, proponer el cambio mínimo en la guía o skill adecuada.
-- No agregar reglas universales por una excepción local; usar una guía, skill o agente especializado.
-- Al cerrar una tarea, si se confirmó una decisión, regla, comando, limitación
-  o aprendizaje reutilizable, actualizar el documento durable correspondiente.
-  No documentar detalles transitorios ni duplicar información.
+Mantener este archivo en 180 líneas o menos. Las reglas detalladas pertenecen a
+las guías canónicas. Documentar solo decisiones, reglas, comandos o aprendizajes
+reutilizables, no estados transitorios.
