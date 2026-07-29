@@ -237,7 +237,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Catálogos y alta m
   it("conserva el snapshot al borrar una tela usada por un pedido", async () => {
     const identitiesByRole = (globalThis as typeof globalThis & { __m3Identities: Record<string, { email: string }> }).__m3Identities;
     const superClient = await signedClient(identitiesByRole.superAdmin);
-    const itemName = "TELA 1";
+    const itemName = `TELA M3 ${randomUUID().slice(0, 8)}`;
     const { data: itemId, error: createError } = await superClient.rpc("create_catalog_item", {
       target_kind: "fabric",
       target_garment_layer: "",

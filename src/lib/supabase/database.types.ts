@@ -264,6 +264,8 @@ export type Database = {
           created_at: string
           from_stage_id: string | null
           id: string
+          idempotency_fingerprint: string | null
+          idempotency_key: string | null
           order_id: string
           to_stage_id: string
         }
@@ -272,6 +274,8 @@ export type Database = {
           created_at?: string
           from_stage_id?: string | null
           id?: string
+          idempotency_fingerprint?: string | null
+          idempotency_key?: string | null
           order_id: string
           to_stage_id: string
         }
@@ -280,6 +284,8 @@ export type Database = {
           created_at?: string
           from_stage_id?: string | null
           id?: string
+          idempotency_fingerprint?: string | null
+          idempotency_key?: string | null
           order_id?: string
           to_stage_id?: string
         }
@@ -492,6 +498,24 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
+      move_order: {
+        Args: {
+          p_expected_updated_at: string
+          p_from_stage_id: string
+          p_idempotency_key: string
+          p_order_id: string
+          p_to_stage_id: string
+        }
+        Returns: {
+          event_id: string
+          from_stage_id: string
+          order_id: string
+          public_number: number
+          stage_code: string
+          to_stage_id: string
+          updated_at: string
+        }[]
+      }
       prepare_password_reset: {
         Args: { target_id: string }
         Returns: undefined

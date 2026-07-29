@@ -9,6 +9,7 @@ const changePasswordEmail = "visual-password-e2e@digraf.local";
 const temporaryPassword = "VisualTemporary2026";
 const longEmail = `visual-${"contenido".repeat(5)}@digraf.local`;
 const longName = "NombreOperativoSinEspacios".repeat(4).slice(0, 100);
+let visualOrderId = "";
 
 function createAdminClient() {
   const url = process.env.SUPABASE_URL;
@@ -52,6 +53,8 @@ async function createVisualUser(userEmail: string, userPassword: string, display
     await admin.auth.admin.deleteUser(data.user.id);
     throw new Error(`No se pudo crear el perfil visual E2E: ${profileError.message}`);
   }
+
+  return data.user.id;
 }
 
 async function login(page: Page) {
@@ -76,17 +79,58 @@ async function waitForVisualStability(page: Page) {
   });
 }
 
+async function isolateVisualOrder(page: Page) {
+  await page.locator("[data-order-id]").evaluateAll((cards, expectedOrderId) => {
+    for (const card of cards) {
+      if (card.getAttribute("data-order-id") !== expectedOrderId) {
+        (card as HTMLElement).style.display = "none";
+      }
+    }
+  }, visualOrderId);
+  await page.locator("[data-drop-stage]").evaluateAll((columns) => {
+    for (const column of columns) {
+      const visibleOrders = [...column.querySelectorAll<HTMLElement>("[data-order-id]")]
+        .filter((card) => card.style.display !== "none").length;
+      const count = column.querySelector<HTMLElement>("[data-stage-count]");
+      if (count) count.textContent = String(visibleOrders);
+    }
+  });
+  await page.locator("[data-board-count]").evaluate((count) => { count.textContent = "1 pedido en seguimiento"; });
+}
+
 test.describe("referencia visual", () => {
   test.skip(process.platform === "linux", "Los snapshots visuales se validan únicamente en Windows y macOS.");
 
   test.beforeAll(async () => {
     await deleteVisualUsers();
-    await createVisualUser(email, password, "Administración visual", false);
+    const visualUserId = await createVisualUser(email, password, "Administración visual", false);
     await createVisualUser(changePasswordEmail, temporaryPassword, "Cambio de contraseña visual", true);
     await createVisualUser(longEmail, password, longName, false);
+
+    const admin = createAdminClient();
+    const { data: receivedStage, error: stageError } = await admin.from("workflow_stages").select("id").eq("code", "received").single();
+    if (stageError) throw stageError;
+    const { data: order, error: orderError } = await admin.from("orders").insert({
+      customer_name: "Equipo visual del taller",
+      quantity: 18,
+      order_type: "set",
+      order_date: "2026-07-29",
+      promised_delivery_date: "2026-08-08",
+      current_stage_id: receivedStage.id,
+      created_by: visualUserId,
+      idempotency_key: "visual-m4-order",
+      idempotency_fingerprint: "visualm4order".padEnd(32, "0"),
+    }).select("id").single();
+    if (orderError || !order) throw orderError ?? new Error("No se pudo crear el pedido visual M4.");
+    visualOrderId = order.id;
   });
 
   test.afterAll(async () => {
+    if (visualOrderId) {
+      const admin = createAdminClient();
+      await admin.from("order_stage_events").delete().eq("order_id", visualOrderId);
+      await admin.from("orders").delete().eq("id", visualOrderId);
+    }
     await deleteVisualUsers();
   });
 
@@ -103,6 +147,25 @@ test.describe("referencia visual", () => {
     await expect(page.getByRole("heading", { name: "Panel general" })).toBeVisible();
     await waitForVisualStability(page);
     await expect(page).toHaveScreenshot("dashboard.png", { animations: "disabled", caret: "initial", fullPage: true });
+  });
+
+  test("tablero de pedidos", async ({ page }, testInfo) => {
+    await login(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/orders");
+    await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+    await waitForVisualStability(page);
+    await isolateVisualOrder(page);
+    await expect(page.getByLabel("Tablero de pedidos")).toHaveScreenshot(
+      `order-board-${testInfo.project.name}-desktop.png`,
+      { animations: "disabled", caret: "initial" },
+    );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/orders");
+    await waitForVisualStability(page);
+    await isolateVisualOrder(page);
+    await expect(page).toHaveScreenshot(`order-board-${testInfo.project.name}-mobile.png`, { animations: "disabled", caret: "initial", fullPage: true });
   });
 
   test("cambio de contraseña", async ({ page }) => {

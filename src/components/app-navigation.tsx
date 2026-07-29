@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPlus, LayoutDashboard, ListTree, Users } from "lucide-react";
+import { ClipboardPlus, Kanban, LayoutDashboard, ListTree, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -24,6 +24,7 @@ const navigationItems: Array<{
   label: string;
 }> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Panel" },
+  { href: "/orders", icon: Kanban, label: "Pedidos" },
   { href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido", capability: "canCreateOrders" },
   { href: "/catalogs", icon: ListTree, label: "Catálogos", capability: "canManageCatalogs" },
   { href: "/users", icon: Users, label: "Usuarios", capability: "canManageUsers" },
@@ -32,6 +33,9 @@ const navigationItems: Array<{
 export function AppNavigation({ capabilities, compact = false }: AppNavigationProps) {
   const pathname = usePathname();
   const items = navigationItems.filter((item) => !item.capability || capabilities[item.capability]);
+  const activeHref = items
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .toSorted((left, right) => right.href.length - left.href.length)[0]?.href;
 
   return (
     <nav
@@ -39,7 +43,7 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
       className={cn(compact ? "grid grid-cols-2 gap-1" : "flex flex-col gap-1")}
     >
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = item.href === activeHref;
         const Icon = item.icon;
 
         return (

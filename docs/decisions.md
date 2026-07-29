@@ -32,6 +32,7 @@ Este documento registra decisiones confirmadas. Actualizarlo cuando se cierre un
 | Fondo operativo         | Confirmada       | El canvas, el shell y la sidebar usan `#F6F8F6` (`oklch(0.9771 0.0034 145.55)`) para reducir deslumbramiento. Cards y popovers permanecen blancos y no se crean colores diferentes por pantalla. |
 | Confirmación sensible   | Confirmada       | Activar, desactivar, cambiar permisos, restablecer credenciales, anular, eliminar y operaciones equivalentes requieren dos pasos mediante AlertDialog. El diálogo identifica entidad, consecuencia y reversibilidad; la UI no reemplaza autorización ni auditoría de servidor. |
 | Feedback de mutaciones  | Confirmada       | Toda mutación muestra toast accesible de éxito o error, conserva errores inline de formularios y bloquea doble envío mientras está pendiente. Las operaciones sujetas a archivo, anulación o retención no se convierten en borrado físico. |
+| Movimientos M4 y `paid` | Confirmada       | M4 permite solo movimientos no financieros. Hasta M11/M12 se rechaza toda transición hacia o desde la etapa semántica `paid` para cualquier rol; `delivered` continúa siendo alcanzable sin pago. Cada movimiento M4 usa transición esperada e idempotencia, y registra un único evento atómico. |
 
 Las contraseñas pertenecen exclusivamente a Supabase Auth: no se guardan en perfiles, tablas de auditoría ni logs de la aplicación. La desactivación debe cortar el acceso a datos protegidos aunque el usuario conserve una sesión previa.
 

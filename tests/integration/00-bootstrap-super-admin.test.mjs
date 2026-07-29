@@ -34,6 +34,18 @@ describe.skipIf(!url || !serviceRoleKey)("Bootstrap de Super admin", () => {
     process.env.BOOTSTRAP_SUPER_ADMIN_PASSWORD = temporaryPassword;
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
+    const { count, error } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "super_admin");
+    expect(error).toBeNull();
+
+    if ((count ?? 0) > 0) {
+      await expect(createSuperAdmin(admin)).rejects.toThrow("todavía no existe ningún perfil");
+      expect(log).not.toHaveBeenCalled();
+      return;
+    }
+
     const userId = await createSuperAdmin(admin);
     createdUserIds.add(userId);
 

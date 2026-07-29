@@ -46,6 +46,22 @@ pnpm bootstrap:super-admin
 
 `.env.local` está ignorado por Git y no debe compartirse. El script nunca imprime contraseñas ni claves. Si Auth se creó y el perfil falla, informa el `user_id` para reparar el perfil o, con confirmación explícita, limpiar el usuario de Auth. En entornos remotos exige `--confirm-remote`; crear cuentas reales requiere autorización explícita.
 
+### Cuentas estables de desarrollo
+
+Definir `LOCAL_DEV_USERS_PASSWORD` únicamente en `.env.local`, sin compartir su valor. Con Supabase local iniciado:
+
+```bash
+pnpm db:users
+```
+
+El comando crea o restaura idempotentemente las cuatro cuentas locales de desarrollo, confirma Auth y repara sus perfiles. Para reconstruir la base local y recuperar inmediatamente estas cuentas:
+
+```bash
+pnpm db:reset:local
+```
+
+`db:reset:local` ejecuta reset, regenera tipos y restaura las cuentas en ese orden. No usarlo cuando deban conservarse datos locales.
+
 ## Verificación
 
 ```bash
@@ -56,6 +72,8 @@ pnpm test:integration
 pnpm test:e2e
 pnpm build
 pnpm db:reset
+pnpm db:reset:local
+pnpm db:users
 pnpm db:types
 ```
 

@@ -17,3 +17,7 @@ export function canManageUsers(role: AppRole) {
 export function canReadOrderFinancials(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention";
 }
+
+export function canMoveOrder(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
+}

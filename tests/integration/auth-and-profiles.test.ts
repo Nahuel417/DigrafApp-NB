@@ -7,7 +7,7 @@ import type { Database } from "../../src/lib/supabase/database.types";
 
 const url = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 const runId = randomUUID();
 const activeEmail = `active-auth-${runId}@digraf.local`;

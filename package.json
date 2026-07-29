@@ -26,10 +26,13 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
+    "db:reset:local": "pnpm db:reset && pnpm db:types && pnpm db:users",
     "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
+    "db:users": "node --env-file=.env.local scripts/ensure-local-dev-users.mjs",
     "bootstrap:super-admin": "node scripts/bootstrap-super-admin.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-checkbox": "^1.3.8",
     "@radix-ui/react-label": "^2.1.11",
