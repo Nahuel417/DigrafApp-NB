@@ -83,13 +83,38 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Gestión segura de 
   it("protege el último Super admin y audita cambios", async () => {
     const emails = (globalThis as typeof globalThis & { __m2Emails: Record<string, { email: string }> }).__m2Emails;
     const client = await signedClient(emails.superUser.email);
+    const { count: activeSuperAdminCount, error: countError } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "super_admin")
+      .eq("is_active", true);
+    expect(countError).toBeNull();
+
     const { error } = await client.rpc("update_managed_profile", { target_id: superId, target_role: "admin", target_is_active: true });
-    expect(error).not.toBeNull();
+    if (activeSuperAdminCount === 1) {
+      expect(error).not.toBeNull();
+    } else {
+      expect(error).toBeNull();
+      const { error: restoreError } = await admin
+        .from("profiles")
+        .update({ role: "super_admin", is_active: true })
+        .eq("id", superId);
+      expect(restoreError).toBeNull();
+    }
+
     const adminClient = await signedClient(emails.adminUser.email);
     const { error: adminError } = await adminClient.rpc("update_managed_profile", { target_id: otherAdminId, target_role: "employee", target_is_active: false });
     const { error: superError } = await client.rpc("update_managed_profile", { target_id: superId, target_role: "admin", target_is_active: true });
     expect(adminError).not.toBeNull();
-    expect(superError).not.toBeNull();
+    if (activeSuperAdminCount === 1) expect(superError).not.toBeNull();
+    else {
+      expect(superError).toBeNull();
+      const { error: restoreError } = await admin
+        .from("profiles")
+        .update({ role: "super_admin", is_active: true })
+        .eq("id", superId);
+      expect(restoreError).toBeNull();
+    }
   });
 
   it("rechaza escrituras directas de perfiles y auditoría", async () => {

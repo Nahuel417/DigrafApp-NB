@@ -29,15 +29,15 @@ Leer solo lo necesario. Ante diferencias, aplicar este orden:
 Si una contradicción afecta alcance, permisos, seguridad, datos o comportamiento,
 señalarla y pedir decisión. Registrar toda decisión nueva durable en su guía.
 
-| Área | Leer primero |
-| --- | --- |
-| Roles, pedidos, tablero, pagos, caja, catálogos, imágenes o anulaciones | `docs/agent-guides/domain-rules.md` |
-| Cotizador | `docs/agent-guides/domain-rules.md` y `docs/agent-guides/quoting.md` |
-| Next.js, Supabase, Auth, RLS, Storage, migraciones o dependencias | `docs/agent-guides/architecture.md` |
-| Tests, CI, validación o comandos | `docs/agent-guides/verification.md` |
-| Decisiones o ambigüedades | `docs/decisions.md` |
-| Inicio o planificación de módulo | `docs/plans/mvp-plan.md` y guías aplicables |
-| UI, UX, responsive, accesibilidad o componentes | `docs/agent-guides/design-system.md` |
+| Área                                                                    | Leer primero                                                         |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Roles, pedidos, tablero, pagos, caja, catálogos, imágenes o anulaciones | `docs/agent-guides/domain-rules.md`                                  |
+| Cotizador                                                               | `docs/agent-guides/domain-rules.md` y `docs/agent-guides/quoting.md` |
+| Next.js, Supabase, Auth, RLS, Storage, migraciones o dependencias       | `docs/agent-guides/architecture.md`                                  |
+| Tests, CI, validación o comandos                                        | `docs/agent-guides/verification.md`                                  |
+| Decisiones o ambigüedades                                               | `docs/decisions.md`                                                  |
+| Inicio o planificación de módulo                                        | `docs/plans/mvp-plan.md` y guías aplicables                          |
+| UI, UX, responsive, accesibilidad o componentes                         | `docs/agent-guides/design-system.md`                                 |
 
 No cargar guías, archivos, historiales, MCPs ni agentes sin necesidad.
 
@@ -127,6 +127,12 @@ comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 - `.opencode/agents/ui-designer.md` es solo para planificar/revisar UX/UI.
 - Trello MCP: solo lecturas necesarias. Supabase MCP: solo local/desarrollo con
   datos sintéticos; preferir migraciones y CLI. Aplicar mínimos privilegios.
+
+## Procesos persistentes
+
+- No iniciar procesos persistentes (`pnpm dev`, watch, interfaces interactivas, `nohup` o `&`); usar solo comandos que finalicen.
+- Para E2E, comprobar sin espera si el servidor ya responde y reutilizarlo.
+- Si no responde, detenerse e indicar el comando exacto para que el usuario lo inicie en otra terminal.
 
 ## Mantenimiento
 

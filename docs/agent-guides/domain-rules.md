@@ -68,6 +68,8 @@ Admin puede crear, renombrar, reordenar y eliminar etapas. Las reglas no deben d
 
 Los pedidos pueden moverse hacia adelante y atrás. Cada movimiento debe registrar pedido, etapa anterior, etapa siguiente, actor y timestamp del servidor. El drag and drop debe manejar rechazo del servidor y revertir su estado optimista.
 
+Durante M4, y hasta que M11/M12 incorporen cobro y reversión, toda transición hacia o desde la etapa con código semántico `paid` se rechaza para cualquier rol. Las demás etapas, incluida `delivered`, pueden recorrerse hacia adelante o atrás según los permisos generales; llegar a `delivered` no implica pago.
+
 Un pedido pagado puede no estar entregado. No derivar uno de otro.
 
 ## Campos del pedido
