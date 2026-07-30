@@ -223,6 +223,102 @@ export type Database = {
           },
         ]
       }
+      order_change_events: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          details: Json
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_id: string
+          order_updated_at: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          details?: Json
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_id: string
+          order_updated_at: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          order_id?: string
+          order_updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_change_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_change_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_comments: {
+        Row: {
+          actor_id: string
+          body: string
+          created_at: string
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_id: string
+        }
+        Insert: {
+          actor_id: string
+          body: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          order_id: string
+        }
+        Update: {
+          actor_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_comments_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_comments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_financials: {
         Row: {
           created_at: string
@@ -493,11 +589,31 @@ export type Database = {
           stage_code: string
         }[]
       }
+      create_order_comment: {
+        Args: { p_body: string; p_idempotency_key: string; p_order_id: string }
+        Returns: {
+          comment_id: string
+          created_at: string
+        }[]
+      }
       current_active_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
+      get_order_timeline: {
+        Args: { p_order_id: string }
+        Returns: {
+          actor_display_name: string
+          comment_body: string
+          details: Json
+          event_id: string
+          event_type: string
+          from_stage_id: string
+          occurred_at: string
+          to_stage_id: string
+        }[]
+      }
       move_order: {
         Args: {
           p_expected_updated_at: string
@@ -535,6 +651,47 @@ export type Database = {
           target_role: Database["public"]["Enums"]["app_role"]
         }
         Returns: undefined
+      }
+      update_order: {
+        Args: {
+          p_customer_name: string
+          p_deposit_amount: number
+          p_deposit_paid: boolean
+          p_description: string
+          p_expected_updated_at: string
+          p_extra_ids: string[]
+          p_fabric_id: string
+          p_garment_lower_id: string
+          p_garment_upper_id: string
+          p_idempotency_key: string
+          p_lower_pattern_id: string
+          p_neckline_id: string
+          p_order_date: string
+          p_order_id: string
+          p_order_type: Database["public"]["Enums"]["order_type"]
+          p_promised_delivery_date: string
+          p_quantity: number
+          p_total_amount: number
+          p_upper_pattern_id: string
+        }
+        Returns: {
+          event_id: string
+          order_id: string
+          updated_at: string
+        }[]
+      }
+      update_order_description: {
+        Args: {
+          p_description: string
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+        }
+        Returns: {
+          event_id: string
+          order_id: string
+          updated_at: string
+        }[]
       }
     }
     Enums: {
