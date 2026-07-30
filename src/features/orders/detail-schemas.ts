@@ -65,37 +65,8 @@ export const updateOrderSchema = z
       context.addIssue({ code: "custom", path: ["promisedDeliveryDate"], message: "La fecha prometida no puede ser anterior a la fecha del pedido." });
     }
 
-    if (!value.fabricId) {
-      context.addIssue({ code: "custom", path: ["fabricId"], message: "Seleccioná una tela." });
-    }
-
-    if (value.orderType === "set") {
-      if (!value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Seleccioná una prenda superior." });
-      if (!value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Seleccioná una prenda inferior." });
-      if (!value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "Seleccioná un cuello." });
-      if (!value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Seleccioná un molde superior." });
-      if (!value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Seleccioná un molde inferior." });
-      return;
-    }
-
-    if (!value.individualLayer) {
+    if (value.orderType === "individual" && !value.individualLayer) {
       context.addIssue({ code: "custom", path: ["individualLayer"], message: "Indicá si la prenda es superior o inferior." });
-    }
-
-    if (value.individualLayer === "upper") {
-      if (!value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Seleccioná una prenda superior." });
-      if (!value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "Seleccioná un cuello." });
-      if (!value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Seleccioná un molde superior." });
-      if (value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Una prenda superior no lleva prenda inferior." });
-      if (value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Una prenda superior no lleva molde inferior." });
-    }
-
-    if (value.individualLayer === "lower") {
-      if (!value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Seleccioná una prenda inferior." });
-      if (!value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Seleccioná un molde inferior." });
-      if (value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Una prenda inferior no lleva prenda superior." });
-      if (value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "El cuello no aplica a una prenda inferior." });
-      if (value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Una prenda inferior no lleva molde superior." });
     }
   });
 

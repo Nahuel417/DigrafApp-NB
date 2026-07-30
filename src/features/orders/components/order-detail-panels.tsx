@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, CircleCheck, MessageSquarePlus, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -15,16 +16,21 @@ import { createOrderCommentAction, updateOrderDescriptionAction } from "../detai
 export function CreateCommentForm({ orderId }: { orderId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const idempotencyInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [state, formAction] = useActionState(createOrderCommentAction, {});
   useMutationToast(state);
 
   useEffect(() => {
-    if (state.status !== "success" || !state.toastId) return;
-    formRef.current?.reset();
-    if (idempotencyInputRef.current) {
-      idempotencyInputRef.current.value = crypto.randomUUID();
+    if (!state.toastId) return;
+    if (state.status === "success") {
+      formRef.current?.reset();
+      if (idempotencyInputRef.current) {
+        idempotencyInputRef.current.value = crypto.randomUUID();
+      }
+      return;
     }
-  }, [state.status, state.toastId]);
+    if (state.fieldErrors?.body) textareaRef.current?.focus();
+  }, [state.fieldErrors?.body, state.status, state.toastId]);
 
   return (
     <form action={formAction} className="flex flex-col gap-3" ref={formRef}>
@@ -38,6 +44,7 @@ export function CreateCommentForm({ orderId }: { orderId: string }) {
           id="comment-body"
           name="body"
           placeholder="Agregá una nota interna visible para el equipo."
+          ref={textareaRef}
           rows={3}
         />
         {state.fieldErrors?.body ? <p className="text-sm text-destructive" id="comment-body-error">{state.fieldErrors.body.join(" ")}</p> : null}
@@ -149,7 +156,11 @@ export function EditableDescription({
 }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction] = useActionState(updateOrderDescriptionAction, {});
+  const router = useRouter();
+  const editButtonRef = useRef<HTMLButtonElement>(null);
   const idempotencyInputRef = useRef<HTMLInputElement>(null);
+  const restoreFocusRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   useMutationToast(state);
 
   useEffect(() => {
@@ -157,7 +168,19 @@ export function EditableDescription({
     if (idempotencyInputRef.current) {
       idempotencyInputRef.current.value = crypto.randomUUID();
     }
-  }, [state.status, state.toastId]);
+    window.requestAnimationFrame(() => router.refresh());
+  }, [router, state.status, state.toastId]);
+
+  useEffect(() => {
+    if (editing) {
+      textareaRef.current?.focus();
+      return;
+    }
+    if (restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      editButtonRef.current?.focus();
+    }
+  }, [editing]);
 
   if (readOnly) {
     return (
@@ -173,13 +196,13 @@ export function EditableDescription({
         <input name="orderId" type="hidden" value={orderId} />
         <input defaultValue={crypto.randomUUID()} name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
         <input name="expectedUpdatedAt" type="hidden" value={updatedAt} />
-        <Textarea defaultValue={description} id="order-description" name="description" rows={4} />
+        <Textarea defaultValue={description} id="order-description" name="description" ref={textareaRef} rows={4} />
         <div className="flex flex-wrap gap-2">
           <SubmitButton className="min-h-11 md:min-h-10" pendingLabel="Guardando...">
             <CircleCheck aria-hidden="true" />
             Guardar
           </SubmitButton>
-          <Button className="min-h-11 md:min-h-10" onClick={() => setEditing(false)} type="button" variant="outline">
+          <Button className="min-h-11 md:min-h-10" onClick={() => { restoreFocusRef.current = true; setEditing(false); }} type="button" variant="outline">
             Cancelar
           </Button>
         </div>
@@ -197,11 +220,10 @@ export function EditableDescription({
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm leading-relaxed">{description.trim() ? description : "Sin descripción."}</p>
-        <Button aria-label="Editar descripción" className="size-10 shrink-0" onClick={() => setEditing(true)} size="icon" type="button" variant="ghost">
+        <Button aria-label="Editar descripción" className="size-10 shrink-0" onClick={() => setEditing(true)} ref={editButtonRef} size="icon" type="button" variant="ghost">
           <Pencil aria-hidden="true" />
         </Button>
       </div>
     </div>
   );
 }
-

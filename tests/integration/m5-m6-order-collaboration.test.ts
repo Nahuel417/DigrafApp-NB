@@ -220,11 +220,19 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
       expect(description.data?.[0]?.order_id).toBe(order.id);
 
       const updatedAt = description.data?.[0]?.updated_at;
+      const commentKey = randomUUID();
+      const commentBody = `Comentario de ${identity.role}`;
       const comment = await request<Array<{ comment_id: string }>>("/rest/v1/rpc/create_order_comment", {
-        body: { p_order_id: order.id, p_body: `Comentario de ${identity.role}`, p_idempotency_key: randomUUID() },
+        body: { p_order_id: order.id, p_body: commentBody, p_idempotency_key: commentKey },
         token,
       });
       expect(comment.error).toBeNull();
+      const replay = await request<Array<{ comment_id: string }>>("/rest/v1/rpc/create_order_comment", {
+        body: { p_order_id: order.id, p_body: commentBody, p_idempotency_key: commentKey },
+        token,
+      });
+      expect(replay.error).toBeNull();
+      expect(replay.data?.[0]?.comment_id).toBe(comment.data?.[0]?.comment_id);
 
       const { data: persisted, error } = await admin.from("orders").select("description, updated_at").eq("id", order.id).single();
       expect(error).toBeNull();
@@ -378,5 +386,43 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     const profiles = await request<Array<{ id: string }>>("/rest/v1/profiles?select=id", { method: "GET", token: employeeToken });
     expect(profiles.error).toBeNull();
     expect(profiles.data).toEqual([{ id: employee.id }]);
+  });
+
+  it("serializa ediciones concurrentes y rechaza la versión perdedora", async () => {
+    const order = await createOrder();
+    const superAdmin = identities.find((identity) => identity.role === "super_admin")!;
+    const adminIdentity = identities.find((identity) => identity.role === "admin")!;
+    const [superToken, adminToken] = await Promise.all([tokenFor(superAdmin), tokenFor(adminIdentity)]);
+
+    const updates = await Promise.all([
+      request<Array<{ event_id: string }>>("/rest/v1/rpc/update_order_description", {
+        body: {
+          p_order_id: order.id,
+          p_description: "Edición concurrente A",
+          p_expected_updated_at: order.updatedAt,
+          p_idempotency_key: randomUUID(),
+        },
+        token: superToken,
+      }),
+      request<Array<{ event_id: string }>>("/rest/v1/rpc/update_order_description", {
+        body: {
+          p_order_id: order.id,
+          p_description: "Edición concurrente B",
+          p_expected_updated_at: order.updatedAt,
+          p_idempotency_key: randomUUID(),
+        },
+        token: adminToken,
+      }),
+    ]);
+
+    expect(updates.filter((result) => result.error === null)).toHaveLength(1);
+    expect(updates.filter((result) => result.error?.message.includes("cambió en otra sesión"))).toHaveLength(1);
+
+    const { count, error } = await admin
+      .from("order_change_events")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", order.id);
+    expect(error).toBeNull();
+    expect(count).toBe(1);
   });
 });

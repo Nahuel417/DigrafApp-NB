@@ -23,6 +23,7 @@ export type OrderFinancials = {
 };
 
 export type OrderSelection = {
+  id: string;
   selectionKey: string;
   catalogKind: Database["public"]["Enums"]["catalog_item_kind"];
   garmentLayer: Database["public"]["Enums"]["garment_layer"] | null;
@@ -61,7 +62,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   const [{ data: financials }, { data: selections }, { data: catalogItems }] = await Promise.all([
     supabase.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId).single(),
-    supabase.from("order_catalog_items").select("selection_key, catalog_kind, garment_layer, item_name, catalog_item_id").eq("order_id", orderId),
+    supabase.from("order_catalog_items").select("id, selection_key, catalog_kind, garment_layer, item_name, catalog_item_id").eq("order_id", orderId),
     supabase.from("catalog_items").select("id, kind, garment_layer, name").eq("is_active", true),
   ]);
 
@@ -93,6 +94,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
       ? { totalAmount: financials.total_amount, depositAmount: financials.deposit_amount, depositPaid: financials.deposit_paid }
       : null,
     selections: (selections ?? []).map((item) => ({
+      id: item.id,
       selectionKey: item.selection_key,
       catalogKind: item.catalog_kind,
       garmentLayer: item.garment_layer,

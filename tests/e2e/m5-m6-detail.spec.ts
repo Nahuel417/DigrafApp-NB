@@ -266,11 +266,21 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
-    await expect(editSection).toBeVisible();
-    await expect(editSection.locator("#edit-customer-name")).toBeVisible();
-    await expect(editSection.locator("#edit-quantity")).toBeVisible();
-    await expect(editSection.locator("#edit-promised-date")).toBeVisible();
-    await expect(editSection.getByRole("button", { name: "Guardar cambios" })).toBeVisible();
+    const updatedCustomer = `Equipo actualizado ${runId}`;
+    await editSection.locator("#edit-customer-name").fill(updatedCustomer);
+    await editSection.locator("#edit-quantity").fill("8");
+    await editSection.locator("#edit-promised-date").fill("2026-08-10");
+    await editSection.getByRole("button", { name: "Guardar cambios" }).click();
+
+    const confirmation = page.getByRole("alertdialog", { name: "Confirmar edición del pedido" });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Confirmar cambios" }).click();
+    await expect(page.getByLabel("Notifications alt+T")).toContainText("Pedido actualizado.");
+
+    const orderData = page.getByRole("heading", { name: "Datos del pedido" }).locator("xpath=ancestor::section");
+    await expect(orderData.getByText(updatedCustomer)).toBeVisible();
+    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
+    await expect(timeline.getByText("Cambio de fecha prometida", { exact: true })).toBeVisible();
   });
 
   test("rechaza la edición cuando el pedido cambió en otra sesión", async ({ page }) => {
@@ -289,8 +299,10 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     await editSection.locator("#edit-customer-name").fill(`Intento de edición ${runId}`);
     await editSection.getByRole("button", { name: "Guardar cambios" }).click();
+    await page.getByRole("alertdialog", { name: "Confirmar edición del pedido" }).getByRole("button", { name: "Confirmar cambios" }).click();
 
-    await expect(page.getByRole("alert").first()).toBeVisible();
+    await expect(page.getByLabel("Notifications alt+T")).toContainText("El pedido cambió en otra sesión. Actualizalo e intentá nuevamente.");
+    await expect(editSection.getByRole("alert").filter({ hasText: "El pedido cambió en otra sesión. Actualizalo e intentá nuevamente." })).toBeVisible();
   });
 
   test("mantiene foco visible, navegación por teclado y mensajes de estado", async ({ page }) => {
@@ -305,10 +317,10 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await editButton.focus();
     await expect(editButton).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.locator("#order-description")).toBeVisible();
+    await expect(page.locator("#order-description")).toBeFocused();
 
     await page.getByRole("button", { name: "Cancelar" }).click();
-    await expect(page.getByRole("button", { name: "Editar descripción" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Editar descripción" })).toBeFocused();
   });
 
   test("respeta reduced motion y no genera overflow global", async ({ page }) => {
@@ -335,11 +347,17 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
 
+    const commentField = page.getByLabel("Nuevo comentario");
+    await page.getByRole("button", { name: "Publicar comentario" }).click();
+    await expect(page.locator("#comment-body-error")).toHaveText("El comentario debe tener al menos 1 carácter.");
+    await expect(commentField).toBeFocused();
+
     const commentText = `Test de estados ${runId}`;
-    await page.getByLabel("Nuevo comentario").fill(commentText);
+    await commentField.fill(commentText);
     await page.getByRole("button", { name: "Publicar comentario" }).click();
 
     await expect(page.getByText(commentText).first()).toBeVisible();
+    await expect(page.getByText("Comentario publicado.").first()).toBeVisible();
   });
 
   test("valida campos obligatorios en el formulario de edición", async ({ page }) => {
@@ -348,11 +366,13 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
-    await expect(editSection).toBeVisible();
+    const customerField = editSection.locator("#edit-customer-name");
+    await customerField.fill("");
+    await editSection.locator("#edit-quantity").fill("0");
+    await editSection.getByRole("button", { name: "Guardar cambios" }).click();
 
-    await expect(editSection.locator("#edit-customer-name")).toBeVisible();
-    await expect(editSection.locator("#edit-quantity")).toBeVisible();
-    await expect(editSection.getByRole("button", { name: "Guardar cambios" })).toBeVisible();
+    await expect(page.getByRole("alertdialog", { name: "Confirmar edición del pedido" })).toHaveCount(0);
+    await expect(customerField).toBeFocused();
   });
 
   test("muestra el badge de etapa actual y el número de pedido formateado", async ({ page }) => {

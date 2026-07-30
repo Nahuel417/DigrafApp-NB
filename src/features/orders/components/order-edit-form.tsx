@@ -1,10 +1,22 @@
 "use client";
 
 import { AlertCircle, CircleCheck } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
@@ -23,7 +35,7 @@ import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { compareMoney, normalizeMoney } from "@/lib/money/decimal";
 
 import type { OrderDetail, OrderDetailCatalogs, OrderFinancials, OrderSelection } from "../detail-queries";
-import { selectionsForEdit } from "../detail-format";
+import { formatOrderNumber, selectionsForEdit } from "../detail-format";
 import { updateOrderAction, type UpdateOrderActionState } from "../detail-actions";
 
 const initialState: UpdateOrderActionState = {};
@@ -56,7 +68,6 @@ function OrderSelectField({
   errors,
   id,
   label,
-  name,
   onValueChange,
   options,
   placeholder,
@@ -66,7 +77,6 @@ function OrderSelectField({
   errors?: Array<{ message?: string }>;
   id: string;
   label: string;
-  name: string;
   onValueChange: (value: string) => void;
   options: OrderSelectOption[];
   placeholder: string;
@@ -76,7 +86,7 @@ function OrderSelectField({
   return (
     <Field data-invalid={Boolean(errors?.length)}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select disabled={disabled || options.length === 0} name={name} onValueChange={onValueChange} value={value}>
+      <Select disabled={disabled || options.length === 0} onValueChange={onValueChange} value={value}>
         <SelectTrigger aria-describedby={errors?.length ? errorId : undefined} aria-invalid={Boolean(errors?.length)} id={id}>
           <SelectValue placeholder={options.length === 0 ? "Sin opciones disponibles" : placeholder} />
         </SelectTrigger>
@@ -150,9 +160,11 @@ export function OrderEditForm({
   selections: OrderSelection[];
 }) {
   const [state, formAction] = useActionState(action, initialState);
+  const router = useRouter();
+  const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const idempotencyInputRef = useRef<HTMLInputElement>(null);
-  const initialSelection = selectionsForEdit(selections, catalogs);
+  const initialSelection = selectionsForEdit(selections);
   const [orderType, setOrderType] = useState<OrderType>(order.orderType);
   const [individualLayer, setIndividualLayer] = useState<IndividualLayer | "">(initialSelection.individualLayer);
   const [garmentUpperId, setGarmentUpperId] = useState(initialSelection.garmentUpperId);
@@ -173,31 +185,46 @@ export function OrderEditForm({
       if (idempotencyInputRef.current) {
         idempotencyInputRef.current.value = crypto.randomUUID();
       }
+      window.requestAnimationFrame(() => router.refresh());
       return;
     }
     window.requestAnimationFrame(() => {
       formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
     });
-  }, [state.status, state.toastId]);
+  }, [router, state.status, state.toastId]);
 
   const hasUpperGarment = catalogs.garments.some((item) => item.garmentLayer === "upper");
   const hasLowerGarment = catalogs.garments.some((item) => item.garmentLayer === "lower");
-  const requiredCatalogsReady = catalogs.fabrics.length > 0
-    && (orderType === "set" ? hasUpperGarment && hasLowerGarment : individualLayer === "upper" ? hasUpperGarment : hasLowerGarment);
+  const historicalKeys = new Set(selections.filter((selection) => selection.catalogItemId === null).map((selection) => selection.selectionKey));
+  const requiredCatalogsReady = (catalogs.fabrics.length > 0 || historicalKeys.has("fabric"))
+    && (orderType === "set"
+      ? (hasUpperGarment || historicalKeys.has("garment_upper")) && (hasLowerGarment || historicalKeys.has("garment_lower"))
+      : individualLayer === "upper"
+        ? hasUpperGarment || historicalKeys.has("garment_upper")
+        : hasLowerGarment || historicalKeys.has("garment_lower"));
   const conditionalCatalogsReady = orderType === "set"
-    ? catalogs.necklines.length > 0 && catalogs.upperPatterns.length > 0 && catalogs.lowerPatterns.length > 0
+    ? (catalogs.necklines.length > 0 || historicalKeys.has("neckline"))
+      && (catalogs.upperPatterns.length > 0 || historicalKeys.has("upper_pattern"))
+      && (catalogs.lowerPatterns.length > 0 || historicalKeys.has("lower_pattern"))
     : individualLayer === "upper"
-      ? catalogs.necklines.length > 0 && catalogs.upperPatterns.length > 0
-      : catalogs.lowerPatterns.length > 0;
+      ? (catalogs.necklines.length > 0 || historicalKeys.has("neckline"))
+        && (catalogs.upperPatterns.length > 0 || historicalKeys.has("upper_pattern"))
+      : catalogs.lowerPatterns.length > 0 || historicalKeys.has("lower_pattern");
   const canSubmit = requiredCatalogsReady && conditionalCatalogsReady;
 
   return (
-    <form action={formAction} className="flex flex-col gap-6" noValidate ref={formRef}>
+    <form action={formAction} className="flex flex-col gap-6" id={formId} noValidate ref={formRef}>
       <input name="orderId" type="hidden" value={order.id} />
       <input defaultValue={crypto.randomUUID()} name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
       <input name="expectedUpdatedAt" type="hidden" value={order.updatedAt} />
       <input name="orderDate" type="hidden" value={order.orderDate} />
       <input name="individualLayer" type="hidden" value={individualLayer === "" ? "" : individualLayer} />
+      <input name="garmentUpperId" type="hidden" value={garmentUpperId} />
+      <input name="garmentLowerId" type="hidden" value={garmentLowerId} />
+      <input name="necklineId" type="hidden" value={necklineId} />
+      <input name="upperPatternId" type="hidden" value={upperPatternId} />
+      <input name="lowerPatternId" type="hidden" value={lowerPatternId} />
+      <input name="fabricId" type="hidden" value={fabricId} />
 
       {!requiredCatalogsReady || !conditionalCatalogsReady ? (
         <Alert variant="default">
@@ -268,7 +295,6 @@ export function OrderEditForm({
               errors={errorsFor(state, "garmentUpperId")}
               id="edit-garment-upper"
               label="Prenda superior"
-              name="garmentUpperId"
               onValueChange={setGarmentUpperId}
               options={catalogs.garments.filter((item) => item.garmentLayer === "upper")}
               placeholder="Elegí una prenda"
@@ -280,7 +306,6 @@ export function OrderEditForm({
               errors={errorsFor(state, "garmentLowerId")}
               id="edit-garment-lower"
               label="Prenda inferior"
-              name="garmentLowerId"
               onValueChange={setGarmentLowerId}
               options={catalogs.garments.filter((item) => item.garmentLayer === "lower")}
               placeholder="Elegí una prenda"
@@ -292,7 +317,6 @@ export function OrderEditForm({
               errors={errorsFor(state, "necklineId")}
               id="edit-neckline"
               label="Cuello"
-              name="necklineId"
               onValueChange={setNecklineId}
               options={catalogs.necklines}
               placeholder="Elegí un cuello"
@@ -304,7 +328,6 @@ export function OrderEditForm({
               errors={errorsFor(state, "upperPatternId")}
               id="edit-upper-pattern"
               label="Molde superior"
-              name="upperPatternId"
               onValueChange={setUpperPatternId}
               options={catalogs.upperPatterns}
               placeholder="Elegí un molde"
@@ -316,7 +339,6 @@ export function OrderEditForm({
               errors={errorsFor(state, "lowerPatternId")}
               id="edit-lower-pattern"
               label="Molde de short/pollera"
-              name="lowerPatternId"
               onValueChange={setLowerPatternId}
               options={catalogs.lowerPatterns}
               placeholder="Elegí un molde"
@@ -327,7 +349,6 @@ export function OrderEditForm({
             errors={errorsFor(state, "fabricId")}
             id="edit-fabric"
             label="Tela"
-            name="fabricId"
             onValueChange={setFabricId}
             options={catalogs.fabrics}
             placeholder="Elegí una tela"
@@ -409,11 +430,34 @@ export function OrderEditForm({
 
       <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-xl text-xs leading-5 text-muted-foreground">Los cambios quedan registrados y requieren una versión actualizada del pedido.</p>
-        <SubmitButton className="min-h-11 shrink-0 md:min-h-10" disabled={!canSubmit} pendingLabel="Guardando...">
-          Guardar cambios
-        </SubmitButton>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <SubmitButton
+              className="min-h-11 shrink-0 md:min-h-10"
+              disabled={!canSubmit}
+              onClick={(event) => {
+                if (!formRef.current?.reportValidity()) event.preventDefault();
+              }}
+              pendingLabel="Guardando..."
+              type="button"
+            >
+              Guardar cambios
+            </SubmitButton>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar edición del pedido</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se actualizará {formatOrderNumber(order.publicNumber)} de {order.customerName}, incluidos sus datos e importes. El cambio quedará auditado y podrá corregirse con una nueva edición.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => formRef.current?.requestSubmit()} type="button">Confirmar cambios</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </form>
   );
 }
-

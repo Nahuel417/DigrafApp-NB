@@ -1,4 +1,4 @@
-import type { OrderDetail, OrderDetailCatalogs, OrderFinancials, OrderSelection } from "./detail-queries";
+import type { OrderDetail, OrderFinancials, OrderSelection } from "./detail-queries";
 
 export function formatOrderNumber(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -43,7 +43,7 @@ export function findSelectionByKind(selections: OrderSelection[], kind: OrderSel
   return selections.filter((selection) => selection.catalogKind === kind);
 }
 
-export function selectionsForEdit(selections: OrderSelection[], catalogs: OrderDetailCatalogs) {
+export function selectionsForEdit(selections: OrderSelection[]) {
   return {
     garmentUpperId: findSelection(selections, "garment_upper")?.catalogItemId ?? "",
     garmentLowerId: findSelection(selections, "garment_lower")?.catalogItemId ?? "",
@@ -52,21 +52,15 @@ export function selectionsForEdit(selections: OrderSelection[], catalogs: OrderD
     lowerPatternId: findSelection(selections, "lower_pattern")?.catalogItemId ?? "",
     fabricId: findSelection(selections, "fabric")?.catalogItemId ?? "",
     extraIds: findSelectionByKind(selections, "extra").map((selection) => selection.catalogItemId ?? "").filter(Boolean),
-    individualLayer: determineIndividualLayer(selections, catalogs),
+    individualLayer: determineIndividualLayer(selections),
   };
 }
 
-function determineIndividualLayer(selections: OrderSelection[], catalogs: OrderDetailCatalogs): "" | "upper" | "lower" {
+function determineIndividualLayer(selections: OrderSelection[]): "" | "upper" | "lower" {
   const upperGarment = findSelection(selections, "garment_upper");
   const lowerGarment = findSelection(selections, "garment_lower");
-  if (upperGarment?.catalogItemId) {
-    const stillActive = catalogs.garments.some((garment) => garment.id === upperGarment.catalogItemId);
-    if (stillActive || upperGarment.catalogItemId === null) return "upper";
-  }
-  if (lowerGarment?.catalogItemId) {
-    const stillActive = catalogs.garments.some((garment) => garment.id === lowerGarment.catalogItemId);
-    if (stillActive || lowerGarment.catalogItemId === null) return "lower";
-  }
+  if (upperGarment) return "upper";
+  if (lowerGarment) return "lower";
   return "";
 }
 

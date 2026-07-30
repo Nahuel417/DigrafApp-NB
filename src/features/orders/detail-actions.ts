@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canEditOrderDescription, canEditOrderSensitive } from "@/lib/auth/permissions";
+import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 import { createOrderCommentSchema, updateOrderDescriptionSchema, updateOrderSchema } from "./detail-schemas";
@@ -24,6 +25,17 @@ export type UpdateOrderDescriptionActionState = MutationState & {
 };
 
 export type CreateOrderCommentActionState = MutationState;
+
+type UpdateOrderRpcArgs = Database["public"]["Functions"]["update_order"]["Args"];
+type NullableSelectionArg =
+  | "p_fabric_id"
+  | "p_garment_lower_id"
+  | "p_garment_upper_id"
+  | "p_lower_pattern_id"
+  | "p_neckline_id"
+  | "p_upper_pattern_id";
+type UpdateOrderInput = Omit<UpdateOrderRpcArgs, NullableSelectionArg>
+  & Record<NullableSelectionArg, string | null>;
 
 function updateOrderErrorMessage(message: string) {
   const knownMessages = [
@@ -79,7 +91,7 @@ export async function updateOrderAction(
 
   const data = parsed.data;
   const supabase = await createClient();
-  const { data: result, error } = await supabase.rpc("update_order", {
+  const input: UpdateOrderInput = {
     p_order_id: data.orderId,
     p_customer_name: data.customerName,
     p_quantity: data.quantity,
@@ -90,16 +102,18 @@ export async function updateOrderAction(
     p_total_amount: Number.parseFloat(data.totalAmount),
     p_deposit_amount: Number.parseFloat(data.depositAmount),
     p_deposit_paid: data.depositPaid,
-    p_garment_upper_id: data.garmentUpperId,
-    p_garment_lower_id: data.garmentLowerId,
-    p_neckline_id: data.necklineId,
-    p_upper_pattern_id: data.upperPatternId,
-    p_lower_pattern_id: data.lowerPatternId,
-    p_fabric_id: data.fabricId,
+    p_garment_upper_id: data.garmentUpperId || null,
+    p_garment_lower_id: data.garmentLowerId || null,
+    p_neckline_id: data.necklineId || null,
+    p_upper_pattern_id: data.upperPatternId || null,
+    p_lower_pattern_id: data.lowerPatternId || null,
+    p_fabric_id: data.fabricId || null,
     p_extra_ids: data.extraIds,
     p_expected_updated_at: data.expectedUpdatedAt,
     p_idempotency_key: data.idempotencyKey,
-  });
+  };
+  // Supabase's generator does not represent nullable SQL function arguments.
+  const { data: result, error } = await supabase.rpc("update_order", input as UpdateOrderRpcArgs);
 
   if (error) {
     return mutationResult("error", updateOrderErrorMessage(error.message));
@@ -107,9 +121,6 @@ export async function updateOrderAction(
 
   const updatedOrder = result?.[0];
   if (!updatedOrder) return mutationResult("error", "La actualización no devolvió un resultado válido.");
-
-  revalidatePath(`/orders/${updatedOrder.order_id}`);
-  revalidatePath("/orders");
 
   return {
     ...mutationResult("success", "Pedido actualizado."),
@@ -146,9 +157,6 @@ export async function updateOrderDescriptionAction(
 
   const updatedOrder = result?.[0];
   if (!updatedOrder) return mutationResult("error", "La actualización no devolvió un resultado válido.");
-
-  revalidatePath(`/orders/${updatedOrder.order_id}`);
-  revalidatePath("/orders");
 
   return {
     ...mutationResult("success", "Descripción actualizada."),

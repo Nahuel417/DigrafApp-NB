@@ -83,17 +83,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Especificaciones</h2>
-            <ul className="mt-4 flex flex-col gap-3">
+            <dl className="mt-4 flex flex-col gap-3">
               {selections.map((selection) => (
-                <li className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3" key={selection.selectionKey}>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3" key={selection.id}>
                   <div>
                     <dt className="text-xs text-muted-foreground">{selectionLabel(selection)}</dt>
                     <dd className="mt-1 text-sm font-medium">{selection.itemName}</dd>
                   </div>
                   {selectionIsHistorical(selection) ? <Badge variant="inactive">Ya no disponible</Badge> : null}
-                </li>
+                </div>
               ))}
-            </ul>
+            </dl>
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -163,4 +163,3 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
     </main>
   );
 }
-
