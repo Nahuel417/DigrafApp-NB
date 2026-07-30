@@ -37,6 +37,10 @@ function orderId(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
 }
 
+function orderDetailPath(orderId: string) {
+  return `/orders/${orderId}`;
+}
+
 function orderTypeLabel(orderType: BoardOrder["orderType"]) {
   return orderType === "set" ? "Conjunto" : "Prenda individual";
 }
@@ -45,7 +49,11 @@ function OrderSummary({ order }: { order: BoardOrder }) {
   return (
     <>
       <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
-      <h3 className="mt-2 break-words font-semibold">{order.customerName}</h3>
+      <h3 className="mt-2 break-words font-semibold">
+        <a className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" href={orderDetailPath(order.id)}>
+          {order.customerName}
+        </a>
+      </h3>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div><dt className="text-muted-foreground">Cantidad</dt><dd className="mt-0.5 font-mono font-medium">{order.quantity}</dd></div>
         <div><dt className="text-muted-foreground">Tipo</dt><dd className="mt-0.5">{orderTypeLabel(order.orderType)}</dd></div>
