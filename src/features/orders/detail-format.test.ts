@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { OrderSelection } from "./detail-queries";
-import { selectionsForEdit } from "./detail-format";
+import { operationalHistoryDetails, operationalHistorySummary, selectionsForEdit } from "./detail-format";
 
 function historicalSelection(selectionKey: string, catalogKind: OrderSelection["catalogKind"]): OrderSelection {
   return {
@@ -26,5 +26,17 @@ describe("order detail formatting", () => {
     expect(result.individualLayer).toBe("upper");
     expect(result.garmentUpperId).toBe("");
     expect(result.fabricId).toBe("");
+  });
+
+  it("uses concrete operational copy for a deposit payment change", () => {
+    const details = { version: 1, changes: [{ field: "deposit_paid", previous: true, next: false }] };
+    expect(operationalHistorySummary(details)).toBe("Se desmarcó la seña pagada");
+    expect(operationalHistoryDetails(details)).toEqual(["Se desmarcó la seña pagada"]);
+  });
+
+  it("uses a grouped summary when multiple fields change", () => {
+    const details = { version: 1, changes: [{ field: "quantity" }, { field: "specifications" }] };
+    expect(operationalHistorySummary(details)).toBe("Se actualizó el pedido");
+    expect(operationalHistoryDetails(details)).toEqual(["Se actualizó la cantidad", "Se actualizaron las especificaciones"]);
   });
 });

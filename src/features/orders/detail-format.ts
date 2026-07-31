@@ -93,3 +93,47 @@ export function formatArsFromString(value: string) {
 export function selectionIsHistorical(selection: OrderSelection) {
   return selection.catalogItemId === null;
 }
+
+type OperationalChange = {
+  field: string;
+  previous?: unknown;
+  next?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function operationalChanges(details: Record<string, unknown>): OperationalChange[] {
+  const changes = details.changes;
+  if (!Array.isArray(changes)) return [];
+  return changes.flatMap((change) => isRecord(change) && typeof change.field === "string"
+    ? [{ field: change.field, previous: change.previous, next: change.next }]
+    : []);
+}
+
+function changeLabel(change: OperationalChange) {
+  switch (change.field) {
+    case "customer_name": return "Se actualizó el cliente o equipo";
+    case "quantity": return "Se actualizó la cantidad";
+    case "order_type": return "Se actualizó el tipo de pedido";
+    case "order_date": return "Se actualizó la fecha del pedido";
+    case "promised_delivery_date": return "Se actualizó la fecha prometida";
+    case "description": return "Se actualizó la descripción";
+    case "total_amount": return "Se actualizó el total";
+    case "deposit_amount": return "Se actualizó el monto de seña";
+    case "deposit_paid": return change.next === true ? "Se marcó la seña pagada" : "Se desmarcó la seña pagada";
+    case "specifications": return "Se actualizaron las especificaciones";
+    default: return "Se actualizó el pedido";
+  }
+}
+
+export function operationalHistorySummary(details: Record<string, unknown>) {
+  const changes = operationalChanges(details);
+  if (changes.length !== 1) return "Se actualizó el pedido";
+  return changeLabel(changes[0]!);
+}
+
+export function operationalHistoryDetails(details: Record<string, unknown>) {
+  return operationalChanges(details).map(changeLabel);
+}

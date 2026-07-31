@@ -227,6 +227,7 @@ export type Database = {
         Row: {
           action: string
           actor_id: string
+          change_note: string | null
           created_at: string
           details: Json
           id: string
@@ -238,6 +239,7 @@ export type Database = {
         Insert: {
           action: string
           actor_id: string
+          change_note?: string | null
           created_at?: string
           details?: Json
           id?: string
@@ -249,6 +251,7 @@ export type Database = {
         Update: {
           action?: string
           actor_id?: string
+          change_note?: string | null
           created_at?: string
           details?: Json
           id?: string
@@ -605,6 +608,7 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: {
           actor_display_name: string
+          change_note: string
           comment_body: string
           details: Json
           event_id: string
@@ -654,6 +658,7 @@ export type Database = {
       }
       update_order: {
         Args: {
+          p_change_note: string
           p_customer_name: string
           p_deposit_amount: number
           p_deposit_paid: boolean
@@ -682,6 +687,7 @@ export type Database = {
       }
       update_order_description: {
         Args: {
+          p_change_note: string
           p_description: string
           p_expected_updated_at: string
           p_idempotency_key: string

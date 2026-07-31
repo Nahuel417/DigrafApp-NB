@@ -15,6 +15,7 @@ const moneyValue = z
 export const updateOrderDescriptionSchema = z.object({
   orderId: z.string().uuid("El pedido seleccionado no es válido."),
   description: z.string().trim().max(5000, "La descripción no puede superar los 5000 caracteres."),
+  changeNote: z.string().trim().max(300, "El comentario del cambio no puede superar los 300 caracteres."),
   expectedUpdatedAt: z.string().datetime({ offset: true, message: "La versión del pedido no es válida." }),
   idempotencyKey: z.string().trim().min(1, "La solicitud de edición no es válida.").max(200, "La solicitud de edición no es válida."),
 });
@@ -38,6 +39,7 @@ export const updateOrderSchema = z
     orderDate: dateValue,
     promisedDeliveryDate: dateValue,
     description: z.string().trim().max(5000, "La descripción no puede superar los 5000 caracteres."),
+    changeNote: z.string().trim().max(300, "El comentario del cambio no puede superar los 300 caracteres."),
     totalAmount: moneyValue,
     depositAmount: moneyValue,
     depositPaid: z.enum(["true", "false"]).transform((value) => value === "true"),

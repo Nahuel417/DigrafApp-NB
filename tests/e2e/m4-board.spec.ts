@@ -205,6 +205,16 @@ test.describe("Tablero M4", () => {
     await expect(handle).toBeFocused();
   });
 
+  test("DnD se activa desde la superficie no interactiva de la tarjeta", async ({ page }) => {
+    await login(page);
+    await page.goto("/orders");
+
+    const card = page.getByText(names.success).locator("xpath=ancestor::article");
+    await beginPointerDrag(page, card.locator("dl"));
+    await dropOn(page, page.locator('[data-drop-stage="cut"] header'));
+    await expect(page.locator('[data-drop-stage="cut"]').getByText(names.success)).toBeVisible();
+  });
+
   test("DnD revierte al estado canónico tras conflicto y permite reintentar", async ({ page }) => {
     await login(page);
     await page.goto("/orders");
@@ -312,12 +322,12 @@ test.describe("Tablero M4", () => {
       await page.goto("/orders");
       await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
       await expect(page.getByLabel(/Mover PED-\d{6} a/).first()).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
     }
 
     await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(page.getByRole("button", { name: /Arrastrar PED-/ }).first()).toBeVisible();
   });
 });

@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canMoveOrder } from "@/lib/auth/permissions";
+import { canEditOrderDescription, canEditOrderSensitive, canMoveOrder } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 
 import { getOrderMovementSnapshot } from "./queries";
 import { moveOrderSchema, reconcileOrderSchema } from "./schemas";
+import { getOrderDetail, getOrderTimeline } from "../orders/detail-queries";
 
 export type MoveOrderActionState = MutationState & {
   movedOrder?: {
@@ -103,4 +104,59 @@ export async function reconcileOrderAction(orderId: string) {
   if (!profile || !profile.isActive || profile.mustChangePassword || !canMoveOrder(profile.role)) return null;
 
   return getOrderMovementSnapshot(parsed.data.orderId);
+}
+
+export type OrderQuickView = {
+  id: string;
+  publicNumber: number;
+  customerName: string;
+  quantity: number;
+  orderType: "set" | "individual";
+  promisedDeliveryDate: string;
+  description: string | null;
+  stageName: string;
+  canEditDescription: boolean;
+  canEditSensitive: boolean;
+  lastMovement: { actor: string; fromStageId: string | null; occurredAt: string; toStageId: string | null } | null;
+  comments: Array<{ actor: string; body: string; occurredAt: string; id: string }>;
+};
+
+export async function getOrderQuickViewAction(orderId: string): Promise<{ data?: OrderQuickView; message?: string }> {
+  const parsed = reconcileOrderSchema.safeParse({ orderId });
+  if (!parsed.success) return { message: "El pedido seleccionado no es válido." };
+
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword) return { message: "No tenés permiso para ver este pedido." };
+
+  const [detail, timeline] = await Promise.all([
+    getOrderDetail(parsed.data.orderId),
+    getOrderTimeline(parsed.data.orderId),
+  ]);
+  if (!detail) return { message: "El pedido seleccionado no existe." };
+
+  const lastMovement = timeline.find((event) => event.type === "stage_moved") ?? null;
+  return {
+    data: {
+      id: detail.order.id,
+      publicNumber: detail.order.publicNumber,
+      customerName: detail.order.customerName,
+      quantity: detail.order.quantity,
+      orderType: detail.order.orderType,
+      promisedDeliveryDate: detail.order.promisedDeliveryDate,
+      description: detail.order.description,
+      stageName: detail.order.currentStage.name,
+      canEditDescription: canEditOrderDescription(profile.role),
+      canEditSensitive: canEditOrderSensitive(profile.role),
+      lastMovement: lastMovement ? {
+        actor: lastMovement.actorDisplayName,
+        fromStageId: lastMovement.fromStageId,
+        occurredAt: lastMovement.occurredAt,
+        toStageId: lastMovement.toStageId,
+      } : null,
+      comments: timeline
+        .filter((event) => event.type === "commented" && event.commentBody)
+        .slice(0, 3)
+        .map((event) => ({ actor: event.actorDisplayName, body: event.commentBody!, occurredAt: event.occurredAt, id: event.id })),
+    },
+  };
 }

@@ -152,6 +152,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
       p_order_date: "2026-07-29",
       p_promised_delivery_date: "2026-08-07",
       p_description: "Detalle actualizado",
+      p_change_note: "Ajuste operativo de prueba",
       p_total_amount: 2000,
       p_deposit_amount: 500,
       p_deposit_paid: true,
@@ -211,6 +212,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
         body: {
           p_order_id: order.id,
           p_description: `Descripción de ${identity.role}`,
+          p_change_note: "Actualización de descripción",
           p_expected_updated_at: order.updatedAt,
           p_idempotency_key: randomUUID(),
         },
@@ -278,10 +280,18 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
       { method: "GET", token: serviceRoleKey },
     );
     expect(eventError).toBeNull();
-    expect(changeEvents).toEqual([{
-      action: "promised_delivery_date_changed",
-      details: { previous_promised_delivery_date: "2026-08-05", next_promised_delivery_date: "2026-08-07" },
-    }]);
+    expect(changeEvents).toHaveLength(1);
+    expect(changeEvents?.[0]).toMatchObject({
+      action: "order_updated",
+      details: {
+        version: 1,
+        changes: expect.arrayContaining([{
+          field: "promised_delivery_date",
+          previous: "2026-08-05",
+          next: "2026-08-07",
+        }]),
+      },
+    });
 
     const { data: preserved, error: preservedError } = await admin
       .from("order_catalog_items")
@@ -302,7 +312,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     }
 
     const adminUpdate = await request<Array<{ order_id: string }>>("/rest/v1/rpc/update_order", {
-      body: sensitiveInput(current, { p_fabric_id: null, p_idempotency_key: randomUUID() }),
+      body: sensitiveInput(current, { p_fabric_id: null, p_quantity: 9, p_idempotency_key: randomUUID() }),
       token: await tokenFor(adminIdentity),
     });
     expect(adminUpdate.error).toBeNull();
@@ -327,6 +337,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     expect(finances.error).toBeNull();
     expect(finances.data).toEqual([]);
 
+    const changeEvents = await request<Array<{ id: string }>>(`/rest/v1/order_change_events?order_id=eq.${order.id}`, { method: "GET", token: employeeToken });
+    expect(changeEvents.error).not.toBeNull();
+
     const inactive = await createIdentity("employee", { active: false });
     const requiredChange = await createIdentity("employee", { mustChangePassword: true });
     for (const identity of [inactive, requiredChange]) {
@@ -348,7 +361,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     const change = await request<unknown[]>("/rest/v1/rpc/update_order_description", {
       body: {
         p_order_id: order.id,
-        p_description: "Cambio para timeline",
+          p_description: "Cambio para timeline",
+          p_change_note: "Motivo para timeline",
         p_expected_updated_at: order.updatedAt,
         p_idempotency_key: randomUUID(),
       },
@@ -388,6 +402,41 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     expect(profiles.data).toEqual([{ id: employee.id }]);
   });
 
+  it("rechaza una edición sin cambios y no crea un evento", async () => {
+    const order = await createOrder();
+    const superAdmin = identities.find((identity) => identity.role === "super_admin")!;
+    const result = await request<unknown[]>("/rest/v1/rpc/update_order_description", {
+      body: {
+        p_order_id: order.id,
+        p_description: "",
+        p_change_note: "No debería persistirse",
+        p_expected_updated_at: order.updatedAt,
+        p_idempotency_key: randomUUID(),
+      },
+      token: await tokenFor(superAdmin),
+    });
+    expect(result.error?.message).toContain("No hay cambios para guardar");
+    const { count } = await admin.from("order_change_events").select("id", { count: "exact", head: true }).eq("order_id", order.id);
+    expect(count).toBe(0);
+  });
+
+  it("redacta cambios y nota financieros para Empleado", async () => {
+    const order = await createOrder();
+    const superAdmin = identities.find((identity) => identity.role === "super_admin")!;
+    const employee = identities.find((identity) => identity.role === "employee")!;
+    const update = await request<unknown[]>("/rest/v1/rpc/update_order", {
+      body: sensitiveInput(order, { p_deposit_paid: false, p_change_note: "Se corrigió la seña por caja" }),
+      token: await tokenFor(superAdmin),
+    });
+    expect(update.error).toBeNull();
+    const timeline = await request<Array<{ change_note: string | null; details: { changes: Array<{ field: string }> } }>>("/rest/v1/rpc/get_order_timeline", {
+      body: { p_order_id: order.id },
+      token: await tokenFor(employee),
+    });
+    expect(timeline.error).toBeNull();
+    expect(timeline.data?.[0]).toMatchObject({ change_note: null, details: { changes: [{ field: "order_updated" }] } });
+  });
+
   it("serializa ediciones concurrentes y rechaza la versión perdedora", async () => {
     const order = await createOrder();
     const superAdmin = identities.find((identity) => identity.role === "super_admin")!;
@@ -399,6 +448,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
         body: {
           p_order_id: order.id,
           p_description: "Edición concurrente A",
+          p_change_note: "Motivo A",
           p_expected_updated_at: order.updatedAt,
           p_idempotency_key: randomUUID(),
         },
@@ -408,6 +458,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
         body: {
           p_order_id: order.id,
           p_description: "Edición concurrente B",
+          p_change_note: "Motivo B",
           p_expected_updated_at: order.updatedAt,
           p_idempotency_key: randomUUID(),
         },

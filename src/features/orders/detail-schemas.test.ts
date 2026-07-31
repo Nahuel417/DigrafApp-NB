@@ -10,6 +10,7 @@ const validBase = {
   orderDate: "2026-07-29",
   promisedDeliveryDate: "2026-08-05",
   description: "",
+  changeNote: "Motivo operativo",
   totalAmount: "1500.00",
   depositAmount: "300.00",
   depositPaid: "true",
@@ -33,5 +34,9 @@ describe("update order schema", () => {
   it("still rejects an individual order without a known layer", () => {
     const result = updateOrderSchema.safeParse({ ...validBase, individualLayer: "" });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects an overlong operational note", () => {
+    expect(updateOrderSchema.safeParse({ ...validBase, changeNote: "a".repeat(301) }).success).toBe(false);
   });
 });

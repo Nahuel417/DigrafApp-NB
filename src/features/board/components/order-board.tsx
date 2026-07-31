@@ -16,9 +16,9 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { AlertCircle, ArrowRight, CircleCheck, GripVertical, PackageOpen } from "lucide-react";
+import { AlertCircle, ArrowRight, CircleCheck, Eye, GripVertical, PackageOpen } from "lucide-react";
 import Link from "next/link";
-import { startTransition, useState } from "react";
+import { startTransition, useState, useTransition } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,10 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 
-import { moveOrderAction, reconcileOrderAction, type MoveOrderActionState } from "../actions";
+import { getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, type MoveOrderActionState, type OrderQuickView } from "../actions";
 import { moveBoardOrder } from "../board-state";
 import type { BoardColumn, BoardOrder } from "../queries";
+import { OrderQuickView as OrderQuickViewPanel } from "./order-quick-view";
 
 type MoveSource = Pick<BoardOrder, "id" | "currentStageId" | "updatedAt">;
 type MovementMethod = "selector" | "dnd";
@@ -50,7 +51,7 @@ function OrderSummary({ order }: { order: BoardOrder }) {
     <>
       <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
       <h3 className="mt-2 break-words font-semibold">
-        <a className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" href={orderDetailPath(order.id)}>
+        <a className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" href={orderDetailPath(order.id)} onPointerDown={(event) => event.stopPropagation()}>
           {order.customerName}
         </a>
       </h3>
@@ -88,6 +89,7 @@ function MoveOrderSelector({
     <form
       className="mt-4 border-t border-border pt-4"
       noValidate
+      onPointerDown={(event) => event.stopPropagation()}
       onSubmit={(event) => {
         event.preventDefault();
         if (!destination || isPending) return;
@@ -117,11 +119,13 @@ function DraggableOrderCard({
   columns,
   isPending,
   onMove,
+  onQuickView,
   order,
 }: {
   columns: BoardColumn[];
   isPending: boolean;
   onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
+  onQuickView: (orderId: string) => void;
   order: BoardOrder;
 }) {
   const paidStageId = columns.find((column) => column.code === "paid")?.id;
@@ -134,30 +138,33 @@ function DraggableOrderCard({
 
   return (
     <article
+      {...listeners}
       aria-busy={isPending || undefined}
       className={`rounded-lg border border-border bg-card p-4 shadow-xs transition-[border-color,opacity,box-shadow] duration-150 motion-reduce:transition-none ${isDragging ? "opacity-40" : "opacity-100"}`}
       data-order-id={order.id}
       ref={setNodeRef}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1"><OrderSummary order={order} /></div>
-        <Button
-          {...attributes}
-          {...listeners}
-          aria-label={dragDisabled ? `No se puede arrastrar ${orderId(order.publicNumber)}` : `Arrastrar ${orderId(order.publicNumber)}`}
-          aria-pressed={isDragging}
-          className="size-11 shrink-0 touch-none cursor-grab active:cursor-grabbing forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent"
-          data-drag-handle={order.id}
-          disabled={dragDisabled}
-          ref={setActivatorNodeRef}
-          size="icon"
-          title={dragDisabled ? "Movimiento no disponible" : "Arrastrar pedido"}
-          type="button"
-          variant="ghost"
-        >
-          <GripVertical aria-hidden="true" />
-        </Button>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            {...attributes}
+            aria-label={dragDisabled ? `No se puede arrastrar ${orderId(order.publicNumber)}` : `Arrastrar ${orderId(order.publicNumber)}`}
+            aria-pressed={isDragging}
+            className="size-11 touch-none cursor-grab active:cursor-grabbing forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent"
+            data-drag-handle={order.id}
+            disabled={dragDisabled}
+            ref={setActivatorNodeRef}
+            size="icon"
+            title={dragDisabled ? "Movimiento no disponible" : "Arrastrar pedido"}
+            type="button"
+            variant="ghost"
+          >
+            <GripVertical aria-hidden="true" />
+          </Button>
+        </div>
       </div>
+      <Button aria-label={`Vista rápida de ${orderId(order.publicNumber)}`} className="mt-3 w-full" data-no-drag="true" onClick={() => onQuickView(order.id)} onPointerDown={(event) => event.stopPropagation()} type="button" variant="ghost"><Eye data-icon="inline-start" />Vista rápida</Button>
       <MoveOrderSelector columns={columns} isPending={isPending} onMove={onMove} order={order} />
     </article>
   );
@@ -222,6 +229,9 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("Tablero listo para mover pedidos.");
   const [mutationState, setMutationState] = useState<MoveOrderActionState>({});
+  const [quickView, setQuickView] = useState<OrderQuickView | null>(null);
+  const [quickViewError, setQuickViewError] = useState<string | null>(null);
+  const [isQuickViewPending, startQuickViewTransition] = useTransition();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor),
@@ -253,6 +263,15 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
       const next = new Set(current);
       next.delete(orderIdValue);
       return next;
+    });
+  }
+
+  function openQuickView(orderIdValue: string) {
+    setQuickViewError(null);
+    startQuickViewTransition(async () => {
+      const result = await getOrderQuickViewAction(orderIdValue);
+      if (result.data) setQuickView(result.data);
+      else setQuickViewError(result.message ?? "No se pudo cargar la vista rápida.");
     });
   }
 
@@ -445,15 +464,20 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
           </Alert>
         ) : null}
         {errorMessage ? <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>No pudimos mover el pedido</AlertTitle><AlertDescription>{errorMessage}</AlertDescription></Alert> : null}
-        {mutationState.status === "success" ? <Alert variant="success"><CircleCheck aria-hidden="true" /><AlertDescription>{mutationState.message}</AlertDescription></Alert> : null}
-        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overflow-x-auto lg:overscroll-x-contain lg:pb-3">
-          {columns.map((column) => (
-            <BoardColumnView activeOrder={activeOrder} column={column} key={column.id} paidStageId={paidStageId}>
-              {column.orders.map((order) => (
-                <DraggableOrderCard columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} order={order} />
-              ))}
-            </BoardColumnView>
-          ))}
+         {mutationState.status === "success" ? <Alert variant="success"><CircleCheck aria-hidden="true" /><AlertDescription>{mutationState.message}</AlertDescription></Alert> : null}
+         {quickViewError ? <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>No pudimos abrir la vista rápida</AlertTitle><AlertDescription>{quickViewError}</AlertDescription></Alert> : null}
+         {isQuickViewPending ? <p aria-live="polite" className="text-sm text-muted-foreground">Cargando vista rápida...</p> : null}
+         {quickView ? <OrderQuickViewPanel data={quickView} onClose={() => setQuickView(null)} stageNames={Object.fromEntries(columns.map((column) => [column.id, column.name]))} /> : null}
+        <div className="w-full min-w-0 overflow-x-hidden">
+          <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overflow-x-auto lg:overscroll-x-contain lg:pb-3">
+            {columns.map((column) => (
+              <BoardColumnView activeOrder={activeOrder} column={column} key={column.id} paidStageId={paidStageId}>
+                {column.orders.map((order) => (
+                  <DraggableOrderCard columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} onQuickView={openQuickView} order={order} />
+                ))}
+              </BoardColumnView>
+            ))}
+          </div>
         </div>
       </section>
       <DragOverlay dropAnimation={null}>

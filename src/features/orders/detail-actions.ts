@@ -46,6 +46,8 @@ function updateOrderErrorMessage(message: string) {
     "La cantidad debe ser mayor que cero.",
     "La fecha prometida no puede ser anterior a la fecha del pedido.",
     "La descripción no puede superar los 5000 caracteres.",
+    "El comentario del cambio no puede superar los 300 caracteres.",
+    "No hay cambios para guardar",
     "El total debe ser mayor o igual a cero.",
     "La seña debe ser mayor o igual a cero.",
     "La seña no puede superar el total.",
@@ -99,6 +101,7 @@ export async function updateOrderAction(
     p_order_date: data.orderDate,
     p_promised_delivery_date: data.promisedDeliveryDate,
     p_description: data.description,
+    p_change_note: data.changeNote,
     p_total_amount: Number.parseFloat(data.totalAmount),
     p_deposit_amount: Number.parseFloat(data.depositAmount),
     p_deposit_paid: data.depositPaid,
@@ -147,6 +150,7 @@ export async function updateOrderDescriptionAction(
   const { data: result, error } = await supabase.rpc("update_order_description", {
     p_order_id: data.orderId,
     p_description: data.description,
+    p_change_note: data.changeNote,
     p_expected_updated_at: data.expectedUpdatedAt,
     p_idempotency_key: data.idempotencyKey,
   });

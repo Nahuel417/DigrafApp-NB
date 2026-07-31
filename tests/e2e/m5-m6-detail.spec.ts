@@ -178,6 +178,22 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await link.click();
     await expect(page).toHaveURL(/\/orders\//);
     await expect(page.getByRole("heading", { level: 1, name: publicId(superAdminOrder) })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Volver al tablero" })).toHaveAttribute("href", "/orders");
+  });
+
+  test("Empleado abre una vista rápida operativa sin importes", async ({ page }) => {
+    await login(page, identities[3]!);
+    await page.goto("/orders");
+    const card = page.getByText(`Empleado M5 M6 ${runId}`).locator("xpath=ancestor::article");
+    await card.getByRole("button", { name: `Vista rápida de ${publicId(employeeOrder)}` }).click();
+    const quickView = page.locator("aside", { has: page.getByRole("heading", { name: `Empleado M5 M6 ${runId}` }) });
+    await expect(quickView).toBeVisible();
+    await expect(quickView.getByRole("heading", { name: `Empleado M5 M6 ${runId}` })).toBeVisible();
+    await expect(quickView.getByText("Último movimiento")).toBeVisible();
+    await expect(quickView.getByText("Comentarios recientes")).toBeVisible();
+    await expect(quickView.getByText("Total")).toHaveCount(0);
+    await quickView.getByRole("button", { name: "Cerrar vista rápida" }).click();
+    await expect(quickView).toHaveCount(0);
   });
 
   test("Super admin y Admin ven el formulario de edición completa", async ({ page }) => {
@@ -280,7 +296,8 @@ test.describe("Detalle y colaboración M5/M6", () => {
     const orderData = page.getByRole("heading", { name: "Datos del pedido" }).locator("xpath=ancestor::section");
     await expect(orderData.getByText(updatedCustomer)).toBeVisible();
     const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
-    await expect(timeline.getByText("Cambio de fecha prometida", { exact: true })).toBeVisible();
+    await expect(timeline.getByText("Se actualizó el pedido", { exact: true })).toBeVisible();
+    await expect(timeline.getByText("Se actualizó la fecha prometida", { exact: true })).toBeVisible();
   });
 
   test("rechaza la edición cuando el pedido cambió en otra sesión", async ({ page }) => {

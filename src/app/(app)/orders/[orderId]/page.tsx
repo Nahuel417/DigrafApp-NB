@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canEditOrderDescription, canEditOrderSensitive, canReadOrderFinancials } from "@/lib/auth/permissions";
@@ -7,6 +9,7 @@ import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orde
 import { updateOrderAction } from "@/features/orders/detail-actions";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CreateCommentForm, CommentList, Timeline, EditableDescription } from "@/features/orders/components/order-detail-panels";
 import { OrderEditForm } from "@/features/orders/components/order-edit-form";
@@ -37,6 +40,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
     actor: event.actorDisplayName,
     occurredAt: event.occurredAt,
     body: event.commentBody,
+    changeNote: event.changeNote,
     fromStageName: event.fromStageId ? stageNames[event.fromStageId] ?? undefined : undefined,
     toStageName: event.toStageId ? stageNames[event.toStageId] ?? undefined : undefined,
     details: event.details,
@@ -47,7 +51,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   return (
     <main className="mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
       <header>
-        <p className="text-sm text-muted-foreground">Pedidos</p>
+        <Button asChild variant="ghost"><Link href="/orders"><ArrowLeft data-icon="inline-start" />Volver al tablero</Link></Button>
+        <p className="mt-3 text-sm text-muted-foreground">Pedidos</p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-display sm:text-3xl">{formatOrderNumber(order.publicNumber)}</h1>
           <Badge variant="outline">{order.currentStage.name}</Badge>
@@ -155,7 +160,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Historial</h2>
             <div className="mt-4">
-              <Timeline events={timelineItems} stageNames={stageNames} />
+              <Timeline events={timelineItems} />
             </div>
           </section>
         </div>

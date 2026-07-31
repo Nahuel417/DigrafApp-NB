@@ -112,6 +112,7 @@ export type TimelineEvent = {
   occurredAt: string;
   details: Record<string, unknown>;
   commentBody: string | null;
+  changeNote: string | null;
   fromStageId: string | null;
   toStageId: string | null;
 };
@@ -128,6 +129,7 @@ export async function getOrderTimeline(orderId: string): Promise<TimelineEvent[]
     occurredAt: event.occurred_at,
     details: event.details as Record<string, unknown>,
     commentBody: event.comment_body,
+    changeNote: event.change_note,
     fromStageId: event.from_stage_id,
     toStageId: event.to_stage_id,
   }));

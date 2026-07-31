@@ -382,6 +382,12 @@ export function OrderEditForm({
           <FieldLabel htmlFor="edit-description">Detalles adicionales</FieldLabel>
           <Textarea defaultValue={order.description ?? ""} id="edit-description" name="description" rows={4} />
         </Field>
+        <Field className="mt-4" data-invalid={Boolean(errorsFor(state, "changeNote")?.length)}>
+          <FieldLabel htmlFor="edit-change-note">Comentario del cambio</FieldLabel>
+          <Textarea aria-describedby="edit-change-note-help" id="edit-change-note" maxLength={300} name="changeNote" placeholder="Qué se hizo y por qué (opcional)." rows={2} />
+          <FieldDescription id="edit-change-note-help">Se incluirá en el historial operativo del pedido.</FieldDescription>
+          <FieldError errors={errorsFor(state, "changeNote")} id="edit-change-note-error" />
+        </Field>
       </FieldSet>
 
       <FieldSet>

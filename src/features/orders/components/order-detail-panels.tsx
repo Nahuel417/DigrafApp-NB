@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 
 import { createOrderCommentAction, updateOrderDescriptionAction } from "../detail-actions";
+import { operationalHistoryDetails, operationalHistorySummary } from "../detail-format";
 
 export function CreateCommentForm({ orderId }: { orderId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -92,16 +93,17 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function Timeline({ events, stageNames }: { events: Array<{
+export function Timeline({ events }: { events: Array<{
   id: string;
   type: string;
   actor: string;
   occurredAt: string;
   body: string | null;
+  changeNote: string | null;
   fromStageName?: string;
   toStageName?: string;
   details: Record<string, unknown>;
-}>; stageNames: Record<string, string> }) {
+}> }) {
   if (events.length === 0) return <p className="text-sm text-muted-foreground">Todavía no hay movimientos ni comentarios en este pedido.</p>;
 
   return (
@@ -111,18 +113,15 @@ export function Timeline({ events, stageNames }: { events: Array<{
           <span className="absolute -left-[1.6rem] top-1.5 flex size-3 rounded-full border border-border bg-primary" />
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-medium">{eventLabel(event.type, stageNames, event)}</p>
+              <p className="text-sm font-medium">{eventLabel(event.type, event)}</p>
               <p className="text-xs font-mono text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{event.actor}</p>
             {event.type === "commented" && event.body ? (
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{event.body}</p>
             ) : null}
-            {event.type === "promised_delivery_date_changed" && event.details.previous_promised_delivery_date && event.details.next_promised_delivery_date ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                Fecha prometida: {formatDate(event.details.previous_promised_delivery_date as string)} → {formatDate(event.details.next_promised_delivery_date as string)}
-              </p>
-            ) : null}
+            {event.type === "order_updated" && operationalHistoryDetails(event.details).length > 1 ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{operationalHistoryDetails(event.details).map((detail) => <li key={detail}>{detail}</li>)}</ul> : null}
+            {event.changeNote ? <p className="mt-2 text-sm text-muted-foreground"><span className="font-medium text-foreground">Motivo:</span> {event.changeNote}</p> : null}
           </div>
         </li>
       ))}
@@ -130,17 +129,12 @@ export function Timeline({ events, stageNames }: { events: Array<{
   );
 }
 
-function eventLabel(type: string, stageNames: Record<string, string>, event: { fromStageName?: string; toStageName?: string }) {
+function eventLabel(type: string, event: { details: Record<string, unknown>; fromStageName?: string; toStageName?: string }) {
   if (type === "commented") return "Comentario";
-  if (type === "stage_moved") return `Movimiento: ${event.fromStageName ?? "inicio"} → ${event.toStageName ?? "—"}`;
-  if (type === "promised_delivery_date_changed") return "Cambio de fecha prometida";
-  if (type === "order_updated") return "Pedido actualizado";
+  if (type === "stage_moved") return `Se movió el pedido de ${event.fromStageName ?? "inicio"} a ${event.toStageName ?? "una etapa no disponible"}`;
+  if (type === "promised_delivery_date_changed") return "Se actualizó la fecha prometida";
+  if (type === "order_updated") return operationalHistorySummary(event.details);
   return type;
-}
-
-function formatDate(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
 }
 
 export function EditableDescription({
@@ -197,6 +191,10 @@ export function EditableDescription({
         <input defaultValue={crypto.randomUUID()} name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
         <input name="expectedUpdatedAt" type="hidden" value={updatedAt} />
         <Textarea defaultValue={description} id="order-description" name="description" ref={textareaRef} rows={4} />
+        <Field>
+          <FieldLabel htmlFor="order-description-change-note">Comentario del cambio</FieldLabel>
+          <Textarea id="order-description-change-note" maxLength={300} name="changeNote" placeholder="Qué se hizo y por qué (opcional)." rows={2} />
+        </Field>
         <div className="flex flex-wrap gap-2">
           <SubmitButton className="min-h-11 md:min-h-10" pendingLabel="Guardando...">
             <CircleCheck aria-hidden="true" />
