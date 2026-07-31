@@ -21,3 +21,11 @@ export function canReadOrderFinancials(role: AppRole) {
 export function canMoveOrder(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }
+
+export function canEditOrderSensitive(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
+export function canEditOrderDescription(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
+}

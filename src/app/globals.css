@@ -120,11 +120,15 @@
 
   html {
     background: var(--background);
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
     @apply min-h-dvh bg-background font-sans text-foreground antialiased;
     margin: 0;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   button:not(:disabled),
