@@ -29,7 +29,7 @@
     "db:reset:local": "pnpm db:reset && pnpm db:types && pnpm db:users",
     "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
     "db:users": "node --env-file=.env.local scripts/ensure-local-dev-users.mjs",
-    "bootstrap:super-admin": "node scripts/bootstrap-super-admin.mjs"
+    "bootstrap:super-admin": "node --env-file=.env.bootstrap.local scripts/bootstrap-super-admin.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
