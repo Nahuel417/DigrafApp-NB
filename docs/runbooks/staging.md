@@ -131,6 +131,29 @@ Aplicable a preview y staging, sin afectar Supabase local:
 - Empleado: sin acceso a creación de pedido, sin información financiera.
 - Todos: rechazo de movimiento hacia o desde la etapa `paid`.
 
+## Fase 4C: bootstrap sintético remoto
+
+El único modo aprobado para crear las cuentas sintéticas es:
+
+```bash
+pnpm bootstrap:super-admin -- --all-roles --confirm-remote
+```
+
+El script rechaza cualquier URL o project ref remoto distinto de `digraf-staging`, exige `--confirm-remote`, valida emails `@example.test`, detecta duplicados antes de mutar y hace upsert únicamente de los cuatro roles configurados. Las cuentas sintéticas estables tienen `must_change_password = false` para permitir las validaciones focalizadas de RLS; no representan cuentas reales ni habilitan datos operativos.
+
+Variables requeridas por nombre:
+
+- `SUPABASE_URL`
+- `SUPABASE_PROJECT_ID`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` o `SUPABASE_PUBLISHABLE_KEY`
+- `BOOTSTRAP_SUPER_ADMIN_EMAIL`, `BOOTSTRAP_SUPER_ADMIN_NAME`, `BOOTSTRAP_SUPER_ADMIN_PASSWORD`
+- `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_PASSWORD`
+- `BOOTSTRAP_ATTENTION_EMAIL`, `BOOTSTRAP_ATTENTION_NAME`, `BOOTSTRAP_ATTENTION_PASSWORD`
+- `BOOTSTRAP_EMPLOYEE_EMAIL`, `BOOTSTRAP_EMPLOYEE_NAME`, `BOOTSTRAP_EMPLOYEE_PASSWORD`
+
+Después del upsert, el script verifica login, email confirmado, perfil activo, rol, visibilidad de `profiles` por rol, aislamiento financiero de `employee`, rechazo de actualización de permisos por `employee`, ausencia de acceso anónimo, tablas operativas vacías y Storage sin buckets. No usa migraciones, SQL manual ni crea datos de negocio.
+
 ## Recuperación
 
 | Falla                                | Procedimiento                                                                                                                            |
