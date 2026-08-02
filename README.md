@@ -62,6 +62,19 @@ pnpm db:reset:local
 
 `db:reset:local` ejecuta reset, regenera tipos y restaura las cuentas en ese orden. No usarlo cuando deban conservarse datos locales.
 
+## Entornos y flujo Git
+
+| Entorno | Aplicación | Base | Datos | URL |
+| --- | --- | --- | --- | --- |
+| Local | `pnpm dev` | Supabase local | Sintéticos | `http://127.0.0.1:3000` |
+| Preview por rama | Vercel Preview (protección Vercel Authentication) | Supabase Cloud staging | Sintéticos, prefijo `STG-<rama>-<fecha>-<caso>`, correos `@example.test` | Subdominio generado por Vercel |
+| Staging | Proyecto Vercel `digraf-staging`, rama `staging` como Preview protegida | Supabase Cloud `digraf-staging` | Sintéticos | Subdominio generado por Vercel |
+| Producción | Otro proyecto Vercel, otro Supabase, fuera de INF-01 | Fuera de alcance | Reales | No configurar en INF-01 |
+
+Flujo Git obligatorio: `feat/* → develop → staging` mediante PR. `main` no se utiliza en este proyecto de staging y se excluye mediante `git.deploymentEnabled` en `vercel.json`. `staging` se crea inicialmente desde `develop` y se mantiene como Preview branch estable de validación.
+
+Más detalle en `docs/runbooks/staging.md` y `docs/decisions.md`.
+
 ## Verificación
 
 ```bash
@@ -81,7 +94,9 @@ pnpm db:types
 
 ## Límites operativos
 
-- Los datos locales y seeds deben ser sintéticos.
-- `db push`, despliegues y cambios de producción requieren aprobación explícita.
-- Los secretos no se versionan.
+- Los datos locales, de preview y de staging deben ser sintéticos. No introducir datos reales en ningún entorno no productivo.
+- `db push` contra staging, despliegues, restores remotos y cualquier cambio de producción requieren aprobación explícita por escrito. No son una verificación automática.
+- Los secretos no se versionan ni se imprimen. `SUPABASE_SERVICE_ROLE_KEY` nunca debe aparecer con prefijo `NEXT_PUBLIC_` ni en el bundle del cliente.
 - Las claves privilegiadas se incorporan solo en el corte que las necesite y permanecen en módulos exclusivos de servidor.
+- `supabase db reset --linked`, `db push` desde un preview y SQL de esquema ejecutado desde el Dashboard de Supabase están prohibidos durante INF-01.
+- El plan gratuito de Supabase puede pausar el proyecto por inactividad y no ofrece PITR; la recuperación esperada es reconstruir desde migraciones y bootstrap.

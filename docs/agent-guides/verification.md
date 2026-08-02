@@ -67,3 +67,46 @@ Una tarea no está terminada si deja una migración sin tipos, un bypass conocid
 Para administración de usuarios, verificar además que Admin no pueda crear cuentas ni asignar o restablecer credenciales, que solo pueda cambiar roles entre Atención y Empleado, y que una contraseña temporal o restablecida no habilite el resto de la aplicación hasta ser reemplazada por el usuario.
 
 Para bootstrap, probar localmente la creación de Auth y perfil, el email confirmado, `must_change_password`, la ausencia de secretos en salida y el reporte de fallo parcial. La limpieza de un usuario Auth huérfano debe requerir confirmación explícita. No crear usuarios reales remotos como parte de pruebas automáticas.
+
+## Verificación específica de staging y preview
+
+Antes de cualquier acción remota, ejecutar las comprobaciones no destructivas de la fase 1:
+
+- `git status` y `git diff --check` para confirmar que solo aparecen archivos esperados.
+- `git rev-parse --verify develop` y comprobar que la rama activa es `feat/staging-environment` creada desde `develop`.
+- Revisar que `staging` aún no existe y que `.atl/`, `.env.local` y otros artefactos locales están ignorados o no rastreados.
+- `pnpm install --frozen-lockfile` solo si la fase 1 introduce cambios en `package.json`. En INF-01 no debería haberlos.
+- `rg` para confirmar que la documentación nueva no contiene `service_role`, `access_token`, `project_ref` con valor, `db_password` ni correos reales.
+
+Migraciones de esquema:
+
+- Si la fase introduce migración nueva, antes de cualquier `db push`:
+  - `pnpm db:reset:local` ejecutado y verificado.
+  - `pnpm test` y `pnpm test:integration` en verde.
+  - `pnpm db:types` y `git diff --exit-code -- src/lib/supabase/database.types.ts` sin diferencias.
+  - `supabase db push --dry-run` revisado y comparado con la lista de migraciones esperadas.
+
+Sin migraciones nuevas (caso de la fase 1):
+
+- Confirmar que no hay archivos en `supabase/migrations/` modificados.
+- No ejecutar `supabase db start` ni `pnpm db:reset` durante la fase 1; las acciones remotas no forman parte de la verificación local.
+- Validar manualmente que la documentación describe los gates que las fases 2 a 5 sí exigirán.
+
+Build de la aplicación:
+
+- `pnpm lint`, `pnpm typecheck` y `pnpm build` cuando la fase 1 modifique código de la app. En INF-01 fase 1 no debería haberlos.
+
+## Matriz de verificado/no verificado
+
+Cada entrega debe cerrar con dos listas explícitas:
+
+- Verificado: comandos ejecutados y su resultado.
+- No verificado: comprobaciones omitidas por estar fuera de alcance de la fase, con justificación.
+
+## Verificación de configuración de fase 3
+
+- Validar `vercel.json` como JSON y confirmar que solo deshabilita deployments desde `main`.
+- Validar el workflow mediante un parser YAML disponible localmente, sin ejecutarlo.
+- Confirmar que el workflow contiene únicamente `workflow_dispatch`, `environment: staging`, `concurrency`, referencias a `secrets.*`/`vars.*` y la barrera explícita antes de `db push`.
+- Confirmar que no contiene valores de secretos, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_*` sensibles, comandos de bootstrap, E2E remoto ni triggers automáticos.
+- No ejecutar `supabase login`, `supabase link`, `supabase db push`, `supabase db push --dry-run`, deploys ni workflows como parte de fase 3.
