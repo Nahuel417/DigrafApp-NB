@@ -1,0 +1,73 @@
+name: Deploy staging database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_db_push:
+        description: "Type APPLY_STAGING_MIGRATIONS to continue after the dry-run"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-database-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate required staging configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test -n "$SUPABASE_PROJECT_ID"
+
+      - name: Authenticate Supabase CLI
+        run: pnpm exec supabase login --token "$SUPABASE_ACCESS_TOKEN"
+
+      - name: Link the staging project for this ephemeral runner
+        run: pnpm exec supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preview pending migrations
+        run: pnpm exec supabase db push --dry-run
+
+      - name: Require explicit migration confirmation
+        shell: bash
+        env:
+          CONFIRM_DB_PUSH: ${{ inputs.confirm_db_push }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRM_DB_PUSH" != "APPLY_STAGING_MIGRATIONS" ]]; then
+            echo "Migration confirmation did not match the required value."
+            exit 1
+          fi
+
+      - name: Apply staging migrations
+        run: pnpm exec supabase db push

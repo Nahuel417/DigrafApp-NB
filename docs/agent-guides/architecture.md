@@ -77,3 +77,41 @@ Las funciones SQL sensibles deben validar autorización, usar un `search_path` s
 - Antes de sumar una dependencia, revisar si Next.js, shadcn/ui, Zod o una librería existente resuelven el caso.
 - Mantener secretos fuera del repositorio. Documentar variables requeridas en `.env.example` con valores seguros.
 - No desplegar, aplicar migraciones remotas ni cambiar configuración de producción como efecto colateral de una tarea local.
+
+## Entornos y preview/staging
+
+Digraf opera en cuatro entornos con separación estricta:
+
+| Entorno | Aplicación | Base de datos | Datos | URL inicial |
+| --- | --- | --- | --- | --- |
+| Local | `pnpm dev` | Supabase local | Sintéticos | `http://127.0.0.1:3000` |
+| Preview por rama | Vercel Preview, proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos, prefijo `STG-<rama>-<fecha>-<caso>`, correos `@example.test` | Subdominio generado por Vercel |
+| Staging estable | Vercel Preview, rama `staging` del proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos | Subdominio generado por Vercel |
+| Producción futura | Otro proyecto Vercel y otro Supabase, fuera de INF-01 | Fuera de alcance | Reales | No configurar en INF-01 |
+
+Reglas de separación:
+
+- `staging` se crea una sola vez desde `develop` y se mantiene como Preview branch estable del proyecto `digraf-staging`. El slot Production del proyecto queda sin uso y `main` se excluye del deploy mediante `git.deploymentEnabled` en `vercel.json`.
+- Vercel Authentication se activa en `Production Environment` (con tipo `prod_deployment_urls_and_all_previews`) o, si la protección no alcanza, en `Preview` y en `All` para que tanto `staging` como las previews requieran autenticación.
+- Producción futura nunca reutilizará este proyecto ni `staging`; tendrá su propio proyecto Vercel, su propio Supabase y su propio `main` con deployments productivos.
+
+## Variables de entorno
+
+| Variable | Exposición | Alcance | Notas |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Pública | Preview solamente | Requiere redeploy ante cambios. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Pública por diseño | Preview solamente | Segura para el navegador. |
+| `SUPABASE_URL` | Servidor | Preview solamente | Igual valor que la pública, solo si el código actual la requiere. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Servidor, sensible | Preview solamente y solo si la app la usa | Nunca con prefijo `NEXT_PUBLIC_` y nunca en pruebas funcionales. |
+| `LOCAL_DEV_USERS_PASSWORD` | Local | Solo `.env.local` | Prohibido en staging. |
+
+Los secretos de migración (`SUPABASE_ACCESS_TOKEN`, project ref y db password) viven exclusivamente en el GitHub Environment `staging`. No se versionan, no se imprimen y no se cargan en Vercel. Los secret scanning de GitHub permanecen activos.
+
+## Migraciones remotas
+
+- `supabase db push` se aplica únicamente por ejecución manual autorizada contra el project ref de staging.
+- Antes de cada push se ejecuta `supabase db push --dry-run` y se revisa la lista de migraciones esperadas.
+- El workflow de GitHub Actions se gatilla por `workflow_dispatch` y se protege con GitHub Environment `staging`. Las ejecuciones concurrentes se bloquean con un job lock. El workflow debe existir en la rama por defecto para aparecer en la interfaz de ejecución manual.
+- `supabase db reset --linked`, `supabase db push` desde un preview y cualquier SQL de esquema ejecutado desde el Dashboard de Supabase están prohibidos durante INF-01.
+- Toda corrección de esquema se realiza con una migración nueva, nunca editando una migración ya aplicada.
+- La recuperación esperada en el plan gratuito es reconstruir el proyecto desde migraciones y bootstrap, porque Supabase Free no ofrece PITR y el proyecto puede pausarse por inactividad.
