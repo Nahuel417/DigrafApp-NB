@@ -105,7 +105,8 @@ test.describe("Diseño vigente M7", () => {
     const upload = await client.storage.from(bucketId).upload(objectPath, pngBytes, { contentType: "image/png", upsert: false });
     if (upload.error) throw upload.error;
     objectPaths.push(objectPath);
-    const finalized = await client.rpc("finalize_order_design_image", {
+    const finalized = await service.rpc("finalize_order_design_image", {
+      p_actor_id: identity.id,
       p_order_id: orderId,
       p_object_path: objectPath,
       p_idempotency_key: randomUUID(),

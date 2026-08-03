@@ -769,6 +769,7 @@ export type Database = {
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
       finalize_order_design_image: {
         Args: {
+          p_actor_id: string
           p_expected_image_updated_at?: string
           p_idempotency_key: string
           p_object_path: string

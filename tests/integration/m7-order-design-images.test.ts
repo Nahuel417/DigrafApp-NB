@@ -87,21 +87,22 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
   }
 
   async function finalize(
-    client: SupabaseClient<Database>,
+    actor: Identity,
     order: OrderSeed,
     path: string,
     expectedImageUpdatedAt: string | null,
     idempotencyKey = randomUUID(),
   ) {
     const input = {
+      p_actor_id: actor.id,
       p_order_id: order.id,
       p_object_path: path,
       p_idempotency_key: idempotencyKey,
     };
 
     return expectedImageUpdatedAt === null
-      ? client.rpc("finalize_order_design_image", input)
-      : client.rpc("finalize_order_design_image", { ...input, p_expected_image_updated_at: expectedImageUpdatedAt });
+      ? service.rpc("finalize_order_design_image", input)
+      : service.rpc("finalize_order_design_image", { ...input, p_expected_image_updated_at: expectedImageUpdatedAt });
   }
 
   beforeAll(async () => {
@@ -144,12 +145,13 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
 
   it("permite a Super admin, Admin y Atención cargar y confirmar una única imagen vigente", async () => {
     for (const role of ["super_admin", "admin", "attention"] as const) {
-      const client = await signedClient(identities.find((identity) => identity.role === role)!);
+      const identity = identities.find((candidate) => candidate.role === role)!;
+      const client = await signedClient(identity);
       const order = await createOrder();
       const path = objectPath(order.id);
 
       expect((await upload(client, path)).error).toBeNull();
-      const confirmed = await finalize(client, order, path, null);
+      const confirmed = await finalize(identity, order, path, null);
       expect(confirmed.error).toBeNull();
       expect(confirmed.data?.[0]).toMatchObject({ order_id: order.id, object_path: path, previous_object_path: null });
 
@@ -174,8 +176,6 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
   it("rechaza a Empleado, sesiones inválidas y escrituras directas de metadata", async () => {
     const superAdmin = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
     const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
-    const inactive = await signedClient(identities[4]!);
-    const requiredChange = await signedClient(identities[5]!);
     const order = await createOrder();
     const path = objectPath(order.id);
 
@@ -187,28 +187,36 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
       byte_size: 1024,
       uploaded_by: identities[0]!.id,
     })).error).not.toBeNull();
-    expect((await finalize(employee, order, path, null)).error?.message).toContain("permiso");
-    expect((await finalize(inactive, order, path, null)).error?.message).toContain("permiso");
-    expect((await finalize(requiredChange, order, path, null)).error?.message).toContain("permiso");
+    const directRpc = await superAdmin.rpc("finalize_order_design_image", {
+      p_actor_id: identities[0]!.id,
+      p_order_id: order.id,
+      p_object_path: path,
+      p_idempotency_key: randomUUID(),
+    });
+    expect(directRpc.error).not.toBeNull();
+    expect((await finalize(identities[3]!, order, path, null)).error?.message).toContain("permiso");
+    expect((await finalize(identities[4]!, order, path, null)).error?.message).toContain("permiso");
+    expect((await finalize(identities[5]!, order, path, null)).error?.message).toContain("permiso");
   });
 
   it("finaliza idempotentemente, conserva el path anterior y no habilita borrado directo", async () => {
-    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    const attentionIdentity = identities.find((identity) => identity.role === "attention")!;
+    const attention = await signedClient(attentionIdentity);
     const order = await createOrder();
     const firstPath = objectPath(order.id, "webp");
     const key = randomUUID();
 
     expect((await upload(attention, firstPath, "image/webp")).error).toBeNull();
-    const first = await finalize(attention, order, firstPath, null, key);
-    const replay = await finalize(attention, order, firstPath, null, key);
+    const first = await finalize(attentionIdentity, order, firstPath, null, key);
+    const replay = await finalize(attentionIdentity, order, firstPath, null, key);
     expect(first.error).toBeNull();
     expect(replay.error).toBeNull();
     expect(replay.data?.[0]?.event_id).toBe(first.data?.[0]?.event_id);
-    expect((await finalize(attention, order, objectPath(order.id), null, key)).error?.message).toContain("idempotencia");
+    expect((await finalize(attentionIdentity, order, objectPath(order.id), null, key)).error?.message).toContain("idempotencia");
 
     const secondPath = objectPath(order.id, "jpg");
     expect((await upload(attention, secondPath, "image/jpeg")).error).toBeNull();
-    const replacement = await finalize(attention, order, secondPath, first.data?.[0]?.image_updated_at ?? null);
+    const replacement = await finalize(attentionIdentity, order, secondPath, first.data?.[0]?.image_updated_at ?? null);
     expect(replacement.error).toBeNull();
     expect(replacement.data?.[0]).toMatchObject({ object_path: secondPath, previous_object_path: firstPath });
     expect((await attention.storage.from(bucketId).remove([firstPath])).error).toBeNull();
@@ -231,13 +239,15 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
   });
 
   it("serializa reemplazos concurrentes y mantiene una sola referencia vigente", async () => {
-    const superAdmin = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
-    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
+    const superAdminIdentity = identities.find((identity) => identity.role === "super_admin")!;
+    const adminIdentity = identities.find((identity) => identity.role === "admin")!;
+    const superAdmin = await signedClient(superAdminIdentity);
+    const admin = await signedClient(adminIdentity);
     const order = await createOrder();
     const initialPath = objectPath(order.id);
 
     expect((await upload(superAdmin, initialPath)).error).toBeNull();
-    const initial = await finalize(superAdmin, order, initialPath, null);
+    const initial = await finalize(superAdminIdentity, order, initialPath, null);
     if (initial.error || !initial.data?.[0]) throw initial.error ?? new Error("La imagen inicial no devolvió metadata.");
 
     const firstPath = objectPath(order.id);
@@ -245,8 +255,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     expect((await upload(superAdmin, firstPath)).error).toBeNull();
     expect((await upload(admin, secondPath)).error).toBeNull();
     const [first, second] = await Promise.all([
-      finalize(superAdmin, order, firstPath, initial.data[0].image_updated_at),
-      finalize(admin, order, secondPath, initial.data[0].image_updated_at),
+      finalize(superAdminIdentity, order, firstPath, initial.data[0].image_updated_at),
+      finalize(adminIdentity, order, secondPath, initial.data[0].image_updated_at),
     ]);
 
     expect([first.error, second.error].filter(Boolean)).toHaveLength(1);

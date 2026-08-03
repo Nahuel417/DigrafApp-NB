@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -90,6 +91,7 @@ function imageErrorMessage(message: string) {
     "La clave de idempotencia ya fue utilizada para otra imagen.",
     "La imagen seleccionada ya es la vigente.",
     "El archivo de imagen no está disponible o no cumple los límites permitidos.",
+    "La carga de imagen venció. Volvé a cargar el archivo.",
     "El tipo de archivo no coincide con su extensión.",
   ];
 
@@ -184,12 +186,13 @@ export async function finalizeOrderDesignImageAction(
   }
 
   const input: FinalizeOrderDesignImageRpcArgs = {
+    p_actor_id: profile!.id,
     p_order_id: parsed.data.orderId,
     p_object_path: parsed.data.objectPath,
     p_idempotency_key: parsed.data.idempotencyKey,
     ...(parsed.data.expectedImageUpdatedAt ? { p_expected_image_updated_at: parsed.data.expectedImageUpdatedAt } : {}),
   };
-  const { data: result, error } = await supabase.rpc("finalize_order_design_image", input);
+  const { data: result, error } = await createAdminClient().rpc("finalize_order_design_image", input);
   if (error) return mutationResult("error", imageErrorMessage(error.message));
 
   const finalizedImage = result?.[0];
