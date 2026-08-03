@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCreateManualOrder, canManageCatalogs, canMoveOrder, canReadOrderFinancials } from "./permissions";
+import { canCreateManualOrder, canManageCatalogs, canManageStages, canMoveOrder, canReadOrderFinancials } from "./permissions";
 
 describe("M3 permissions", () => {
   it("allows Attention to create manual orders without catalog administration", () => {
@@ -19,5 +19,14 @@ describe("M3 permissions", () => {
     for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
       expect(canMoveOrder(role)).toBe(true);
     }
+  });
+});
+
+describe("stage permissions", () => {
+  it("allows only Super admin and Admin", () => {
+    expect(canManageStages("super_admin")).toBe(true);
+    expect(canManageStages("admin")).toBe(true);
+    expect(canManageStages("attention")).toBe(false);
+    expect(canManageStages("employee")).toBe(false);
   });
 });

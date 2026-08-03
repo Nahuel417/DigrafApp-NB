@@ -362,31 +362,37 @@ export type Database = {
           actor_id: string
           created_at: string
           from_stage_id: string | null
+          from_stage_name: string | null
           id: string
           idempotency_fingerprint: string | null
           idempotency_key: string | null
           order_id: string
           to_stage_id: string
+          to_stage_name: string | null
         }
         Insert: {
           actor_id: string
           created_at?: string
           from_stage_id?: string | null
+          from_stage_name?: string | null
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
           order_id: string
           to_stage_id: string
+          to_stage_name?: string | null
         }
         Update: {
           actor_id?: string
           created_at?: string
           from_stage_id?: string | null
+          from_stage_name?: string | null
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
           order_id?: string
           to_stage_id?: string
+          to_stage_name?: string | null
         }
         Relationships: [
           {
@@ -515,6 +521,54 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_stage_events: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          details: Json
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          workflow_stage_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          details?: Json
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          workflow_stage_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          workflow_stage_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_stage_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_stage_events_workflow_stage_id_fkey"
+            columns: ["workflow_stage_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_stages: {
         Row: {
           code: string
@@ -599,6 +653,16 @@ export type Database = {
           created_at: string
         }[]
       }
+      create_workflow_stage: {
+        Args: { p_idempotency_key: string; p_name: string }
+        Returns: {
+          event_id: string
+          stage_code: string
+          stage_id: string
+          stage_name: string
+          stage_position: number
+        }[]
+      }
       current_active_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
@@ -647,6 +711,40 @@ export type Database = {
       rename_catalog_item: {
         Args: { target_id: string; target_name: string }
         Returns: undefined
+      }
+      rename_workflow_stage: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_name: string
+          p_stage_id: string
+        }
+        Returns: {
+          event_id: string
+          stage_id: string
+          stage_name: string
+        }[]
+      }
+      reorder_workflow_stages: {
+        Args: {
+          p_expected_stage_ids: string[]
+          p_idempotency_key: string
+          p_stage_ids: string[]
+        }
+        Returns: {
+          event_id: string
+        }[]
+      }
+      retire_workflow_stage: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_stage_id: string
+        }
+        Returns: {
+          event_id: string
+          stage_id: string
+        }[]
       }
       update_managed_profile: {
         Args: {

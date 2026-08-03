@@ -2,13 +2,14 @@ import { AppNavigation } from "@/components/app-navigation";
 import { LogoutForm } from "@/features/auth/components/logout-form";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canCreateManualOrder, canManageCatalogs, canManageUsers } from "@/lib/auth/permissions";
+import { canCreateManualOrder, canManageCatalogs, canManageStages, canManageUsers } from "@/lib/auth/permissions";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const profile = await requireActiveProfile();
   const capabilities = {
     canCreateOrders: canCreateManualOrder(profile.role),
     canManageCatalogs: canManageCatalogs(profile.role),
+    canManageStages: canManageStages(profile.role),
     canManageUsers: canManageUsers(profile.role),
   };
   const initials = profile.displayName

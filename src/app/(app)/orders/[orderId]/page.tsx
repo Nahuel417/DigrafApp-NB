@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canEditOrderDescription, canEditOrderSensitive, canReadOrderFinancials } from "@/lib/auth/permissions";
-import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, visibleBalanceString } from "@/features/orders/detail-format";
+import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
 
@@ -41,8 +41,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
     occurredAt: event.occurredAt,
     body: event.commentBody,
     changeNote: event.changeNote,
-    fromStageName: event.fromStageId ? stageNames[event.fromStageId] ?? undefined : undefined,
-    toStageName: event.toStageId ? stageNames[event.toStageId] ?? undefined : undefined,
+    fromStageName: timelineStageName(event.fromStageName, event.fromStageId ? stageNames[event.fromStageId] : undefined),
+    toStageName: timelineStageName(event.toStageName, event.toStageId ? stageNames[event.toStageId] : undefined),
     details: event.details,
   }));
 
