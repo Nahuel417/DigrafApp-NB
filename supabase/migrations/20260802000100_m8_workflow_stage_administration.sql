@@ -63,13 +63,7 @@ create policy "Operational users can read workflow stages"
 on public.workflow_stages
 for select
 to authenticated
-using (
-  (select public.current_active_role()) is not null
-  and (
-    is_active
-    or (select public.current_active_role()) in ('super_admin', 'admin')
-  )
-);
+using ((select public.current_active_role()) is not null);
 
 create policy "Managers can read workflow stage events"
 on public.workflow_stage_events
@@ -158,7 +152,7 @@ begin
       existing_event.from_stage_id,
       existing_event.to_stage_id,
       persisted_destination_stage.code,
-      persisted_order.updated_at,
+      existing_event.created_at,
       existing_event.id
     from public.orders persisted_order
     join public.workflow_stages persisted_destination_stage on persisted_destination_stage.id = existing_event.to_stage_id
@@ -445,7 +439,7 @@ begin
   end if;
 
   update public.workflow_stages stage
-  set position = ordered.position,
+  set position = ordered.position - 1,
       updated_at = now()
   from unnest(p_stage_ids) with ordinality as ordered(id, position)
   where stage.id = ordered.id

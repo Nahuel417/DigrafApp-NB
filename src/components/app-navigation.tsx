@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPlus, Kanban, LayoutDashboard, ListTree, Users } from "lucide-react";
+import { ClipboardPlus, Kanban, LayoutDashboard, ListOrdered, ListTree, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,6 +10,7 @@ type AppNavigationProps = {
   capabilities: {
     canCreateOrders: boolean;
     canManageCatalogs: boolean;
+    canManageStages: boolean;
     canManageUsers: boolean;
   };
   compact?: boolean;
@@ -27,6 +28,7 @@ const navigationItems: Array<{
   { href: "/orders", icon: Kanban, label: "Pedidos" },
   { href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido", capability: "canCreateOrders" },
   { href: "/catalogs", icon: ListTree, label: "Catálogos", capability: "canManageCatalogs" },
+  { href: "/stages", icon: ListOrdered, label: "Etapas", capability: "canManageStages" },
   { href: "/users", icon: Users, label: "Usuarios", capability: "canManageUsers" },
 ];
 

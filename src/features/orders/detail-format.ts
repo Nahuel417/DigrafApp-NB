@@ -18,6 +18,10 @@ export function formatDateTime(value: string) {
   }).format(date);
 }
 
+export function timelineStageName(snapshotName: string | null, currentName: string | undefined) {
+  return snapshotName ?? currentName;
+}
+
 export function orderTypeLabel(orderType: OrderDetail["orderType"]) {
   return orderType === "set" ? "Conjunto" : "Prenda individual";
 }

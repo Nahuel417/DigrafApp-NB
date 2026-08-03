@@ -215,6 +215,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Administración de 
     const { data: audit, error: auditError } = await service.from("workflow_stage_events").select("action, details").eq("id", successful.event_id).single();
     expect(auditError).toBeNull();
     expect(audit).toMatchObject({ action: "reordered", details: { previous_stage_ids: expected } });
+
+    const persistedStages = await getActiveStages();
+    const successfulOrder = first.data ? reversed : rotated;
+    expect(persistedStages.map((stage) => stage.id)).toEqual(successfulOrder);
+    expect(persistedStages.map((stage) => stage.position)).toEqual(successfulOrder.map((_, index) => index));
   });
 
   it("rechaza etapas protegidas u ocupadas y conserva al menos una ordinaria activa", async () => {
@@ -249,6 +254,17 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Administración de 
       p_expected_updated_at: occupiedStage.updated_at,
       p_idempotency_key: randomUUID(),
     })).error).toBeNull();
+
+    for (const identity of identities.slice(0, 4)) {
+      const client = await signedClient(identity);
+      const { data: historicalStage, error: historicalStageError } = await client
+        .from("workflow_stages")
+        .select("name, is_active")
+        .eq("id", created.stage.stage_id)
+        .single();
+      expect(historicalStageError).toBeNull();
+      expect(historicalStage).toEqual({ name: "Etapa ocupada M8", is_active: false });
+    }
 
     const ordinaryStages = (await getActiveStages()).filter((stage) => !["received", "paid", "delivered"].includes(stage.code));
     const retained = ordinaryStages.at(-1)!;

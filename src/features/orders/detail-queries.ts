@@ -121,14 +121,14 @@ export type TimelineEvent = {
 
 export async function getOrderTimeline(orderId: string): Promise<TimelineEvent[]> {
   const supabase = await createClient();
-  const [{ data, error }, { data: snapshots }] = await Promise.all([
+  const [{ data, error }, { data: snapshots, error: snapshotError }] = await Promise.all([
     supabase.rpc("get_order_timeline", { p_order_id: orderId }),
     supabase
       .from("order_stage_events")
       .select("id, from_stage_name, to_stage_name")
       .eq("order_id", orderId),
   ]);
-  if (error || !data) return [];
+  if (error || snapshotError || !data) return [];
 
   const snapshotsByEventId = new Map(
     (snapshots ?? []).map((event) => [event.id, {
