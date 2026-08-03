@@ -7,21 +7,26 @@ import { canEditOrderDescription, canEditOrderSensitive, canReadOrderFinancials 
 import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
+import { getOrderDesignImageReadUrl } from "@/features/orders/image-queries";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CreateCommentForm, CommentList, Timeline, EditableDescription } from "@/features/orders/components/order-detail-panels";
 import { OrderEditForm } from "@/features/orders/components/order-edit-form";
+import { OrderDesignImagePanel } from "@/features/orders/components/order-design-image-panel";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const profile = await requireActiveProfile();
   const { orderId } = await params;
 
-  const [data, timelineEvents, stageNames] = await Promise.all([
+  const [data, timelineEvents, stageNames, designImageResult] = await Promise.all([
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
+    getOrderDesignImageReadUrl(orderId)
+      .then((image) => ({ error: null, image }))
+      .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", image: null })),
   ]);
 
   if (!data) {
@@ -32,6 +37,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const canReadFinances = canReadOrderFinancials(profile.role);
   const canEditSensitive = canEditOrderSensitive(profile.role);
   const canEditDescription = canEditOrderDescription(profile.role);
+  const canManageDesignImage = profile.role === "super_admin" || profile.role === "admin" || profile.role === "attention";
   const balance = canReadFinances ? visibleBalanceString(financials) : null;
 
   const timelineItems = timelineEvents.map((event) => ({
@@ -126,6 +132,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </div>
 
         <div className="flex flex-col gap-6">
+          <OrderDesignImagePanel
+            canManage={canManageDesignImage}
+            initialError={designImageResult.error}
+            initialImage={designImageResult.image ? {
+              expiresAt: designImageResult.image.expiresAt,
+              signedUrl: designImageResult.image.signedUrl,
+              updatedAt: designImageResult.image.updatedAt,
+            } : null}
+            orderId={order.id}
+          />
           {canReadFinances ? (
             <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
               <h2 className="text-base font-semibold">Importes</h2>
