@@ -64,11 +64,13 @@ Etapas iniciales:
 7. Pagado.
 8. Entregado.
 
-Admin puede crear, renombrar, reordenar y eliminar etapas. Las reglas no deben depender del texto visible: las etapas de pago y entrega requieren claves semánticas estables, por ejemplo `paid` y `delivered`. Si se pretende eliminar o cambiar el significado de una etapa especial, presentar el impacto en modo Plan.
+Super admin y Admin pueden crear, renombrar, reordenar y retirar etapas. Las nuevas etapas ordinarias se crean activas al final y su código estable lo asigna el servidor; luego se pueden reordenar. Las reglas no deben depender del texto visible: `received`, `paid` y `delivered` permanecen activas, no se retiran y sus códigos no cambian. El retiro se rechaza si la etapa tiene pedidos y debe conservarse al menos una etapa ordinaria activa.
 
 Los pedidos pueden moverse hacia adelante y atrás. Cada movimiento debe registrar pedido, etapa anterior, etapa siguiente, actor y timestamp del servidor. El drag and drop debe manejar rechazo del servidor y revertir su estado optimista.
 
 Durante M4, y hasta que M11/M12 incorporen cobro y reversión, toda transición hacia o desde la etapa con código semántico `paid` se rechaza para cualquier rol. Las demás etapas, incluida `delivered`, pueden recorrerse hacia adelante o atrás según los permisos generales; llegar a `delivered` no implica pago.
+
+Cada movimiento nuevo conserva el snapshot de los nombres de etapa de origen y destino junto con sus identificadores. Los eventos anteriores a esta regla no tienen snapshot y muestran el nombre actual de la etapa; no se los presenta como nombres históricos.
 
 Un pedido pagado puede no estar entregado. No derivar uno de otro.
 
