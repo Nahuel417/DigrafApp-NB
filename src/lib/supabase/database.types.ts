@@ -322,6 +322,105 @@ export type Database = {
           },
         ]
       }
+      order_design_image_events: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          image_updated_at: string
+          object_path: string
+          order_id: string
+          previous_object_path: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          image_updated_at: string
+          object_path: string
+          order_id: string
+          previous_object_path?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          image_updated_at?: string
+          object_path?: string
+          order_id?: string
+          previous_object_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_design_image_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_design_image_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_design_images: {
+        Row: {
+          byte_size: number
+          content_type: string
+          created_at: string
+          object_path: string
+          order_id: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          byte_size: number
+          content_type: string
+          created_at?: string
+          object_path: string
+          order_id: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          byte_size?: number
+          content_type?: string
+          created_at?: string
+          object_path?: string
+          order_id?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_design_images_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_design_images_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_financials: {
         Row: {
           created_at: string
@@ -668,6 +767,21 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
+      finalize_order_design_image: {
+        Args: {
+          p_expected_image_updated_at?: string
+          p_idempotency_key: string
+          p_object_path: string
+          p_order_id: string
+        }
+        Returns: {
+          event_id: string
+          image_updated_at: string
+          object_path: string
+          order_id: string
+          previous_object_path: string
+        }[]
+      }
       get_order_timeline: {
         Args: { p_order_id: string }
         Returns: {
