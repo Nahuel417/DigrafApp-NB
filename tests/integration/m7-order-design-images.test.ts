@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { verifyUploadedOrderDesignImage } from "../../src/features/orders/image-validation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -266,5 +267,45 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
       .eq("order_id", order.id);
     expect(eventError).toBeNull();
     expect(count).toBe(2);
+  });
+
+  it("verifica bytes reales después de la carga y no confía en MIME o extensión", async () => {
+    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    const order = await createOrder();
+    const validPath = objectPath(order.id);
+    const invalidPath = objectPath(order.id);
+    const validBytes = new Uint8Array(24);
+    validBytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+    validBytes.set([0x49, 0x48, 0x44, 0x52], 12);
+
+    const validUpload = await attention.storage.from(bucketId).upload(validPath, new Blob([validBytes], { type: "image/png" }), {
+      contentType: "image/png",
+      upsert: false,
+    });
+    expect(validUpload.error).toBeNull();
+    objectPaths.push(validPath);
+
+    const invalidUpload = await attention.storage.from(bucketId).upload(invalidPath, new Blob([new Uint8Array(validBytes.length)], { type: "image/png" }), {
+      contentType: "image/png",
+      upsert: false,
+    });
+    expect(invalidUpload.error).toBeNull();
+    objectPaths.push(invalidPath);
+
+    const validVerification = await verifyUploadedOrderDesignImage(
+      attention.storage.from(bucketId),
+      validPath,
+      "image/png",
+      validBytes.length,
+    );
+    const invalidVerification = await verifyUploadedOrderDesignImage(
+      attention.storage.from(bucketId),
+      invalidPath,
+      "image/png",
+      validBytes.length,
+    );
+
+    expect(validVerification.ok).toBe(true);
+    expect(invalidVerification.ok).toBe(false);
   });
 });
