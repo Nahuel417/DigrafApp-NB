@@ -110,7 +110,7 @@ Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super ad
 
 Los ítems de catálogo se pueden borrar físicamente. Los pedidos conservan un snapshot del tipo y nombre de cada selección, por lo que la eliminación del catálogo no altera su historia.
 
-Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Empleado puede modificar descripción e imagen cuando se le solicita, sin alterar datos sensibles.
+Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Todos los roles operativos pueden modificar descripción; solo Super admin, Admin y Atención pueden cargar o reemplazar la imagen vigente.
 
 El MVP conserva una sola imagen vigente de diseño; no implementar historial de versiones todavía.
 
@@ -144,7 +144,7 @@ Admin puede revertir el pago solamente mientras la caja del día correspondiente
 
 ## Comentarios, imágenes y auditoría
 
-Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan con políticas de Storage que reflejen los permisos del pedido.
+Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; solo Super admin, Admin y Atención pueden cargar o reemplazar.
 
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 
