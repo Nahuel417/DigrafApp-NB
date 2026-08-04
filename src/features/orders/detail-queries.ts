@@ -114,13 +114,28 @@ export type TimelineEvent = {
   commentBody: string | null;
   changeNote: string | null;
   fromStageId: string | null;
+  fromStageName: string | null;
   toStageId: string | null;
+  toStageName: string | null;
 };
 
 export async function getOrderTimeline(orderId: string): Promise<TimelineEvent[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_order_timeline", { p_order_id: orderId });
-  if (error || !data) return [];
+  const [{ data, error }, { data: snapshots, error: snapshotError }] = await Promise.all([
+    supabase.rpc("get_order_timeline", { p_order_id: orderId }),
+    supabase
+      .from("order_stage_events")
+      .select("id, from_stage_name, to_stage_name")
+      .eq("order_id", orderId),
+  ]);
+  if (error || snapshotError || !data) return [];
+
+  const snapshotsByEventId = new Map(
+    (snapshots ?? []).map((event) => [event.id, {
+      fromStageName: event.from_stage_name,
+      toStageName: event.to_stage_name,
+    }]),
+  );
 
   return data.map((event) => ({
     id: event.event_id,
@@ -131,7 +146,9 @@ export async function getOrderTimeline(orderId: string): Promise<TimelineEvent[]
     commentBody: event.comment_body,
     changeNote: event.change_note,
     fromStageId: event.from_stage_id,
+    fromStageName: snapshotsByEventId.get(event.event_id)?.fromStageName ?? null,
     toStageId: event.to_stage_id,
+    toStageName: snapshotsByEventId.get(event.event_id)?.toStageName ?? null,
   }));
 }
 

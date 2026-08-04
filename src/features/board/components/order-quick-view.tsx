@@ -2,11 +2,15 @@
 
 import { ArrowRight, X } from "lucide-react";
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import type { OrderQuickView } from "../actions";
+import type { BoardOrder } from "../queries";
+
+import { OrderDesignThumbnail } from "./order-design-thumbnail";
 
 function formatOrderNumber(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -21,12 +25,29 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Cordoba" }).format(new Date(value));
 }
 
-export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuickView; onClose: () => void; stageNames: Record<string, string> }) {
+export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">; onClose: () => void; stageNames: Record<string, string> }) {
+  const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const detailPath = `/orders/${data.id}`;
   const editPath = `${detailPath}#${data.canEditSensitive ? "edit-order" : "order-description"}`;
   const movement = data.lastMovement
     ? `Movido de ${data.lastMovement.fromStageId ? stageNames[data.lastMovement.fromStageId] ?? "una etapa no disponible" : "inicio"} a ${data.lastMovement.toStageId ? stageNames[data.lastMovement.toStageId] ?? "una etapa no disponible" : "una etapa no disponible"}`
     : "Todavía no hay movimientos registrados.";
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (isExpanded && expandedUrl && !dialog.open) dialog.showModal();
+    if (!isExpanded && dialog.open) dialog.close();
+  }, [expandedUrl, isExpanded]);
+
+  function closeExpandedImage() {
+    setIsExpanded(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
 
   return (
     <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -37,6 +58,19 @@ export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuick
         </div>
         <Button aria-label="Cerrar vista rápida" data-no-drag="true" onClick={onClose} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
       </div>
+      {data.hasDesignImage ? (
+        <OrderDesignThumbnail
+          alt={`Diseño de ${data.customerName}`}
+          className="mt-3 h-24 w-32 sm:h-28 sm:w-40"
+          imageUpdatedAt={data.imageUpdatedAt}
+          onActivate={(trigger) => {
+            triggerRef.current = trigger;
+            setIsExpanded(true);
+          }}
+          onUrlReady={handleUrlReady}
+          orderId={data.id}
+        />
+      ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-2"><Badge variant="outline">{data.stageName}</Badge><span className="text-sm text-muted-foreground">{data.quantity} unidades · {data.orderType === "set" ? "Conjunto" : "Prenda individual"}</span></div>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2">
         <div><dt className="text-xs text-muted-foreground">Entrega prometida</dt><dd className="mt-1 font-mono text-sm font-medium">{formatDate(data.promisedDeliveryDate)}</dd></div>
@@ -55,6 +89,30 @@ export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuick
         <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
         {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath}>Editar pedido</Link></Button> : null}
       </div>
+      <dialog
+        aria-labelledby={`expanded-design-heading-${data.id}`}
+        className="m-auto max-h-[90vh] max-w-[min(92vw,56rem)] rounded-xl border border-border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/70"
+        onCancel={(event) => {
+          event.preventDefault();
+          closeExpandedImage();
+        }}
+        onClose={closeExpandedImage}
+        ref={dialogRef}
+      >
+        <div className="flex max-h-[90vh] flex-col gap-4 p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">ARCHIVO VISUAL</p>
+              <h2 className="mt-1 text-lg font-semibold" id={`expanded-design-heading-${data.id}`}>Diseño de {data.customerName}</h2>
+            </div>
+            <Button aria-label="Cerrar imagen ampliada" onClick={closeExpandedImage} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
+          </div>
+          {expandedUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt={`Diseño ampliado de ${data.customerName}`} className="max-h-[72vh] w-full object-contain" referrerPolicy="no-referrer" src={expandedUrl} />
+          ) : <p className="text-sm text-muted-foreground">Preparando la vista ampliada...</p>}
+        </div>
+      </dialog>
     </aside>
   );
 }

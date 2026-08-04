@@ -54,7 +54,10 @@ test("Super admin crea un pedido manual completo", async ({ page }) => {
     await page.goto("/orders/new");
     await page.getByLabel("Cliente o equipo").fill(customerName);
     await page.getByLabel("Cantidad total de unidades").fill("12");
-    await page.getByLabel("Fecha prometida de entrega").fill("2026-08-03");
+    const orderDate = await page.getByLabel("Fecha del pedido").inputValue();
+    const promisedDeliveryDate = new Date(`${orderDate}T00:00:00.000Z`);
+    promisedDeliveryDate.setUTCDate(promisedDeliveryDate.getUTCDate() + 1);
+    await page.getByLabel("Fecha prometida de entrega").fill(promisedDeliveryDate.toISOString().slice(0, 10));
 
     const selections = [
       ["Prenda superior", `Remera ${runId}`], ["Prenda inferior", `Short ${runId}`],

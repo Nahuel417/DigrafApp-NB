@@ -10,6 +10,10 @@ export function canManageCatalogs(role: AppRole) {
   return role === "super_admin" || role === "admin";
 }
 
+export function canManageStages(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
 export function canManageUsers(role: AppRole) {
   return role === "super_admin" || role === "admin";
 }

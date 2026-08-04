@@ -177,7 +177,7 @@ Las operaciones reintentables reciben una clave de idempotencia. `create_order` 
 ### Storage
 
 - Bucket privado para diseños.
-- Un path vigente por pedido, por ejemplo `{order_id}/current`.
+- Un path vigente no adivinable por pedido, `orders/{order_id}/{uuid}.{ext}`.
 - Policies ligadas a la visibilidad y los permisos del pedido.
 - Sin historial de versiones en el MVP.
 - La carga contempla el fallo parcial entre Storage y PostgreSQL y permite reintento o limpieza controlada.
@@ -241,9 +241,8 @@ La implementación aprobada de M3 resuelve D-02 y D-05 para el alcance de pedido
 | D-04 | Apertura, cierre automático y anulación manual de caja | Caja |
 | D-06 | Anulación de pedidos pagados y retención por entidad | Archivo y purga |
 | D-07 | Uso del cotizador por Super admin, vigencia, branding y PDF | Cotizador |
-| D-08 | Permisos y límites de imágenes, productos y precios iniciales | Storage y cotizador; las combinaciones de catálogos de M3 ya están resueltas |
 
-Para M3 quedan confirmados los campos obligatorios y las combinaciones por tipo de pedido, la visibilidad financiera para Empleado, el permiso de creación manual de Atención y el identificador visible `PED-000001`. D-08 continúa abierta únicamente para límites de imagen y datos de productos/precios posteriores.
+Para M3 quedan confirmados los campos obligatorios y las combinaciones por tipo de pedido, la visibilidad financiera para Empleado, el permiso de creación manual de Atención y el identificador visible `PED-000001`. D-08 quedó resuelta para M7: límites y permisos de imágenes; los datos de productos/precios se definen al iniciar M13.
 
 ## Riesgos y controles
 
