@@ -274,4 +274,55 @@ test.describe("Diseño vigente M7", () => {
     await expect(page.getByRole("button", { name: "Reemplazar diseño" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
+
+  test("muestra miniatura en la tarjeta del tablero para roles operativos", async ({ page }) => {
+    const orderId = await createOrder("Tablero M7");
+    await seedImage(orderId);
+    await login(page, identities[0]!);
+    await page.goto("/orders");
+    const card = page.locator(`[data-order-id="${orderId}"]`);
+    await expect(card).toBeVisible();
+    await expect(card.getByRole("img")).toBeVisible();
+    await expect(card.getByRole("img")).toHaveAttribute("loading", "lazy");
+  });
+
+  test("Empleado ve miniatura en la tarjeta del tablero pero no acciones de carga", async ({ page }) => {
+    const orderId = await createOrder("Tablero Empleado M7");
+    await seedImage(orderId);
+    await login(page, identities[3]!);
+    await page.goto("/orders");
+    const card = page.locator(`[data-order-id="${orderId}"]`);
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeVisible();
+    await expect(card.getByRole("img")).toBeVisible();
+    await expect(card.getByRole("button", { name: /Cargar diseño|Reemplazar diseño/ })).toHaveCount(0);
+  });
+
+  test("muestra miniatura en la vista rápida del pedido", async ({ page }) => {
+    const orderId = await createOrder("Vista rápida M7");
+    await seedImage(orderId);
+    await login(page, identities[1]!);
+    await page.goto("/orders");
+    const card = page.locator(`[data-order-id="${orderId}"]`);
+    await card.scrollIntoViewIfNeeded();
+    await card.getByRole("button", { name: /Vista rápida/ }).click();
+    const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+    await expect(quickView).toBeVisible({ timeout: 10_000 });
+    await expect(quickView.locator('[role="img"]')).toBeVisible({ timeout: 10_000 });
+    const thumbnail = quickView.getByRole("button", { name: /Abrir diseño/ });
+    await thumbnail.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: /Diseño de/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("img", { name: /Diseño ampliado/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(thumbnail).toBeFocused();
+
+    await thumbnail.click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Cerrar imagen ampliada" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(thumbnail).toBeFocused();
+  });
 });

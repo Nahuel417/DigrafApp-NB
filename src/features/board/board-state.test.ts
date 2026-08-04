@@ -12,6 +12,8 @@ const first: BoardOrder = {
   promisedDeliveryDate: "2026-08-02",
   currentStageId: "received",
   updatedAt: "2026-07-29T03:00:00.000Z",
+  hasDesignImage: false,
+  imageUpdatedAt: null,
 };
 
 const earlier: BoardOrder = {

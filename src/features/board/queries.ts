@@ -19,6 +19,8 @@ export type BoardOrder = {
   promisedDeliveryDate: string;
   currentStageId: string;
   updatedAt: string;
+  hasDesignImage: boolean;
+  imageUpdatedAt: string | null;
 };
 
 export type BoardColumn = BoardStage & {
@@ -30,7 +32,7 @@ export type OrderBoard = {
   role: AppRole;
 };
 
-const boardOrderSelect = "id, public_number, customer_name, quantity, order_type, promised_delivery_date, current_stage_id, updated_at";
+const boardOrderSelect = "id, public_number, customer_name, quantity, order_type, promised_delivery_date, current_stage_id, updated_at, order_design_images (updated_at)";
 
 function toBoardOrder(order: {
   id: string;
@@ -41,7 +43,11 @@ function toBoardOrder(order: {
   promised_delivery_date: string;
   current_stage_id: string;
   updated_at: string;
+  order_design_images: { updated_at: string } | { updated_at: string }[] | null;
 }): BoardOrder {
+  const image = Array.isArray(order.order_design_images)
+    ? order.order_design_images[0] ?? null
+    : order.order_design_images;
   return {
     id: order.id,
     publicNumber: order.public_number,
@@ -51,6 +57,8 @@ function toBoardOrder(order: {
     promisedDeliveryDate: order.promised_delivery_date,
     currentStageId: order.current_stage_id,
     updatedAt: order.updated_at,
+    hasDesignImage: image !== null,
+    imageUpdatedAt: image?.updated_at ?? null,
   };
 }
 
@@ -96,6 +104,7 @@ export async function getOrderBoard(role: AppRole): Promise<OrderBoard> {
     promised_delivery_date: string;
     current_stage_id: string;
     updated_at: string;
+    order_design_images: { updated_at: string } | { updated_at: string }[] | null;
   }>).map(toBoardOrder);
 
   return { columns: buildBoardColumns(stages, orders), role };
