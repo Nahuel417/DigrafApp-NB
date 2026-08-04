@@ -5,7 +5,7 @@
       "type": "remote",
       "url": "https://mcp.trello.com/v1",
       "oauth": {},
-      "enabled": true
+      "enabled": false
     }
   }
 }
