@@ -244,16 +244,23 @@ test.describe("Tablero M4", () => {
     await login(page);
     await page.goto("/orders");
 
-    let actionRequests = 0;
+    let moveActionId: string | undefined;
+    let reconciliationRequested = false;
     await page.route("**/orders", async (route) => {
       const request = route.request();
-      if (request.method() === "POST" && request.headers()["next-action"]) {
-        actionRequests += 1;
-        if (actionRequests === 1) {
+      const actionId = request.headers()["next-action"];
+      if (request.method() === "POST" && actionId) {
+        if (!moveActionId) {
+          moveActionId = actionId;
           await route.fetch();
-          await route.abort("failed");
+          await route.fulfill({ status: 502, contentType: "text/plain", body: "Respuesta de movimiento perdida." });
           return;
         }
+        if (actionId === moveActionId) {
+          await route.fulfill({ status: 502, contentType: "text/plain", body: "Respuesta de movimiento perdida." });
+          return;
+        }
+        reconciliationRequested = true;
       }
       await route.continue();
     });
@@ -263,8 +270,15 @@ test.describe("Tablero M4", () => {
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
-    await expect(page.getByTestId("board-announcement")).toContainText("se confirmó en Diseño");
+    await expect(page.getByTestId("board-announcement")).toContainText(/se confirmó en Diseño|se movió de Pedido recibido a Diseño/);
     await expect(page.locator('[data-drop-stage="design"]').getByText(names.network)).toBeVisible();
+    expect(reconciliationRequested).toBe(true);
+    const { data: events, error: eventsError } = await admin
+      .from("order_stage_events")
+      .select("from_stage_id, to_stage_id")
+      .eq("order_id", networkOrder.id);
+    expect(eventsError).toBeNull();
+    expect(events).toEqual([{ from_stage_id: stages.received, to_stage_id: stages.design }]);
   });
 
   test("informa estado no confirmado si tampoco puede reconciliarse", async ({ page }) => {

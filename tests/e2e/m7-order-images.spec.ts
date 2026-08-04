@@ -132,6 +132,10 @@ test.describe("Diseño vigente M7", () => {
     await expect(page.getByRole("heading", { name: "Diseño vigente" })).toBeVisible();
   }
 
+  function designPanel(page: Page) {
+    return page.getByRole("region", { name: "Diseño vigente" });
+  }
+
   async function selectPng(page: Page, name: string) {
     await page.getByLabel("Archivo de diseño").setInputFiles({ name, mimeType: "image/png", buffer: pngBytes });
   }
@@ -198,7 +202,7 @@ test.describe("Diseño vigente M7", () => {
     });
     await page.getByRole("button", { name: "Cargar diseño" }).click();
     await expect(page.getByRole("button", { name: "Procesando diseño..." })).toBeDisabled();
-    await expect(page.getByRole("status").filter({ hasText: "Diseño cargado" })).toBeFocused();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño cargado" })).toBeFocused();
     await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
     await expect(page.locator("body")).not.toContainText("orders/");
   });
@@ -238,7 +242,7 @@ test.describe("Diseño vigente M7", () => {
     await selectPng(page, "replacement.png");
     const replace = page.getByRole("button", { name: "Reemplazar diseño" });
     await replace.dblclick();
-    await expect(page.getByRole("status").filter({ hasText: "Diseño reemplazado" })).toBeFocused();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño reemplazado" })).toBeFocused();
     const { count, error } = await service.from("order_design_image_events").select("id", { count: "exact", head: true }).eq("order_id", orderId);
     expect(error).toBeNull();
     expect(count).toBe(2);
@@ -251,7 +255,7 @@ test.describe("Diseño vigente M7", () => {
     await openDetail(page, orderId);
 
     await page.getByRole("img", { name: "Diseño vigente del pedido" }).dispatchEvent("error");
-    await expect(page.getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
 
     await page.route(`**/orders/${orderId}`, async (route) => {
       if (route.request().method() === "POST") await new Promise((resolve) => setTimeout(resolve, 500));
@@ -261,7 +265,7 @@ test.describe("Diseño vigente M7", () => {
     await renew.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Renovando vista..." })).toBeDisabled();
-    await expect(page.getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
   });
 
   test("mantiene lectura y acciones sin overflow en mobile", async ({ page }) => {
