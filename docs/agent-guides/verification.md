@@ -33,6 +33,20 @@ pnpm db:types
 
 `supabase db push` y cualquier operación contra un proyecto remoto requieren autorización explícita; nunca son una verificación automática.
 
+## Ejecución de base y E2E
+
+- UI aislada, lógica pura o tests unitarios: no ejecutar `pnpm db:reset`.
+- RLS, RPC, migraciones, esquema o seed: aplicar la migración local,
+  ejecutar integración focalizada y validar un reset una vez antes de cerrar
+  la fase sensible.
+- Cierre de módulo o CI: base limpia, migraciones, seed y suite aplicable.
+- La base local puede persistir durante el desarrollo. Los tests deben crear
+  y limpiar sus propios datos; no depender de cuentas ni registros residuales.
+- Nunca ejecutar `db:reset --linked` sin autorización explícita; jamás en
+  producción.
+- Durante implementación, ejecutar solo E2E del módulo o flujo afectado.
+  En CI o cierre de módulo, ejecutar la suite E2E completa.
+
 ## Matriz mínima por riesgo
 
 | Área modificada | Evidencia mínima |
@@ -42,7 +56,7 @@ pnpm db:types
 | Server Action o endpoint | validación de entrada, caso autorizado y denegado |
 | RLS/roles/Storage | policy o integración para cada rol permitido y rechazado |
 | Auth y usuarios | creación exclusiva de Super admin, bootstrap inicial, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin |
-| Migración | reset local, tipos generados y prueba del contrato afectado |
+| Migración | aplicar localmente; antes de cerrar la fase: reset local, tipos generados y prueba del contrato afectado |
 | Caja/pago/anulación | atomicidad, idempotencia, estado abierto/cerrado y auditoría |
 | Kanban | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor |
 | Catálogos y alta manual de pedido | Super admin/Admin/Atención pueden crear; solo Super admin/Admin administran catálogos; Empleado es rechazado; borrado físico conserva snapshots históricos; combinaciones, importes, saldo derivado, atomicidad, idempotencia, etapa inicial y visibilidad financiera |
