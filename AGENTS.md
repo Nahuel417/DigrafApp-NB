@@ -134,6 +134,14 @@ comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 - Para E2E, comprobar sin espera si el servidor ya responde y reutilizarlo.
 - Si no responde, detenerse e indicar el comando exacto para que el usuario lo inicie en otra terminal.
 
+## Staging
+
+- Antes de probar cambios con migraciones/RPC/RLS en Preview, ejecutar `Deploy Staging DB`.
+- Verificar con `supabase migration list --linked`.
+- No ejecutar `db push` ni `migration repair` sin autorización.
+- Si solo cambia la base, recargar Preview: no requiere redeploy.
+- Preview usa credenciales de **Supabase Staging → Connect**; no usar valores locales.
+
 ## Mantenimiento
 
 Mantener este archivo en 180 líneas o menos. Las reglas detalladas pertenecen a
