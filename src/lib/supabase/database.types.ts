@@ -867,6 +867,27 @@ export type Database = {
     }
     Functions: {
       cash_current_actor_is_operational: { Args: never; Returns: boolean }
+      create_cash_movement: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_direction: string
+          p_expense_category_id: string
+          p_idempotency_key: string
+        }
+        Returns: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string
+          direction: string
+          expense_category_code: string
+          expense_category_id: string
+          expense_category_name: string
+          movement_id: string
+        }[]
+      }
       create_catalog_item: {
         Args: {
           target_garment_layer: string
@@ -956,6 +977,18 @@ export type Database = {
           previous_object_path: string
         }[]
       }
+      get_current_cash_summary: {
+        Args: never
+        Returns: {
+          cash_day_id: string
+          categories: Json
+          current_balance: number
+          movements: Json
+          opening_balance: number
+          opening_updated_at: string
+          operational_date: string
+        }[]
+      }
       get_order_timeline: {
         Args: { p_order_id: string }
         Returns: {
@@ -1032,6 +1065,19 @@ export type Database = {
         Returns: {
           event_id: string
           stage_id: string
+        }[]
+      }
+      set_cash_opening: {
+        Args: {
+          p_amount: number
+          p_expected_opening_updated_at: string
+          p_idempotency_key: string
+        }
+        Returns: {
+          cash_day_id: string
+          event_id: string
+          opening_balance: number
+          opening_updated_at: string
         }[]
       }
       update_managed_profile: {
