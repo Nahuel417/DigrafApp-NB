@@ -95,8 +95,14 @@ Antes de editar:
 3. Identificar guías, permisos y verificaciones aplicables.
 
 Implementar secuencialmente: invariantes/autorización/migraciones, servidor, UI,
-pruebas y revisión del diff. Ejecutar pruebas específicas durante el desarrollo;
-repetir solo las fallidas y correr la suite completa una vez al cierre, según
+pruebas y revisión del diff. Antes de implementar, declarar estrategia de pruebas
+y motivo según riesgo, comportamiento y capa; si el riesgo no es claro, preguntar.
+Usar Strict TDD (RED → GREEN → TRIANGULATE → REFACTOR) solo para negocio, dinero,
+permisos/RLS/RPC, idempotencia, concurrencia, bugs o alto riesgo de regresión. Para
+UI visual, copy, layout, refactors mecánicos o configuración sin cambio funcional,
+usar la verificación mínima relevante. No usar Strict TDD no elimina la cobertura
+necesaria. Ejecutar pruebas específicas durante el desarrollo; repetir solo las
+fallidas y correr la suite completa una vez al cierre, según
 `docs/agent-guides/verification.md`.
 
 Antes de `pnpm db:reset`, verificar un procedimiento autorizado y reproducible

@@ -4,10 +4,50 @@ Leer esta guía antes de cerrar cambios de código, tests, migraciones, CI o con
 
 ## Principios
 
-- Ejecutar la verificación más enfocada que aporte evidencia suficiente; aumentar cobertura con el riesgo.
+- Elegir la estrategia de pruebas según el riesgo, el comportamiento que puede
+  romperse y la capa modificada; aumentar la evidencia con el riesgo.
+- Antes de implementar, indicar la estrategia elegida y su motivo. Si el riesgo
+  no es claro, detenerse y pedir una decisión.
+- No usar Strict TDD por defecto ni omitir pruebas por no usarlo: toda tarea debe
+  conservar la cobertura necesaria y aportar la verificación mínima relevante.
 - Siempre informar las comprobaciones realizadas y las que no pudieron ejecutarse.
 - No sustituir tests de permisos o transacciones por pruebas manuales de interfaz.
 - Tras el scaffolding, mantener esta guía sincronizada con los comandos reales de `package.json`, CI y Supabase.
+
+## Estrategia de pruebas
+
+### Strict TDD
+
+Aplicar el ciclo completo **RED → GREEN → TRIANGULATE → REFACTOR** cuando el
+cambio afecte al menos una de estas áreas:
+
+- reglas de negocio;
+- dinero, saldos, caja, pagos o anulaciones;
+- permisos, RLS o RPC;
+- idempotencia o concurrencia;
+- corrección de bugs;
+- comportamiento con riesgo alto de regresión.
+
+Cada etapa debe dejar evidencia observable: un test relevante falla por el
+motivo esperado en RED, pasa con la implementación mínima en GREEN, los casos
+adicionales fuerzan la generalización en TRIANGULATE y la suite permanece verde
+durante REFACTOR.
+
+### Verificación proporcional sin Strict TDD
+
+No exigir Strict TDD para UI puramente visual, copy, layout, refactors mecánicos
+o configuración sin cambio funcional. En esos casos, aplicar la comprobación
+más pequeña que pueda detectar una regresión real, por ejemplo:
+
+- revisión visual enfocada y accesibilidad para UI, copy o layout;
+- lint, typecheck y tests existentes afectados para refactors mecánicos;
+- validación de sintaxis, esquema o carga para configuración;
+- tests de componente, integración o E2E cuando sí cambie comportamiento,
+  aunque el trabajo no requiera el ciclo Strict TDD.
+
+No usar Strict TDD nunca significa “sin pruebas”. Si cambia comportamiento,
+agregar o actualizar la cobertura en la capa más cercana que lo demuestre; si no
+cambia, ejecutar evidencia suficiente para confirmar que se preservó.
 
 ## Comandos esperados
 
@@ -51,7 +91,8 @@ pnpm db:types
 
 | Área modificada | Evidencia mínima |
 | --- | --- |
-| UI aislada | lint, typecheck y prueba/manual visual enfocada |
+| UI aislada sin cambio funcional | lint, typecheck y prueba manual visual enfocada |
+| UI con cambio de comportamiento | test de componente, integración o E2E del comportamiento afectado, más comprobación visual cuando corresponda |
 | Lógica de dominio | test unitario del caso principal, bordes y regresión |
 | Server Action o endpoint | validación de entrada, caso autorizado y denegado |
 | RLS/roles/Storage | policy o integración para cada rol permitido y rechazado |
