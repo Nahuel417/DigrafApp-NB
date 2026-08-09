@@ -236,7 +236,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
 
     const { data: historicalDay, error: historicalDayError } = await service
       .from("cash_days")
-      .insert({ operational_date: historicalDate, opening_balance: "10.00" })
+      .insert({ operational_date: historicalDate, opening_balance: 10 })
       .select("id")
       .single();
     if (historicalDayError || !historicalDay) throw historicalDayError ?? new Error("No se pudo crear la caja histórica M9.");
@@ -245,16 +245,16 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const [currentEvent, historicalEvent] = await Promise.all([
       service.from("cash_opening_events").insert({
         cash_day_id: cashDayId,
-        previous_amount: "0.00",
-        new_amount: "10.00",
+        previous_amount: 0,
+        new_amount: 10,
         actor_id: actorId,
         idempotency_key: randomUUID(),
         idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32),
       }).select("id").single(),
       service.from("cash_opening_events").insert({
         cash_day_id: historicalCashDayId,
-        previous_amount: "0.00",
-        new_amount: "10.00",
+        previous_amount: 0,
+        new_amount: 10,
         actor_id: actorId,
         idempotency_key: randomUUID(),
         idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32),
@@ -269,7 +269,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       service.from("cash_movements").insert({
         cash_day_id: cashDayId,
         direction: "income",
-        amount: "3.00",
+        amount: 3,
         description: "Ingreso actual M9",
         actor_id: actorId,
         idempotency_key: randomUUID(),
@@ -278,7 +278,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       service.from("cash_movements").insert({
         cash_day_id: historicalCashDayId,
         direction: "income",
-        amount: "4.00",
+        amount: 4,
         description: "Ingreso histórico M9",
         actor_id: actorId,
         idempotency_key: randomUUID(),
@@ -544,11 +544,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       .single();
     if (categoryError || !category) throw categoryError ?? new Error("No se encontró la categoría semilla M9.");
 
-    expect((await attention.from("cash_days").insert({ operational_date: operationalDate, opening_balance: "0.00" })).error).not.toBeNull();
+    expect((await attention.from("cash_days").insert({ operational_date: operationalDate, opening_balance: 0 })).error).not.toBeNull();
     expect((await attention.from("cash_opening_events").insert({
       cash_day_id: cashDayId,
-      previous_amount: "0.00",
-      new_amount: "1.00",
+      previous_amount: 0,
+      new_amount: 1,
       actor_id: identities[0]!.id,
       idempotency_key: randomUUID(),
       idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32),
@@ -556,7 +556,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     expect((await attention.from("cash_movements").insert({
       cash_day_id: cashDayId,
       direction: "expense",
-      amount: "1.00",
+      amount: 1,
       description: "DML directo M9",
       expense_category_id: category.id,
       expense_category_code: "materials_supplies",
@@ -583,7 +583,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       .insert({
         cash_day_id: cashDayId,
         direction: "expense",
-        amount: "2.00",
+        amount: 2,
         description: "Referencia de integridad M9",
         expense_category_id: category.id,
         expense_category_code: category.code,

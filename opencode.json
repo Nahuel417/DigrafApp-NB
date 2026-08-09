@@ -7,5 +7,9 @@
       "oauth": {},
       "enabled": true
     }
-  }
+  },
+  "plugin": [
+    "context-mode",
+    "@dietrichgebert/ponytail"
+  ]
 }

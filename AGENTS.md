@@ -153,3 +153,12 @@ comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 Mantener este archivo en 180 líneas o menos. Las reglas detalladas pertenecen a
 las guías canónicas. Documentar solo decisiones, reglas, comandos o aprendizajes
 reutilizables, no estados transitorios.
+
+## Engram
+
+- No escribir memoria durante el trabajo normal ni guardar resúmenes de sesión,
+  progreso rutinario, resultados de pruebas, estado de Git o próximos pasos.
+- Solo el agente principal puede guardar memoria breve y durable ante una
+  compactación real de contexto o el cierre explícito de la sesión: decisiones,
+  convenciones, arquitectura o bugs reutilizables.
+- Los subagentes nunca escriben en Engram.
