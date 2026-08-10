@@ -2,12 +2,13 @@ import { z } from "zod";
 
 import { normalizeMoney } from "@/lib/money/decimal";
 
-const moneyPattern = /^\d{1,12}(?:\.\d{1,2})?$/;
+const moneyPattern = /^\d{1,12}(?:[.,]\d{1,2})?$/;
 
 const nonNegativeMoney = z
   .string()
   .trim()
   .min(1, "Ingresá un importe.")
+  .max(15, "El importe no puede superar 15 caracteres.")
   .transform((value) => value.replace(",", "."))
   .refine((value) => !value.startsWith("-"), "El importe debe ser mayor o igual a cero.")
   .refine((value) => value.startsWith("-") || moneyPattern.test(value), "Usá un importe con hasta dos decimales.")

@@ -982,7 +982,7 @@ export type Database = {
         Returns: {
           cash_day_id: string
           categories: Json
-          current_balance: number
+          current_balance: string
           movements: Json
           opening_balance: number
           opening_updated_at: string

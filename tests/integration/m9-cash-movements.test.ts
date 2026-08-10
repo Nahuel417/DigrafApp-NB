@@ -20,7 +20,7 @@ type CashSummary = {
   operational_date: string;
   opening_balance: number;
   opening_updated_at: string;
-  current_balance: number;
+  current_balance: string;
   movements: Array<{ id: string }>;
   categories: Array<{ code: string }>;
 };
@@ -67,6 +67,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
   let currentOpeningEventId = "";
   let historicalOpeningEventId = "";
   let historicalCashDayId = "";
+  let historicalCashDayWasPreExisting = false;
+  const ownedMovementIds = new Set<string>();
+  const ownedOpeningEventIds = new Set<string>();
   const rpcOpeningEventIds: string[] = [];
   const rpcMovementIds: string[] = [];
 
@@ -78,6 +81,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true });
     if (error || !data.user) throw error ?? new Error("No se pudo crear una identidad sintética M9.");
 
+    const identity = { email, id: data.user.id, role };
+    identities.push(identity);
     const { error: profileError } = await service.from("profiles").insert({
       id: data.user.id,
       display_name: `M9 ${role}`,
@@ -87,8 +92,6 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     });
     if (profileError) throw profileError;
 
-    const identity = { email, id: data.user.id, role };
-    identities.push(identity);
     return identity;
   }
 
@@ -117,6 +120,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       .maybeSingle();
     if (existing.error) throw existing.error;
     preExistingCashDay = Boolean(existing.data);
+    cashDayId = existing.data?.id ?? "";
     initialOpeningBalance = existing.data?.opening_balance ?? 0;
     initialOpeningUpdatedAt = existing.data?.opening_updated_at ?? "";
 
@@ -135,25 +139,16 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       if (error) failures.push(`${label}: ${error.message}`);
     }
 
-    if (referenceMovementId) {
-      await cleanup("cash_movements", service.from("cash_movements").delete().eq("id", referenceMovementId));
-    }
-    for (const movementId of [currentMovementId, historicalMovementId].filter(Boolean)) {
+    for (const movementId of new Set([...ownedMovementIds, ...rpcMovementIds, referenceMovementId, currentMovementId, historicalMovementId].filter(Boolean))) {
       await cleanup("cash_movements", service.from("cash_movements").delete().eq("id", movementId));
     }
-    for (const movementId of rpcMovementIds) {
-      await cleanup("cash_movements RPC", service.from("cash_movements").delete().eq("id", movementId));
-    }
-    for (const eventId of [currentOpeningEventId, historicalOpeningEventId].filter(Boolean)) {
+    for (const eventId of new Set([...ownedOpeningEventIds, ...rpcOpeningEventIds, currentOpeningEventId, historicalOpeningEventId].filter(Boolean))) {
       await cleanup("cash_opening_events", service.from("cash_opening_events").delete().eq("id", eventId));
-    }
-    for (const eventId of rpcOpeningEventIds) {
-      await cleanup("cash_opening_events RPC", service.from("cash_opening_events").delete().eq("id", eventId));
     }
     if (customCategoryId) {
       await cleanup("cash_expense_categories", service.from("cash_expense_categories").delete().eq("id", customCategoryId));
     }
-    if (historicalCashDayId) {
+    if (historicalCashDayId && !historicalCashDayWasPreExisting) {
       await cleanup("cash_days", service.from("cash_days").delete().eq("id", historicalCashDayId));
     }
     if (cashDayId && !preExistingCashDay) {
@@ -167,7 +162,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
           .eq("id", cashDayId),
       );
     }
-    for (const identity of identities) await cleanup(`auth user ${identity.id}`, service.auth.admin.deleteUser(identity.id));
+    for (const identity of identities) {
+      await cleanup(`profile ${identity.id}`, service.from("profiles").delete().eq("id", identity.id));
+      const { error } = await service.auth.admin.deleteUser(identity.id);
+      if (error && !error.message.toLowerCase().includes("not found")) failures.push(`auth user ${identity.id}: ${error.message}`);
+    }
     if (failures.length) throw new Error(`Falló el cleanup M9:\n${failures.join("\n")}`);
   });
 
@@ -181,11 +180,102 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       cash_day_id: cashDayId,
       operational_date: operationalDate,
       opening_balance: initialOpeningBalance,
-      current_balance: initialOpeningBalance,
+      current_balance: initialOpeningBalance.toFixed(2),
       movements: [],
     });
     expect(result.data?.[0]?.categories).toHaveLength(5);
     expect(cashDayId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("conserva el saldo exacto al superar numeric(14,2) en ambos signos", async () => {
+    const attention = clients.get(identities[0]!.id) ?? (await signedClient(identities[0]!));
+    const initial = await invokeRpc<CashSummary[]>(attention, "get_current_cash_summary", {});
+    expect(initial.error).toBeNull();
+    const initialSummary = initial.data?.[0];
+    if (!initialSummary) throw new Error("No se obtuvo la apertura inicial M9.");
+    cashDayId ||= initialSummary.cash_day_id;
+    const { data: category, error: categoryError } = await service
+      .from("cash_expense_categories")
+      .select("id")
+      .eq("code", "materials_supplies")
+      .single();
+    if (categoryError || !category) throw categoryError ?? new Error("No se encontró la categoría semilla M9.");
+
+    const maxAmount = "999999999999.99";
+    const overflowOpeningEventIds: string[] = [];
+    const overflowMovementIds: string[] = [];
+    try {
+      const opening = await invokeRpc<CashOpeningResult[]>(attention, "set_cash_opening", {
+        p_amount: maxAmount,
+        p_expected_opening_updated_at: initialSummary.opening_updated_at,
+        p_idempotency_key: `m9-overflow-opening-${randomUUID()}`,
+      });
+      expect(opening.error).toBeNull();
+      const opened = opening.data?.[0];
+      if (!opened) throw new Error("No se obtuvo la apertura de precisión M9.");
+      overflowOpeningEventIds.push(opened.event_id);
+      ownedOpeningEventIds.add(opened.event_id);
+      rpcOpeningEventIds.push(opened.event_id);
+
+      const income = await invokeRpc<CashMovementResult[]>(attention, "create_cash_movement", {
+        p_direction: "income",
+        p_amount: "0.02",
+        p_description: "Ingreso de precisión M9",
+        p_expense_category_id: null,
+        p_idempotency_key: `m9-overflow-income-${randomUUID()}`,
+      });
+      expect(income.error).toBeNull();
+      const incomeMovement = income.data?.[0];
+      if (!incomeMovement) throw new Error("No se obtuvo el ingreso de precisión M9.");
+      overflowMovementIds.push(incomeMovement.movement_id);
+      ownedMovementIds.add(incomeMovement.movement_id);
+      rpcMovementIds.push(incomeMovement.movement_id);
+
+      const positive = await invokeRpc<CashSummary[]>(attention, "get_current_cash_summary", {});
+      expect(positive.error).toBeNull();
+      expect(positive.data?.[0]?.current_balance).toBe("1000000000000.01");
+
+      const { error: removeIncomeError } = await service.from("cash_movements").delete().eq("id", incomeMovement.movement_id);
+      expect(removeIncomeError).toBeNull();
+      const zeroOpening = await invokeRpc<CashOpeningResult[]>(attention, "set_cash_opening", {
+        p_amount: "0.00",
+        p_expected_opening_updated_at: opened.opening_updated_at,
+        p_idempotency_key: `m9-overflow-zero-${randomUUID()}`,
+      });
+      expect(zeroOpening.error).toBeNull();
+      const zero = zeroOpening.data?.[0];
+      if (!zero) throw new Error("No se obtuvo la apertura cero de precisión M9.");
+      overflowOpeningEventIds.push(zero.event_id);
+      ownedOpeningEventIds.add(zero.event_id);
+      rpcOpeningEventIds.push(zero.event_id);
+
+      for (const amount of [maxAmount, "0.02"]) {
+        const expense = await invokeRpc<CashMovementResult[]>(attention, "create_cash_movement", {
+          p_direction: "expense",
+          p_amount: amount,
+          p_description: "Egreso de precisión M9",
+          p_expense_category_id: category.id,
+          p_idempotency_key: `m9-overflow-expense-${amount}-${randomUUID()}`,
+        });
+        expect(expense.error).toBeNull();
+        const movement = expense.data?.[0];
+        if (!movement) throw new Error("No se obtuvo el egreso de precisión M9.");
+        overflowMovementIds.push(movement.movement_id);
+        ownedMovementIds.add(movement.movement_id);
+        rpcMovementIds.push(movement.movement_id);
+      }
+
+      const negative = await invokeRpc<CashSummary[]>(attention, "get_current_cash_summary", {});
+      expect(negative.error).toBeNull();
+      expect(negative.data?.[0]?.current_balance).toBe("-1000000000000.01");
+    } finally {
+      for (const movementId of overflowMovementIds) await service.from("cash_movements").delete().eq("id", movementId);
+      for (const eventId of overflowOpeningEventIds) await service.from("cash_opening_events").delete().eq("id", eventId);
+      const openingUpdate = preExistingCashDay
+        ? { opening_balance: initialOpeningBalance, opening_updated_at: initialOpeningUpdatedAt }
+        : { opening_balance: initialOpeningBalance };
+      await service.from("cash_days").update(openingUpdate).eq("id", cashDayId);
+    }
   });
 
   it("devuelve la misma caja ante concurrencia y reintentos", async () => {
@@ -234,13 +324,24 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const historicalDate = operationalDateOffset(-1);
     const actorId = identities[0]!.id;
 
-    const { data: historicalDay, error: historicalDayError } = await service
+    const existingHistorical = await service
       .from("cash_days")
-      .insert({ operational_date: historicalDate, opening_balance: 10 })
       .select("id")
-      .single();
-    if (historicalDayError || !historicalDay) throw historicalDayError ?? new Error("No se pudo crear la caja histórica M9.");
-    historicalCashDayId = historicalDay.id;
+      .eq("operational_date", historicalDate)
+      .maybeSingle();
+    if (existingHistorical.error) throw existingHistorical.error;
+    if (existingHistorical.data) {
+      historicalCashDayId = existingHistorical.data.id;
+      historicalCashDayWasPreExisting = true;
+    } else {
+      const { data: historicalDay, error: historicalDayError } = await service
+        .from("cash_days")
+        .insert({ operational_date: historicalDate, opening_balance: 10 })
+        .select("id")
+        .single();
+      if (historicalDayError || !historicalDay) throw historicalDayError ?? new Error("No se pudo crear la caja histórica M9.");
+      historicalCashDayId = historicalDay.id;
+    }
 
     const [currentEvent, historicalEvent] = await Promise.all([
       service.from("cash_opening_events").insert({
@@ -264,6 +365,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     if (historicalEvent.error || !historicalEvent.data) throw historicalEvent.error ?? new Error("No se pudo crear el evento histórico M9.");
     currentOpeningEventId = currentEvent.data.id;
     historicalOpeningEventId = historicalEvent.data.id;
+    ownedOpeningEventIds.add(currentOpeningEventId);
+    ownedOpeningEventIds.add(historicalOpeningEventId);
 
     const [currentMovement, historicalMovement] = await Promise.all([
       service.from("cash_movements").insert({
@@ -289,6 +392,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     if (historicalMovement.error || !historicalMovement.data) throw historicalMovement.error ?? new Error("No se pudo crear el movimiento histórico M9.");
     currentMovementId = currentMovement.data.id;
     historicalMovementId = historicalMovement.data.id;
+    ownedMovementIds.add(currentMovementId);
+    ownedMovementIds.add(historicalMovementId);
 
     const [{ data: days, error: daysError }, { data: events, error: eventsError }, { data: movements, error: movementsError }] = await Promise.all([
       attention.from("cash_days").select("id").in("id", [cashDayId, historicalCashDayId]),
@@ -327,6 +432,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const opening = opened.data?.[0];
     if (!opening) throw new Error("No se obtuvo el resultado de apertura M9.");
     rpcOpeningEventIds.push(opening.event_id);
+    ownedOpeningEventIds.add(opening.event_id);
     expect(opening).toMatchObject({ cash_day_id: cashDayId, opening_balance: 100 });
 
     const replay = await invokeRpc<CashOpeningResult[]>(attention, "set_cash_opening", openingArgs);
@@ -358,6 +464,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       const authorizedOpening = authorized.data?.[0];
       if (!authorizedOpening) throw new Error(`No se obtuvo apertura para ${identity.role}.`);
       rpcOpeningEventIds.push(authorizedOpening.event_id);
+      ownedOpeningEventIds.add(authorizedOpening.event_id);
       expectedUpdatedAt = authorizedOpening.opening_updated_at;
     }
 
@@ -424,6 +531,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const incomeMovement = income.data?.[0];
     if (!incomeMovement) throw new Error("No se obtuvo el ingreso M9.");
     rpcMovementIds.push(incomeMovement.movement_id);
+    ownedMovementIds.add(incomeMovement.movement_id);
 
     const incomeReplay = await invokeRpc<CashMovementResult[]>(attention, "create_cash_movement", incomeArgs);
     expect(incomeReplay.error).toBeNull();
@@ -453,6 +561,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const expenseMovement = expense.data?.[0];
     if (!expenseMovement) throw new Error("No se obtuvo el egreso M9.");
     rpcMovementIds.push(expenseMovement.movement_id);
+    ownedMovementIds.add(expenseMovement.movement_id);
     expect(expenseMovement).toMatchObject({
       direction: "expense",
       amount: 10.25,
@@ -484,7 +593,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       cash_day_id: cashDayId,
       operational_date: operationalDate,
       opening_balance: 100,
-      current_balance: 115.25,
+      current_balance: "115.25",
     });
     expect(current.movements.map((movement) => movement.id)).toEqual(
       expect.arrayContaining([incomeMovement.movement_id, expenseMovement.movement_id]),
@@ -596,6 +705,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       .single();
     if (movementError || !movement) throw movementError ?? new Error("No se pudo crear el movimiento de referencia M9.");
     referenceMovementId = movement.id;
+    ownedMovementIds.add(referenceMovementId);
 
     expect((await service.from("cash_expense_categories").update({ is_active: false }).eq("id", category.id)).error).toBeNull();
     const attention = clients.get(identities[0]!.id) ?? (await signedClient(identities[0]!));

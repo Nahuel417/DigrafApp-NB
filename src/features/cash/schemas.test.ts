@@ -15,6 +15,13 @@ describe("cash opening schema", () => {
     expect(cashOpeningSchema.safeParse({ amount: "10.123", expectedOpeningUpdatedAt: timestamp, idempotencyKey: key }).success).toBe(false);
     expect(cashOpeningSchema.safeParse({ amount: "10.00", idempotencyKey: key }).success).toBe(false);
   });
+
+  it("validates the bounded text amount before the action with Spanish feedback", () => {
+    expect(cashOpeningSchema.safeParse({ amount: "999999999999,99", expectedOpeningUpdatedAt: timestamp, idempotencyKey: key }).data?.amount)
+      .toBe("999999999999.99");
+    const tooLong = cashOpeningSchema.safeParse({ amount: "12345678901234.5", expectedOpeningUpdatedAt: timestamp, idempotencyKey: key });
+    expect(tooLong.error?.issues[0]?.message).toBe("El importe no puede superar 15 caracteres.");
+  });
 });
 
 describe("manual cash movement schema", () => {
@@ -36,6 +43,13 @@ describe("manual cash movement schema", () => {
       movement({ direction: "expense", expenseCategoryId: categoryId, idempotencyKey: "" }),
       { ...movement({ direction: "expense", expenseCategoryId: categoryId }), unsupported: true },
     ]) expect(cashMovementSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("accepts comma decimals but rejects zero movements with the custom message", () => {
+    const income = cashMovementSchema.safeParse(movement({ amount: "25,50" }));
+    expect(income.success && income.data.amount).toBe("25.50");
+    const zero = cashMovementSchema.safeParse(movement({ amount: "0" }));
+    expect(zero.error?.issues[0]?.message).toBe("El importe debe ser mayor que cero.");
   });
 
   it("builds a stable fingerprint from normalized movement inputs", () => {
