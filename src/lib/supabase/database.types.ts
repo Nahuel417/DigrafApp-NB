@@ -76,6 +76,169 @@ export type Database = {
           },
         ]
       }
+      cash_days: {
+        Row: {
+          created_at: string
+          id: string
+          opening_balance: number
+          opening_updated_at: string
+          operational_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opening_balance?: number
+          opening_updated_at?: string
+          operational_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opening_balance?: number
+          opening_updated_at?: string
+          operational_date?: string
+        }
+        Relationships: []
+      }
+      cash_expense_categories: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      cash_movements: {
+        Row: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string | null
+          direction: string
+          expense_category_code: string | null
+          expense_category_id: string | null
+          expense_category_name: string | null
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+        }
+        Insert: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at?: string
+          description?: string | null
+          direction: string
+          expense_category_code?: string | null
+          expense_category_id?: string | null
+          expense_category_name?: string | null
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+        }
+        Update: {
+          actor_id?: string
+          amount?: number
+          cash_day_id?: string
+          created_at?: string
+          description?: string | null
+          direction?: string
+          expense_category_code?: string | null
+          expense_category_id?: string | null
+          expense_category_name?: string | null
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_movements_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movements_cash_day_id_fkey"
+            columns: ["cash_day_id"]
+            isOneToOne: false
+            referencedRelation: "cash_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movements_expense_category_id_fkey"
+            columns: ["expense_category_id"]
+            isOneToOne: false
+            referencedRelation: "cash_expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_opening_events: {
+        Row: {
+          actor_id: string
+          cash_day_id: string
+          created_at: string
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          new_amount: number
+          previous_amount: number
+        }
+        Insert: {
+          actor_id: string
+          cash_day_id: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          new_amount: number
+          previous_amount: number
+        }
+        Update: {
+          actor_id?: string
+          cash_day_id?: string
+          created_at?: string
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          new_amount?: number
+          previous_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_opening_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_opening_events_cash_day_id_fkey"
+            columns: ["cash_day_id"]
+            isOneToOne: false
+            referencedRelation: "cash_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_item_events: {
         Row: {
           action: string
@@ -703,6 +866,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cash_current_actor_is_operational: { Args: never; Returns: boolean }
+      create_cash_movement: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_direction: string
+          p_expense_category_id: string
+          p_idempotency_key: string
+        }
+        Returns: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string
+          direction: string
+          expense_category_code: string
+          expense_category_id: string
+          expense_category_name: string
+          movement_id: string
+        }[]
+      }
       create_catalog_item: {
         Args: {
           target_garment_layer: string
@@ -767,6 +952,15 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
+      ensure_current_cash_day: {
+        Args: never
+        Returns: {
+          cash_day_id: string
+          opening_balance: number
+          opening_updated_at: string
+          operational_date: string
+        }[]
+      }
       finalize_order_design_image: {
         Args: {
           p_actor_id: string
@@ -781,6 +975,18 @@ export type Database = {
           object_path: string
           order_id: string
           previous_object_path: string
+        }[]
+      }
+      get_current_cash_summary: {
+        Args: never
+        Returns: {
+          cash_day_id: string
+          categories: Json
+          current_balance: string
+          movements: Json
+          opening_balance: number
+          opening_updated_at: string
+          operational_date: string
         }[]
       }
       get_order_timeline: {
@@ -859,6 +1065,19 @@ export type Database = {
         Returns: {
           event_id: string
           stage_id: string
+        }[]
+      }
+      set_cash_opening: {
+        Args: {
+          p_amount: number
+          p_expected_opening_updated_at: string
+          p_idempotency_key: string
+        }
+        Returns: {
+          cash_day_id: string
+          event_id: string
+          opening_balance: number
+          opening_updated_at: string
         }[]
       }
       update_managed_profile: {
