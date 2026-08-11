@@ -89,17 +89,17 @@ pnpm db:types
 
 ## Matriz mínima por riesgo
 
-| Área modificada | Evidencia mínima |
-| --- | --- |
-| UI aislada sin cambio funcional | lint, typecheck y prueba manual visual enfocada |
-| UI con cambio de comportamiento | test de componente, integración o E2E del comportamiento afectado, más comprobación visual cuando corresponda |
-| Lógica de dominio | test unitario del caso principal, bordes y regresión |
-| Server Action o endpoint | validación de entrada, caso autorizado y denegado |
-| RLS/roles/Storage | policy o integración para cada rol permitido y rechazado |
-| Auth y usuarios | creación exclusiva de Super admin, bootstrap inicial, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin |
-| Migración | aplicar localmente; antes de cerrar la fase: reset local, tipos generados y prueba del contrato afectado |
-| Caja/pago/anulación | atomicidad, idempotencia, estado abierto/cerrado y auditoría |
-| Kanban | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor |
+| Área modificada                   | Evidencia mínima                                                                                                                                                                                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI aislada sin cambio funcional   | lint, typecheck y prueba manual visual enfocada                                                                                                                                                                                                                       |
+| UI con cambio de comportamiento   | test de componente, integración o E2E del comportamiento afectado, más comprobación visual cuando corresponda                                                                                                                                                         |
+| Lógica de dominio                 | test unitario del caso principal, bordes y regresión                                                                                                                                                                                                                  |
+| Server Action o endpoint          | validación de entrada, caso autorizado y denegado                                                                                                                                                                                                                     |
+| RLS/roles/Storage                 | policy o integración para cada rol permitido y rechazado                                                                                                                                                                                                              |
+| Auth y usuarios                   | creación exclusiva de Super admin, bootstrap inicial, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin                                                                                                  |
+| Migración                         | aplicar localmente; antes de cerrar la fase: reset local, tipos generados y prueba del contrato afectado                                                                                                                                                              |
+| Caja/pago/anulación               | atomicidad, idempotencia, estado abierto/cerrado y auditoría                                                                                                                                                                                                          |
+| Kanban                            | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor                                                                                                                                                                                        |
 | Catálogos y alta manual de pedido | Super admin/Admin/Atención pueden crear; solo Super admin/Admin administran catálogos; Empleado es rechazado; borrado físico conserva snapshots históricos; combinaciones, importes, saldo derivado, atomicidad, idempotencia, etapa inicial y visibilidad financiera |
 
 ## Antes de finalizar
@@ -112,16 +112,27 @@ pnpm db:types
 
 ## Pruebas visuales
 
-- Los snapshots visuales de Playwright no se ejecutan ni bloquean CI en Linux.
-- GitHub Actions debe continuar ejecutando todos los recorridos E2E funcionales y los demás controles; cualquier fallo funcional sigue bloqueando CI.
-- No reproducir Linux localmente para ejecutar o actualizar pruebas visuales.
-- Ejecutar y actualizar snapshots visuales únicamente en Windows o macOS cuando corresponda.
+- Los E2E funcionales son bloqueantes en CI.
+- La tolerancia visual aplica solo a `toHaveScreenshot`.
+- Los snapshots se marcan con `@visual` y CI en Linux los excluye con
+  `--grep-invert @visual`.
+- Ejecutar o actualizar snapshots solo en Windows o macOS.
+- Desactivar animaciones, ocultar cursor y enmascarar contenido dinámico.
+- No aumentar tolerancias ni actualizar snapshots sin revisar el diff visual.
 
-Una tarea no está terminada si deja una migración sin tipos, un bypass conocido de permisos, un error silencioso o una verificación crítica omitida sin explicación.
+Una tarea no está terminada si deja una migración sin tipos, un bypass conocido
+de permisos, un error silencioso o una verificación crítica omitida sin
+explicación.
 
-Para administración de usuarios, verificar además que Admin no pueda crear cuentas ni asignar o restablecer credenciales, que solo pueda cambiar roles entre Atención y Empleado, y que una contraseña temporal o restablecida no habilite el resto de la aplicación hasta ser reemplazada por el usuario.
+Para administración de usuarios, verificar que Admin no pueda crear cuentas ni
+asignar o restablecer credenciales; solo puede cambiar roles entre Atención y
+Empleado. Una contraseña temporal o restablecida no habilita el resto de la
+aplicación hasta que el usuario la reemplace.
 
-Para bootstrap, probar localmente la creación de Auth y perfil, el email confirmado, `must_change_password`, la ausencia de secretos en salida y el reporte de fallo parcial. La limpieza de un usuario Auth huérfano debe requerir confirmación explícita. No crear usuarios reales remotos como parte de pruebas automáticas.
+Para bootstrap, probar localmente Auth y perfil, email confirmado,
+`must_change_password`, ausencia de secretos en salida y reporte de fallo
+parcial. Limpiar un Auth huérfano requiere confirmación explícita. No crear
+usuarios remotos reales en pruebas automáticas.
 
 ## Verificación específica de staging y preview
 
@@ -136,10 +147,10 @@ Antes de cualquier acción remota, ejecutar las comprobaciones no destructivas d
 Migraciones de esquema:
 
 - Si la fase introduce migración nueva, antes de cualquier `db push`:
-  - `pnpm db:reset:local` ejecutado y verificado.
-  - `pnpm test` y `pnpm test:integration` en verde.
-  - `pnpm db:types` y `git diff --exit-code -- src/lib/supabase/database.types.ts` sin diferencias.
-  - `supabase db push --dry-run` revisado y comparado con la lista de migraciones esperadas.
+    - `pnpm db:reset:local` ejecutado y verificado.
+    - `pnpm test` y `pnpm test:integration` en verde.
+    - `pnpm db:types` y `git diff --exit-code -- src/lib/supabase/database.types.ts` sin diferencias.
+    - `supabase db push --dry-run` revisado y comparado con la lista de migraciones esperadas.
 
 Sin migraciones nuevas (caso de la fase 1):
 
