@@ -6,9 +6,24 @@ const CASH_AMOUNT_ZERO_ERROR = "El importe debe ser mayor que cero.";
 const CASH_AMOUNT_MAX_INTEGER_ERROR = "El importe no puede superar 12 dígitos enteros.";
 export const CASH_AMOUNT_PATTERN = "[0-9]{1,12}([.,][0-9]{1,2})?";
 
+export function canInsertCashAmount(value: string, inserted: string, selectionStart: number | null, selectionEnd: number | null) {
+  const start = selectionStart ?? value.length;
+  const end = selectionEnd ?? start;
+  const nextValue = `${value.slice(0, start)}${inserted}${value.slice(end)}`;
+  if (!/^[0-9.,]*$/.test(nextValue)) return false;
+
+  const separators = nextValue.match(/[.,]/g) ?? [];
+  if (separators.length > 1) return false;
+
+  const [integerPart = "", fractionPart] = nextValue.split(/[.,]/);
+  if (integerPart.length > 12 || (fractionPart?.length ?? 0) > 2) return false;
+  return !separators.length || integerPart.length > 0;
+}
+
 export function cashAmountError(value: string, options: { allowZero?: boolean } = {}) {
   const trimmed = value.trim();
   if (!trimmed) return "Ingresá un importe.";
+  if (trimmed !== value) return CASH_AMOUNT_FORMAT_ERROR;
   if (trimmed === "-" || trimmed === "." || trimmed === "," || trimmed.endsWith(".") || trimmed.endsWith(",")) return CASH_AMOUNT_FORMAT_ERROR;
   if (trimmed.startsWith("-")) return CASH_AMOUNT_NEGATIVE_ERROR;
   if ((trimmed.match(/[.,]/g) ?? []).length > 1) return CASH_AMOUNT_FORMAT_ERROR;

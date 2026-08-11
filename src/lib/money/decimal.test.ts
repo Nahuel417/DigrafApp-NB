@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cashAmountError, compareMoney, formatArs, normalizeAggregateMoney, normalizeMoney, visibleBalance } from "./decimal";
+import { canInsertCashAmount, cashAmountError, compareMoney, formatArs, normalizeAggregateMoney, normalizeMoney, visibleBalance } from "./decimal";
 
 describe("money decimals", () => {
   it("normalizes ARS values without floating point arithmetic", () => {
@@ -53,6 +53,10 @@ describe("money decimals", () => {
     ["-1", "El importe debe ser mayor o igual a cero."],
     ["1.234", "Usá un importe con hasta dos decimales."],
     ["1,2.3", "Usá un importe con hasta dos decimales."],
+    [" 10", "Usá un importe con hasta dos decimales."],
+    ["10 ", "Usá un importe con hasta dos decimales."],
+    ["10 00", "Usá un importe con hasta dos decimales."],
+    ["+10", "Usá un importe con hasta dos decimales."],
     ["1234567890123", "El importe no puede superar 12 dígitos enteros."],
   ])("returns the Spanish early-validation error for %s", (value, message) => {
     expect(cashAmountError(value)).toBe(message);
@@ -65,5 +69,16 @@ describe("money decimals", () => {
     expect(cashAmountError("1,25", { allowZero: false })).toBeNull();
     expect(cashAmountError("1.25", { allowZero: false })).toBeNull();
     expect(cashAmountError("123456789012.34", { allowZero: true })).toBeNull();
+  });
+
+  it("allows only valid cash insertions while editing", () => {
+    expect(canInsertCashAmount("", "1", 0, 0)).toBe(true);
+    expect(canInsertCashAmount("12", ",34", 2, 2)).toBe(true);
+    expect(canInsertCashAmount("12", ".34", 2, 2)).toBe(true);
+    expect(canInsertCashAmount("12", "a", 2, 2)).toBe(false);
+    expect(canInsertCashAmount("12", " $", 2, 2)).toBe(false);
+    expect(canInsertCashAmount("12,34", ".", 5, 5)).toBe(false);
+    expect(canInsertCashAmount("12,34", "5", 5, 5)).toBe(false);
+    expect(canInsertCashAmount("12,34", "", 0, 5)).toBe(true);
   });
 });

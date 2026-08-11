@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleCheck, CircleX, WalletCards } from "lucide-react";
-import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
-import { CASH_AMOUNT_PATTERN, cashAmountError, formatArs } from "@/lib/money/decimal";
+import { CASH_AMOUNT_PATTERN, canInsertCashAmount, cashAmountError, formatArs } from "@/lib/money/decimal";
 
 import { createCashMovementAction, setCashOpeningAction, type CashActionState } from "../actions";
 import type { CashCategory, CashMovement, CashSummary } from "../queries";
@@ -33,8 +33,39 @@ export function resetMovementFormAfterResult(form: Pick<HTMLFormElement, "reset"
 }
 
 function errorsFor(state: CashActionState, field: string) { return state.fieldErrors?.[field]?.map((message) => ({ message })); }
+function canInsertCashAmountText(input: HTMLInputElement, inserted: string) {
+  return canInsertCashAmount(input.value, inserted, input.selectionStart, input.selectionEnd);
+}
+function preventInvalidCashInsertion(input: HTMLInputElement, inserted: string, event: { preventDefault: () => void }) {
+  if (!canInsertCashAmountText(input, inserted)) event.preventDefault();
+}
+function preventInvalidCashBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const inputEvent = event.nativeEvent as InputEvent;
+  if (inputEvent.inputType.startsWith("delete")) return;
+  preventInvalidCashInsertion(event.currentTarget, inputEvent.data ?? "", event);
+}
+function preventInvalidCashKey(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+  preventInvalidCashInsertion(event.currentTarget, event.key, event);
+}
+function preventInvalidCashPaste(event: ClipboardEvent<HTMLInputElement>) {
+  preventInvalidCashInsertion(event.currentTarget, event.clipboardData.getData("text"), event);
+}
+function preventInvalidCashDrop(event: DragEvent<HTMLInputElement>) {
+  preventInvalidCashInsertion(event.currentTarget, event.dataTransfer.getData("text"), event);
+}
 function setCashAmountValidity(event: FormEvent<HTMLInputElement>, allowZero: boolean) {
   event.currentTarget.setCustomValidity(cashAmountError(event.currentTarget.value, { allowZero }) ?? "");
+}
+function cashAmountInputProps(allowZero: boolean) {
+  return {
+    onBeforeInput: preventInvalidCashBeforeInput,
+    onDrop: preventInvalidCashDrop,
+    onInput: (event: FormEvent<HTMLInputElement>) => setCashAmountValidity(event, allowZero),
+    onInvalid: (event: FormEvent<HTMLInputElement>) => setCashAmountValidity(event, allowZero),
+    onKeyDown: preventInvalidCashKey,
+    onPaste: preventInvalidCashPaste,
+  };
 }
 function Feedback({ state }: { state: CashActionState }) {
   if (!state.message) return null;
@@ -57,7 +88,7 @@ export function OpeningForm({ summary }: { summary: CashSummary }) {
   const errors = errorsFor(state, "amount");
   return <form action={action} className="flex flex-col gap-4" ref={formRef}>
     <input name="expectedOpeningUpdatedAt" type="hidden" value={summary.openingUpdatedAt} readOnly /><input name="idempotencyKey" type="hidden" defaultValue={idempotencyKey} readOnly />
-    <FieldGroup className="grid gap-4 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end"><Field data-invalid={Boolean(errors?.length)}><FieldLabel htmlFor="cash-opening-amount">Saldo inicial</FieldLabel><Input aria-describedby={errors?.length ? "cash-opening-amount-error" : undefined} aria-invalid={Boolean(errors?.length)} inputMode="decimal" id="cash-opening-amount" maxLength={15} name="amount" defaultValue={summary.openingBalance} onInput={(event) => setCashAmountValidity(event, true)} onInvalid={(event) => setCashAmountValidity(event, true)} pattern={CASH_AMOUNT_PATTERN} required type="text" /><FieldError errors={errors} id="cash-opening-amount-error" /></Field><SubmitButton className="w-fit" pendingLabel="Guardando saldo">Guardar apertura</SubmitButton></FieldGroup>
+    <FieldGroup className="grid gap-4 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end"><Field data-invalid={Boolean(errors?.length)}><FieldLabel htmlFor="cash-opening-amount">Saldo inicial</FieldLabel><Input {...cashAmountInputProps(true)} aria-describedby={errors?.length ? "cash-opening-amount-error" : undefined} aria-invalid={Boolean(errors?.length)} inputMode="decimal" id="cash-opening-amount" maxLength={15} name="amount" defaultValue={summary.openingBalance} pattern={CASH_AMOUNT_PATTERN} required type="text" /><FieldError errors={errors} id="cash-opening-amount-error" /></Field><SubmitButton className="w-fit" pendingLabel="Guardando saldo">Guardar apertura</SubmitButton></FieldGroup>
     <Feedback state={state} />
   </form>;
 }
@@ -84,7 +115,7 @@ export function MovementForm({ categories, direction }: { categories: CashCatego
   const categoryErrors = errorsFor(state, "expenseCategoryId");
   return <form action={action} className="flex flex-col gap-4" ref={formRef}>
     <input name="direction" type="hidden" value={direction} readOnly /><input name="idempotencyKey" type="hidden" defaultValue={idempotencyKey} readOnly />
-     <FieldGroup className="grid gap-4 md:grid-cols-2"><Field data-invalid={Boolean(amountErrors?.length)}><FieldLabel htmlFor={`${prefix}-amount`}>Importe</FieldLabel><Input aria-describedby={amountErrors?.length ? `${prefix}-amount-error` : undefined} aria-invalid={Boolean(amountErrors?.length)} inputMode="decimal" id={`${prefix}-amount`} maxLength={15} name="amount" onInput={(event) => setCashAmountValidity(event, false)} onInvalid={(event) => setCashAmountValidity(event, false)} pattern={CASH_AMOUNT_PATTERN} required type="text" /><FieldError errors={amountErrors} id={`${prefix}-amount-error`} /></Field>{isIncome ? <Field data-invalid={Boolean(descriptionErrors?.length)}><FieldLabel htmlFor={`${prefix}-description`}>Concepto</FieldLabel><Input aria-describedby={descriptionErrors?.length ? `${prefix}-description-error` : undefined} aria-invalid={Boolean(descriptionErrors?.length)} id={`${prefix}-description`} name="description" required /><FieldError errors={descriptionErrors} id={`${prefix}-description-error`} /></Field> : <Field data-invalid={Boolean(categoryErrors?.length)}><FieldLabel htmlFor={`${prefix}-category`}>Categoría</FieldLabel><Select name="expenseCategoryId" defaultValue=""><SelectTrigger aria-describedby={categoryErrors?.length ? `${prefix}-category-error` : undefined} aria-invalid={Boolean(categoryErrors?.length)} id={`${prefix}-category`}><SelectValue placeholder="Elegí una categoría" /></SelectTrigger><SelectContent><SelectGroup>{categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectGroup></SelectContent></Select><FieldError errors={categoryErrors} id={`${prefix}-category-error`} /></Field>}</FieldGroup>
+     <FieldGroup className="grid gap-4 md:grid-cols-2"><Field data-invalid={Boolean(amountErrors?.length)}><FieldLabel htmlFor={`${prefix}-amount`}>Importe</FieldLabel><Input {...cashAmountInputProps(false)} aria-describedby={amountErrors?.length ? `${prefix}-amount-error` : undefined} aria-invalid={Boolean(amountErrors?.length)} inputMode="decimal" id={`${prefix}-amount`} maxLength={15} name="amount" pattern={CASH_AMOUNT_PATTERN} required type="text" /><FieldError errors={amountErrors} id={`${prefix}-amount-error`} /></Field>{isIncome ? <Field data-invalid={Boolean(descriptionErrors?.length)}><FieldLabel htmlFor={`${prefix}-description`}>Concepto</FieldLabel><Input aria-describedby={descriptionErrors?.length ? `${prefix}-description-error` : undefined} aria-invalid={Boolean(descriptionErrors?.length)} id={`${prefix}-description`} name="description" required /><FieldError errors={descriptionErrors} id={`${prefix}-description-error`} /></Field> : <Field data-invalid={Boolean(categoryErrors?.length)}><FieldLabel htmlFor={`${prefix}-category`}>Categoría</FieldLabel><Select name="expenseCategoryId" defaultValue=""><SelectTrigger aria-describedby={categoryErrors?.length ? `${prefix}-category-error` : undefined} aria-invalid={Boolean(categoryErrors?.length)} id={`${prefix}-category`}><SelectValue placeholder="Elegí una categoría" /></SelectTrigger><SelectContent><SelectGroup>{categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectGroup></SelectContent></Select><FieldError errors={categoryErrors} id={`${prefix}-category-error`} /></Field>}</FieldGroup>
     {!isIncome ? <Field data-invalid={Boolean(descriptionErrors?.length)}><FieldLabel htmlFor={`${prefix}-description`}>Detalle <span className="font-normal text-muted-foreground">(opcional)</span></FieldLabel><Textarea aria-describedby={descriptionErrors?.length ? `${prefix}-description-error` : undefined} aria-invalid={Boolean(descriptionErrors?.length)} id={`${prefix}-description`} name="description" rows={2} /><FieldError errors={descriptionErrors} id={`${prefix}-description-error`} /></Field> : null}
     <Feedback state={state} /><SubmitButton className="self-start" pendingLabel={isIncome ? "Registrando ingreso" : "Registrando egreso"}>{isIncome ? "Registrar ingreso" : "Registrar egreso"}</SubmitButton>
   </form>;
