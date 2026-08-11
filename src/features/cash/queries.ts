@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { normalizeMoney } from "@/lib/money/decimal";
+import { normalizeAggregateMoney, normalizeMoney } from "@/lib/money/decimal";
 
 export type CashCategory = {
   id: string;
@@ -47,10 +47,10 @@ function nullableText(value: unknown) {
   return value === null || value === undefined ? null : text(value, "un dato");
 }
 
-function decimal(value: unknown, label: string) {
+function decimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) {
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`La respuesta de caja no contiene ${label} válido.`);
   try {
-    return normalizeMoney(String(value));
+    return normalize(String(value));
   } catch {
     throw new Error(`La respuesta de caja no contiene ${label} válido.`);
   }
@@ -94,7 +94,7 @@ export function mapCashSummary(row: CashSummaryRpcRow): CashSummary {
     operationalDate: text(row.operational_date, "el día operativo"),
     openingBalance: decimal(row.opening_balance, "el saldo inicial"),
     openingUpdatedAt: text(row.opening_updated_at, "la versión de apertura"),
-    currentBalance: decimal(row.current_balance, "el saldo actual"),
+    currentBalance: decimal(row.current_balance, "el saldo actual", normalizeAggregateMoney),
     movements: array(row.movements, "la lista de movimientos").map(mapMovement),
     categories: array(row.categories, "la lista de categorías").map(mapCategory),
   };
