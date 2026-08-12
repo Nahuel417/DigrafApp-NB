@@ -38,3 +38,11 @@ export function canEditOrderDescription(role: AppRole) {
 export function canOperateCash(profile: Pick<CurrentProfile, "isActive" | "mustChangePassword" | "role">) {
   return profile.isActive && !profile.mustChangePassword && (profile.role === "super_admin" || profile.role === "admin" || profile.role === "attention");
 }
+
+export function canCloseCash(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
+export function canReopenCash(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention";
+}

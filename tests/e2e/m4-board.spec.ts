@@ -12,7 +12,7 @@ const password = `M4${randomUUID().replaceAll("-", "")}7`;
 
 test.describe("Tablero M4", () => {
   test.skip(!url || !serviceRoleKey || !publishableKey, "Falta Supabase local para E2E M4.");
-  const admin = createClient<Database>(url ?? "http://127.0.0.1:54321", serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
+  const admin = createClient<Database>(url ?? "http://127.0.0.1:54396", serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
   const runId = randomUUID().slice(0, 8);
   const email = `super-admin-m4-e2e-${randomUUID()}@digraf.local`;
   const names = {
