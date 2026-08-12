@@ -2,7 +2,7 @@ import { AppNavigation } from "@/components/app-navigation";
 import { LogoutForm } from "@/features/auth/components/logout-form";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canCreateManualOrder, canManageCatalogs, canManageStages, canManageUsers } from "@/lib/auth/permissions";
+import { canCreateManualOrder, canManageCatalogs, canManageStages, canManageUsers, canOperateCash } from "@/lib/auth/permissions";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const profile = await requireActiveProfile();
@@ -11,6 +11,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     canManageCatalogs: canManageCatalogs(profile.role),
     canManageStages: canManageStages(profile.role),
     canManageUsers: canManageUsers(profile.role),
+    canOperateCash: canOperateCash(profile),
   };
   const initials = profile.displayName
     .split(/\s+/)

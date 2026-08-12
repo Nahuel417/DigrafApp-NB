@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { compareMoney, formatArs, normalizeMoney, visibleBalance } from "./decimal";
+import { canInsertCashAmount, cashAmountError, compareMoney, formatArs, normalizeAggregateMoney, normalizeMoney, visibleBalance } from "./decimal";
 
 describe("money decimals", () => {
   it("normalizes ARS values without floating point arithmetic", () => {
     expect(normalizeMoney("0012,5")).toBe("12.50");
     expect(normalizeMoney("0")).toBe("0.00");
     expect(formatArs("1234567.8")).toBe("$ 1.234.567,80");
+  });
+
+  it("normalizes signed unbounded trusted aggregate values exactly", () => {
+    expect(normalizeAggregateMoney("1000000000000.01")).toBe("1000000000000.01");
+    expect(normalizeAggregateMoney("-1000000000000.01")).toBe("-1000000000000.01");
+    expect(normalizeAggregateMoney(1000000000000.01)).toBe("1000000000000.01");
+    expect(normalizeAggregateMoney("-0012,5")).toBe("-12.50");
+    expect(normalizeAggregateMoney("-0.00")).toBe("0.00");
+    expect(() => normalizeAggregateMoney("100.123")).toThrow();
+  });
+
+  it("formats signed aggregate balances without losing cents", () => {
+    expect(formatArs("1000000000000.01")).toBe("$ 1.000.000.000.000,01");
+    expect(formatArs("-1000000000000.01")).toBe("$ -1.000.000.000.000,01");
   });
 
   it("compares decimal values exactly", () => {
@@ -25,5 +39,46 @@ describe("money decimals", () => {
     expect(() => normalizeMoney("1000000000000.00")).toThrow();
     expect(() => normalizeMoney("10.123")).toThrow();
     expect(() => normalizeMoney("-1.00")).toThrow();
+  });
+
+  it.each([
+    ["", "Ingresá un importe."],
+    ["abc", "Usá un importe con hasta dos decimales."],
+    ["$", "Usá un importe con hasta dos decimales."],
+    ["-", "Usá un importe con hasta dos decimales."],
+    [".", "Usá un importe con hasta dos decimales."],
+    [",", "Usá un importe con hasta dos decimales."],
+    ["1.", "Usá un importe con hasta dos decimales."],
+    ["1,", "Usá un importe con hasta dos decimales."],
+    ["-1", "El importe debe ser mayor o igual a cero."],
+    ["1.234", "Usá un importe con hasta dos decimales."],
+    ["1,2.3", "Usá un importe con hasta dos decimales."],
+    [" 10", "Usá un importe con hasta dos decimales."],
+    ["10 ", "Usá un importe con hasta dos decimales."],
+    ["10 00", "Usá un importe con hasta dos decimales."],
+    ["+10", "Usá un importe con hasta dos decimales."],
+    ["1234567890123", "El importe no puede superar 12 dígitos enteros."],
+  ])("returns the Spanish early-validation error for %s", (value, message) => {
+    expect(cashAmountError(value)).toBe(message);
+  });
+
+  it("keeps zero and comma/point behavior explicit for opening and movements", () => {
+    expect(cashAmountError("0", { allowZero: true })).toBeNull();
+    expect(cashAmountError("0", { allowZero: false })).toBe("El importe debe ser mayor que cero.");
+    expect(cashAmountError("000.00", { allowZero: false })).toBe("El importe debe ser mayor que cero.");
+    expect(cashAmountError("1,25", { allowZero: false })).toBeNull();
+    expect(cashAmountError("1.25", { allowZero: false })).toBeNull();
+    expect(cashAmountError("123456789012.34", { allowZero: true })).toBeNull();
+  });
+
+  it("allows only valid cash insertions while editing", () => {
+    expect(canInsertCashAmount("", "1", 0, 0)).toBe(true);
+    expect(canInsertCashAmount("12", ",34", 2, 2)).toBe(true);
+    expect(canInsertCashAmount("12", ".34", 2, 2)).toBe(true);
+    expect(canInsertCashAmount("12", "a", 2, 2)).toBe(false);
+    expect(canInsertCashAmount("12", " $", 2, 2)).toBe(false);
+    expect(canInsertCashAmount("12,34", ".", 5, 5)).toBe(false);
+    expect(canInsertCashAmount("12,34", "5", 5, 5)).toBe(false);
+    expect(canInsertCashAmount("12,34", "", 0, 5)).toBe(true);
   });
 });

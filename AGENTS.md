@@ -95,8 +95,14 @@ Antes de editar:
 3. Identificar guías, permisos y verificaciones aplicables.
 
 Implementar secuencialmente: invariantes/autorización/migraciones, servidor, UI,
-pruebas y revisión del diff. Ejecutar pruebas específicas durante el desarrollo;
-repetir solo las fallidas y correr la suite completa una vez al cierre, según
+pruebas y revisión del diff. Antes de implementar, declarar estrategia de pruebas
+y motivo según riesgo, comportamiento y capa; si el riesgo no es claro, preguntar.
+Usar Strict TDD (RED → GREEN → TRIANGULATE → REFACTOR) solo para negocio, dinero,
+permisos/RLS/RPC, idempotencia, concurrencia, bugs o alto riesgo de regresión. Para
+UI visual, copy, layout, refactors mecánicos o configuración sin cambio funcional,
+usar la verificación mínima relevante. No usar Strict TDD no elimina la cobertura
+necesaria. Ejecutar pruebas específicas durante el desarrollo; repetir solo las
+fallidas y correr la suite completa una vez al cierre, según
 `docs/agent-guides/verification.md`.
 
 Antes de `pnpm db:reset`, verificar un procedimiento autorizado y reproducible
@@ -134,8 +140,25 @@ comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 - Para E2E, comprobar sin espera si el servidor ya responde y reutilizarlo.
 - Si no responde, detenerse e indicar el comando exacto para que el usuario lo inicie en otra terminal.
 
+## Staging
+
+- Antes de probar cambios con migraciones/RPC/RLS en Preview, ejecutar `Deploy Staging DB`.
+- Verificar con `supabase migration list --linked`.
+- No ejecutar `db push` ni `migration repair` sin autorización.
+- Si solo cambia la base, recargar Preview: no requiere redeploy.
+- Preview usa credenciales de **Supabase Staging → Connect**; no usar valores locales.
+
 ## Mantenimiento
 
 Mantener este archivo en 180 líneas o menos. Las reglas detalladas pertenecen a
 las guías canónicas. Documentar solo decisiones, reglas, comandos o aprendizajes
 reutilizables, no estados transitorios.
+
+## Engram
+
+- No escribir memoria durante el trabajo normal ni guardar resúmenes de sesión,
+  progreso rutinario, resultados de pruebas, estado de Git o próximos pasos.
+- Solo el agente principal puede guardar memoria breve y durable ante una
+  compactación real de contexto o el cierre explícito de la sesión: decisiones,
+  convenciones, arquitectura o bugs reutilizables.
+- Los subagentes nunca escriben en Engram.
