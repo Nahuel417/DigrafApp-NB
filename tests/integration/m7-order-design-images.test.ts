@@ -9,7 +9,7 @@ import { verifyUploadedOrderDesignImage } from "../../src/features/orders/image-
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const localUrl = url ?? "http://127.0.0.1:54321";
+const localUrl = url ?? "http://127.0.0.1:54396";
 const password = `M7${randomUUID().replaceAll("-", "")}7`;
 const bucketId = "order-designs";
 const maximumBytes = 10 * 1024 * 1024;

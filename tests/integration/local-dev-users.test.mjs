@@ -23,12 +23,12 @@ describe("local development user safety", () => {
   it("rejects every non-local Supabase URL", () => {
     expect(() => assertLocalSupabaseUrl("https://project.supabase.co")).toThrow("solo puede ejecutarse contra Supabase local");
     expect(() => assertLocalSupabaseUrl("not-a-url")).toThrow("no es una URL válida");
-    expect(assertLocalSupabaseUrl("http://127.0.0.1:54321")).toBe("http://127.0.0.1:54321");
+    expect(assertLocalSupabaseUrl("http://127.0.0.1:54396")).toBe("http://127.0.0.1:54396");
   });
 });
 
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("local development users", () => {
-  const admin = createClient(url ?? "http://127.0.0.1:54321", serviceRoleKey ?? "test-key", {
+  const admin = createClient(url ?? "http://127.0.0.1:54396", serviceRoleKey ?? "test-key", {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

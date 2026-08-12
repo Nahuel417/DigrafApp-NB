@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-const supabaseUrl = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const supabaseUrl = process.env.SUPABASE_URL ?? "http://127.0.0.1:54396";
 
 describe("Supabase local", () => {
   it("exposes a healthy Auth service", async () => {

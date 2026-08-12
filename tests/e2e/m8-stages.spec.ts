@@ -20,7 +20,7 @@ async function login(page: Page, email: string) {
 
 test.describe("Administración de etapas M8", () => {
   test.skip(!url || !serviceRoleKey || !publishableKey, "Falta Supabase local para E2E M8.");
-  const admin = createClient<Database>(url ?? "http://127.0.0.1:54321", serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
+  const admin = createClient<Database>(url ?? "http://127.0.0.1:54396", serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
   const runId = randomUUID().slice(0, 8);
   const managerEmail = `super-admin-m8-e2e-${randomUUID()}@digraf.local`;
   const attentionEmail = `attention-m8-e2e-${randomUUID()}@digraf.local`;
