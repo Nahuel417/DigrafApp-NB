@@ -29,10 +29,12 @@ import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, type MoveOrderActionState, type OrderQuickView } from "../actions";
 import { moveBoardOrder } from "../board-state";
 import type { BoardColumn, BoardOrder } from "../queries";
+import { OrderDesignThumbnail } from "./order-design-thumbnail";
 import { OrderQuickView as OrderQuickViewPanel } from "./order-quick-view";
 
 type MoveSource = Pick<BoardOrder, "id" | "currentStageId" | "updatedAt">;
 type MovementMethod = "selector" | "dnd";
+type QuickViewData = OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">;
 
 function orderId(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -46,9 +48,17 @@ function orderTypeLabel(orderType: BoardOrder["orderType"]) {
   return orderType === "set" ? "Conjunto" : "Prenda individual";
 }
 
-function OrderSummary({ order }: { order: BoardOrder }) {
+function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbnail?: boolean }) {
   return (
     <>
+      {showThumbnail && order.hasDesignImage ? (
+        <OrderDesignThumbnail
+          alt={`Diseño de ${order.customerName}`}
+          className="mb-3 aspect-[3/2] w-full"
+          imageUpdatedAt={order.imageUpdatedAt}
+          orderId={order.id}
+        />
+      ) : null}
       <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
       <h3 className="mt-2 break-words font-semibold">
         <a className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" href={orderDetailPath(order.id)} onPointerDown={(event) => event.stopPropagation()}>
@@ -145,7 +155,7 @@ function DraggableOrderCard({
       ref={setNodeRef}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1"><OrderSummary order={order} /></div>
+        <div className="min-w-0 flex-1"><OrderSummary order={order} showThumbnail /></div>
         <div className="flex shrink-0 gap-1">
           <Button
             {...attributes}
@@ -229,7 +239,7 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("Tablero listo para mover pedidos.");
   const [mutationState, setMutationState] = useState<MoveOrderActionState>({});
-  const [quickView, setQuickView] = useState<OrderQuickView | null>(null);
+  const [quickView, setQuickView] = useState<QuickViewData | null>(null);
   const [quickViewError, setQuickViewError] = useState<string | null>(null);
   const [isQuickViewPending, startQuickViewTransition] = useTransition();
   const sensors = useSensors(
@@ -268,9 +278,16 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
 
   function openQuickView(orderIdValue: string) {
     setQuickViewError(null);
+    const boardOrder = findOrder(orderIdValue);
     startQuickViewTransition(async () => {
       const result = await getOrderQuickViewAction(orderIdValue);
-      if (result.data) setQuickView(result.data);
+      if (result.data) {
+        setQuickView({
+          ...result.data,
+          hasDesignImage: boardOrder?.hasDesignImage ?? false,
+          imageUpdatedAt: boardOrder?.imageUpdatedAt ?? null,
+        });
+      }
       else setQuickViewError(result.message ?? "No se pudo cargar la vista rápida.");
     });
   }

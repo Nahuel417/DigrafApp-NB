@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",
       "tests/unit/**/*.test.ts",
+      "tests/unit/**/*.test.mjs",
     ],
     coverage: {
       reporter: ["text", "html"],

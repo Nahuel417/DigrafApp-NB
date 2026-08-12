@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { OrderSelection } from "./detail-queries";
-import { operationalHistoryDetails, operationalHistorySummary, selectionsForEdit } from "./detail-format";
+import { operationalHistoryDetails, operationalHistorySummary, selectionsForEdit, timelineStageName } from "./detail-format";
 
 function historicalSelection(selectionKey: string, catalogKind: OrderSelection["catalogKind"]): OrderSelection {
   return {
@@ -38,5 +38,10 @@ describe("order detail formatting", () => {
     const details = { version: 1, changes: [{ field: "quantity" }, { field: "specifications" }] };
     expect(operationalHistorySummary(details)).toBe("Se actualizó el pedido");
     expect(operationalHistoryDetails(details)).toEqual(["Se actualizó la cantidad", "Se actualizaron las especificaciones"]);
+  });
+
+  it("prefers a stage snapshot and falls back to the current name for legacy events", () => {
+    expect(timelineStageName("Diseño original", "Diseño actual")).toBe("Diseño original");
+    expect(timelineStageName(null, "Diseño actual")).toBe("Diseño actual");
   });
 });

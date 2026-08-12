@@ -17,6 +17,8 @@ const order = (id: string, currentStageId: string, promisedDeliveryDate: string,
   promisedDeliveryDate,
   currentStageId,
   updatedAt: "2026-07-29T03:00:00.000Z",
+  hasDesignImage: false,
+  imageUpdatedAt: null,
 });
 
 describe("order board queries", () => {

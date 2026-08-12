@@ -35,7 +35,7 @@ La configuración local deshabilita el registro público. Las cuentas internas s
 
 ## Bootstrap local
 
-Con Supabase local iniciado, definir credenciales sintéticas únicas en `.env.local` o exportarlas solo para la sesión de la terminal. La contraseña debe tener al menos 8 caracteres e incluir un número.
+Con Supabase local iniciado, definir credenciales sintéticas únicas en `.env.bootstrap.local` o exportarlas solo para la sesión de la terminal. La contraseña debe tener al menos 8 caracteres e incluir un número.
 
 ```bash
 BOOTSTRAP_SUPER_ADMIN_EMAIL=<email-sintetico-local> \
@@ -45,6 +45,27 @@ pnpm bootstrap:super-admin
 ```
 
 `.env.local` está ignorado por Git y no debe compartirse. El script nunca imprime contraseñas ni claves. Si Auth se creó y el perfil falla, informa el `user_id` para reparar el perfil o, con confirmación explícita, limpiar el usuario de Auth. En entornos remotos exige `--confirm-remote`; crear cuentas reales requiere autorización explícita.
+
+### Bootstrap sintético de staging
+
+El modo remoto controlado se ejecuta únicamente contra `digraf-staging` y requiere `--all-roles --confirm-remote`. Recibe las siguientes variables solo desde el entorno de ejecución:
+
+- `SUPABASE_URL`
+- `SUPABASE_PROJECT_ID`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` o `SUPABASE_PUBLISHABLE_KEY`
+- `BOOTSTRAP_SUPER_ADMIN_EMAIL`, `BOOTSTRAP_SUPER_ADMIN_NAME`, `BOOTSTRAP_SUPER_ADMIN_PASSWORD`
+- `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_PASSWORD`
+- `BOOTSTRAP_ATTENTION_EMAIL`, `BOOTSTRAP_ATTENTION_NAME`, `BOOTSTRAP_ATTENTION_PASSWORD`
+- `BOOTSTRAP_EMPLOYEE_EMAIL`, `BOOTSTRAP_EMPLOYEE_NAME`, `BOOTSTRAP_EMPLOYEE_PASSWORD`
+
+Con todos los valores sintéticos disponibles únicamente en la sesión autorizada:
+
+```bash
+pnpm bootstrap:super-admin -- --all-roles --confirm-remote
+```
+
+El modo actualiza o crea solo esas cuatro identidades, exige emails `@example.test`, confirma Auth, deja perfiles activos con acceso operativo para las validaciones de staging y comprueba RLS, tablas operativas vacías y Storage sin buckets. No crea pedidos, catálogos, pagos, caja, comentarios ni objetos.
 
 ### Cuentas estables de desarrollo
 

@@ -5,7 +5,11 @@
       "type": "remote",
       "url": "https://mcp.trello.com/v1",
       "oauth": {},
-      "enabled": false
+      "enabled": true
     }
-  }
+  },
+  "plugin": [
+    "context-mode",
+    "@dietrichgebert/ponytail"
+  ]
 }

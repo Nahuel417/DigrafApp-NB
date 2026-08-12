@@ -131,7 +131,7 @@ export function Timeline({ events }: { events: Array<{
 
 function eventLabel(type: string, event: { details: Record<string, unknown>; fromStageName?: string; toStageName?: string }) {
   if (type === "commented") return "Comentario";
-  if (type === "stage_moved") return `Se movió el pedido de ${event.fromStageName ?? "inicio"} a ${event.toStageName ?? "una etapa no disponible"}`;
+  if (type === "stage_moved") return `Se movió el pedido de ${event.fromStageName ?? "la etapa inicial"} a ${event.toStageName ?? "una etapa no disponible"}`;
   if (type === "promised_delivery_date_changed") return "Se actualizó la fecha prometida";
   if (type === "order_updated") return operationalHistorySummary(event.details);
   return type;
