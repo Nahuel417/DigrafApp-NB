@@ -76,8 +76,71 @@ export type Database = {
           },
         ]
       }
+      cash_day_lifecycle_events: {
+        Row: {
+          actor_id: string | null
+          cash_day_id: string
+          closing_balance: number | null
+          closure_kind: string | null
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          reason: string | null
+          sequence_no: number
+        }
+        Insert: {
+          actor_id?: string | null
+          cash_day_id: string
+          closing_balance?: number | null
+          closure_kind?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          reason?: string | null
+          sequence_no: number
+        }
+        Update: {
+          actor_id?: string | null
+          cash_day_id?: string
+          closing_balance?: number | null
+          closure_kind?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          reason?: string | null
+          sequence_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_day_lifecycle_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_day_lifecycle_events_cash_day_id_fkey"
+            columns: ["cash_day_id"]
+            isOneToOne: false
+            referencedRelation: "cash_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_days: {
         Row: {
+          closed_at: string | null
+          closed_by: string | null
+          closing_balance: number | null
+          closure_idempotency_fingerprint: string | null
+          closure_idempotency_key: string | null
+          closure_kind: string | null
           created_at: string
           id: string
           opening_balance: number
@@ -85,6 +148,12 @@ export type Database = {
           operational_date: string
         }
         Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          closing_balance?: number | null
+          closure_idempotency_fingerprint?: string | null
+          closure_idempotency_key?: string | null
+          closure_kind?: string | null
           created_at?: string
           id?: string
           opening_balance?: number
@@ -92,13 +161,27 @@ export type Database = {
           operational_date: string
         }
         Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          closing_balance?: number | null
+          closure_idempotency_fingerprint?: string | null
+          closure_idempotency_key?: string | null
+          closure_kind?: string | null
           created_at?: string
           id?: string
           opening_balance?: number
           opening_updated_at?: string
           operational_date?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cash_days_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cash_expense_categories: {
         Row: {
@@ -123,6 +206,70 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      cash_movement_events: {
+        Row: {
+          actor_id: string
+          cash_day_id: string
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          movement_id: string
+          new_state: Json | null
+          previous_state: Json
+          reason: string | null
+        }
+        Insert: {
+          actor_id: string
+          cash_day_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          idempotency_fingerprint: string
+          idempotency_key: string
+          movement_id: string
+          new_state?: Json | null
+          previous_state: Json
+          reason?: string | null
+        }
+        Update: {
+          actor_id?: string
+          cash_day_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          idempotency_fingerprint?: string
+          idempotency_key?: string
+          movement_id?: string
+          new_state?: Json | null
+          previous_state?: Json
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_movement_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movement_events_cash_day_id_fkey"
+            columns: ["cash_day_id"]
+            isOneToOne: false
+            referencedRelation: "cash_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movement_events_movement_id_fkey"
+            columns: ["movement_id"]
+            isOneToOne: false
+            referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cash_movements: {
         Row: {
@@ -867,6 +1014,55 @@ export type Database = {
     }
     Functions: {
       cash_current_actor_is_operational: { Args: never; Returns: boolean }
+      cash_m10_effective_movements: {
+        Args: { p_day_id: string }
+        Returns: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string
+          direction: string
+          expense_category_code: string
+          expense_category_id: string
+          expense_category_name: string
+          movement_id: string
+          voided: boolean
+        }[]
+      }
+      close_cash_day: {
+        Args: { p_cash_day_id: string; p_idempotency_key: string }
+        Returns: {
+          cash_day_id: string
+          closed_at: string
+          closed_by: string
+          closing_balance: string
+          closure_kind: string
+        }[]
+      }
+      correct_cash_movement: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_direction: string
+          p_expense_category_id: string
+          p_idempotency_key: string
+          p_movement_id: string
+        }
+        Returns: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string
+          direction: string
+          event_id: string
+          expense_category_code: string
+          expense_category_id: string
+          expense_category_name: string
+          movement_id: string
+        }[]
+      }
       create_cash_movement: {
         Args: {
           p_amount: number
@@ -977,11 +1173,33 @@ export type Database = {
           previous_object_path: string
         }[]
       }
+      get_cash_day_summary: {
+        Args: { p_cash_day_id: string }
+        Returns: {
+          cash_day_id: string
+          closed_at: string
+          closed_by: string
+          closed_by_display_name: string
+          closing_balance: string
+          closure_kind: string
+          events: Json
+          lifecycle_events: Json
+          movements: Json
+          opening_balance: number
+          opening_updated_at: string
+          operational_date: string
+        }[]
+      }
       get_current_cash_summary: {
         Args: never
         Returns: {
           cash_day_id: string
           categories: Json
+          closed_at: string
+          closed_by: string
+          closed_by_display_name: string
+          closing_balance: number
+          closure_kind: string
           current_balance: string
           movements: Json
           opening_balance: number
@@ -1001,6 +1219,18 @@ export type Database = {
           from_stage_id: string
           occurred_at: string
           to_stage_id: string
+        }[]
+      }
+      list_closed_cash_days: {
+        Args: never
+        Returns: {
+          cash_day_id: string
+          closed_at: string
+          closed_by: string
+          closed_by_display_name: string
+          closing_balance: string
+          closure_kind: string
+          operational_date: string
         }[]
       }
       move_order: {
@@ -1044,6 +1274,21 @@ export type Database = {
           event_id: string
           stage_id: string
           stage_name: string
+        }[]
+      }
+      reopen_cash_day: {
+        Args: {
+          p_cash_day_id: string
+          p_idempotency_key: string
+          p_reason: string
+        }
+        Returns: {
+          cash_day_id: string
+          event_id: string
+          reason: string
+          reopened_at: string
+          reopened_by: string
+          sequence_no: number
         }[]
       }
       reorder_workflow_stages: {
@@ -1129,6 +1374,19 @@ export type Database = {
           event_id: string
           order_id: string
           updated_at: string
+        }[]
+      }
+      void_cash_movement: {
+        Args: {
+          p_idempotency_key: string
+          p_movement_id: string
+          p_reason: string
+        }
+        Returns: {
+          cash_day_id: string
+          event_id: string
+          movement_id: string
+          voided: boolean
         }[]
       }
     }

@@ -8,7 +8,7 @@ import type { Database } from "../../src/lib/supabase/database.types";
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const localUrl = url ?? "http://127.0.0.1:54321";
+const localUrl = url ?? "http://127.0.0.1:54396";
 const password = `M5M6${randomUUID().replaceAll("-", "")}7`;
 
 type Role = Database["public"]["Enums"]["app_role"];
