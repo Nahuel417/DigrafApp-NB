@@ -3,18 +3,19 @@
 import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction } from "../actions";
+import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, reverseOrderPaymentAction } from "../actions";
 import { OrderBoard } from "./order-board";
 
 vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
 vi.mock("./order-design-thumbnail", () => ({ OrderDesignThumbnail: () => null }));
-vi.mock("./order-quick-view", () => ({ OrderQuickView: () => null }));
+vi.mock("./order-quick-view", async () => await vi.importActual<typeof import("./order-quick-view")>("./order-quick-view"));
 vi.mock("../actions", () => ({
   confirmOrderPaymentAction: vi.fn(),
   getOrderQuickViewAction: vi.fn(),
   moveOrderAction: vi.fn(),
   reconcileOrderAction: vi.fn(),
+  reverseOrderPaymentAction: vi.fn(),
 }));
 
 const receivedId = "11111111-1111-4111-8111-111111111111";
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.mocked(getOrderQuickViewAction).mockReset();
   vi.mocked(moveOrderAction).mockReset();
   vi.mocked(reconcileOrderAction).mockReset();
+  vi.mocked(reverseOrderPaymentAction).mockReset();
 });
 
 afterEach(() => cleanup());
@@ -143,5 +145,29 @@ describe("order board payment confirmation", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByText("Equipo M11", { exact: true })).toBeTruthy();
     expect(confirmOrderPaymentAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("order board payment reversal", () => {
+  it("requires confirmation, keeps cancellation side-effect free, and blocks duplicate submits", async () => {
+    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pagado", stageCode: "paid", expectedUpdatedAt: "2026-08-12T19:01:00.000Z", canReversePayment: true, paymentId: "44444444-4444-4444-8444-444444444444", canEditDescription: false, canEditSensitive: true, lastMovement: null, comments: [] } });
+    let resolveAction!: (value: Awaited<ReturnType<typeof reverseOrderPaymentAction>>) => void;
+    vi.mocked(reverseOrderPaymentAction).mockReturnValue(new Promise((resolve) => { resolveAction = resolve; }));
+    render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [{ ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" }] }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vista rápida de PED-000007" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Revertir pago" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Revertir pago" }));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(reverseOrderPaymentAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Revertir pago" }));
+    const dialog = screen.getByRole("alertdialog");
+    const submit = within(dialog).getByRole("button", { name: "Revertir pago" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(reverseOrderPaymentAction).toHaveBeenCalledTimes(1);
+    resolveAction({ status: "success", message: "ok", toastId: "ok", paymentId: "44444444-4444-4444-8444-444444444444", reconciledOrder: { ...order, currentStageId: receivedId } });
   });
 });
