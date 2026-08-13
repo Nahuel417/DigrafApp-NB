@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "@/lib/supabase/server";
-import { getCashDaySummary, getCurrentCash, listClosedCashDays, mapCashDaySummary, mapCashSummary } from "./queries";
+import { getCashDaySummary, getCurrentCash, listClosedCashDays, mapCashDaySummary, mapCashSummary, shouldLoadCashHistory } from "./queries";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
@@ -16,6 +16,11 @@ beforeEach(() => {
 });
 
 describe("cash summary mapping", () => {
+  it("does not reload the current day after it has closed", () => {
+    expect(shouldLoadCashHistory(base.cash_day_id, { cashDayId: base.cash_day_id, closedAt: closed.closed_at })).toBe(false);
+    expect(shouldLoadCashHistory("22222222-2222-4222-8222-222222222222", { cashDayId: base.cash_day_id, closedAt: closed.closed_at })).toBe(true);
+  });
+
   it("keeps exact decimals and maps derived current-day records", () => {
     const summary = mapCashSummary({ ...base, categories: [{ id: "22222222-2222-4222-8222-222222222222", code: "materials", name: "Materiales/insumos" }], current_balance: "115.25", opening_balance: 100, movements: [{ id: "33333333-3333-4333-8333-333333333333", direction: "expense", amount: 10.25, description: "Compra", expense_category_id: null, expense_category_code: null, expense_category_name: null, actor_id: "44444444-4444-4444-8444-444444444444", created_at: "2026-08-06T03:10:00.000Z" }] });
     expect(summary.currentBalance).toBe("115.25");

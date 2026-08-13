@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CashDashboard } from "@/features/cash/components/cash-dashboard";
-import { getCashDaySummary, getCurrentCash, listClosedCashDays } from "@/features/cash/queries";
+import { getCashDaySummary, getCurrentCash, listClosedCashDays, shouldLoadCashHistory } from "@/features/cash/queries";
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canCloseCash, canOperateCash, canReopenCash } from "@/lib/auth/permissions";
 
@@ -20,7 +20,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   try {
     const { cashDay } = await searchParams;
     [summary, closedDays] = await Promise.all([getCurrentCash(), listClosedCashDays()]);
-    if (cashDay && (cashDay !== summary.cashDayId || Boolean(summary.closedAt))) {
+    if (shouldLoadCashHistory(cashDay, summary)) {
       try {
         selectedHistory = await getCashDaySummary(cashDay);
       } catch {

@@ -116,6 +116,10 @@ export function mapClosedCashDay(row: unknown): ClosedCashDay { const value = re
 
 export function mapCashDaySummary(row: unknown): CashDaySummary { const value = record(row, "el historial"); return { cashDayId: text(value.cash_day_id, "el identificador de caja"), operationalDate: text(value.operational_date, "el día operativo"), openingBalance: decimal(value.opening_balance, "el saldo inicial"), openingUpdatedAt: text(value.opening_updated_at, "la versión de apertura"), ...closureFields(value), movements: array(value.movements, "la lista de movimientos").map(mapMovement), events: array(value.events, "la lista de eventos").map(mapEvent), lifecycleEvents: array(value.lifecycle_events ?? [], "la lista de ciclos").map(mapLifecycleEvent) }; }
 
+export function shouldLoadCashHistory(cashDayId: string | undefined, summary: Pick<CashSummary, "cashDayId" | "closedAt">): cashDayId is string {
+  return Boolean(cashDayId && cashDayId !== summary.cashDayId);
+}
+
 function cashQueryErrorMessage(message: string) {
   return message.includes("No tenés permiso")
     ? "No tenés permiso para consultar la caja."
