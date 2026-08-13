@@ -19,6 +19,8 @@ const order = (id: string, currentStageId: string, promisedDeliveryDate: string,
   updatedAt: "2026-07-29T03:00:00.000Z",
   hasDesignImage: false,
   imageUpdatedAt: null,
+  totalAmount: null,
+  paymentConfirmedAt: null,
 });
 
 describe("order board queries", () => {
@@ -42,6 +44,8 @@ describe("order board queries", () => {
 
   it("uses a non-financial DTO", () => {
     const item = order("one", "received", "2026-08-01", 1);
-    expect(Object.keys(item)).not.toEqual(expect.arrayContaining(["totalAmount", "depositAmount", "depositPaid"]));
+    expect(item.totalAmount).toBeNull();
+    expect(item).not.toHaveProperty("depositAmount");
+    expect(item).not.toHaveProperty("depositPaid");
   });
 });

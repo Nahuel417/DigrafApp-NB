@@ -766,6 +766,128 @@ export type Database = {
           },
         ]
       }
+      order_payment_events: {
+        Row: {
+          actor_id: string
+          event_type: string
+          fingerprint: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          order_payment_id: string
+          order_snapshot: Json
+          payment_snapshot: Json
+          stage: string
+        }
+        Insert: {
+          actor_id: string
+          event_type: string
+          fingerprint: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          order_payment_id: string
+          order_snapshot: Json
+          payment_snapshot: Json
+          stage: string
+        }
+        Update: {
+          actor_id?: string
+          event_type?: string
+          fingerprint?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          order_payment_id?: string
+          order_snapshot?: Json
+          payment_snapshot?: Json
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payment_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payment_events_order_payment_id_fkey"
+            columns: ["order_payment_id"]
+            isOneToOne: false
+            referencedRelation: "order_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_payments: {
+        Row: {
+          actor_id: string
+          amount: number
+          cash_movement_id: string | null
+          confirmed_at: string
+          fingerprint: string
+          id: string
+          idempotency_key: string
+          order_id: string
+          reversal_cash_movement_id: string | null
+          reversed_at: string | null
+        }
+        Insert: {
+          actor_id: string
+          amount: number
+          cash_movement_id?: string | null
+          confirmed_at?: string
+          fingerprint: string
+          id?: string
+          idempotency_key: string
+          order_id: string
+          reversal_cash_movement_id?: string | null
+          reversed_at?: string | null
+        }
+        Update: {
+          actor_id?: string
+          amount?: number
+          cash_movement_id?: string | null
+          confirmed_at?: string
+          fingerprint?: string
+          id?: string
+          idempotency_key?: string
+          order_id?: string
+          reversal_cash_movement_id?: string | null
+          reversed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payments_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_cash_movement_id_fkey"
+            columns: ["cash_movement_id"]
+            isOneToOne: false
+            referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_reversal_cash_movement_id_fkey"
+            columns: ["reversal_cash_movement_id"]
+            isOneToOne: false
+            referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_stage_events: {
         Row: {
           actor_id: string
@@ -1040,6 +1162,26 @@ export type Database = {
           closure_kind: string
         }[]
       }
+      confirm_order_payment: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+        }
+        Returns: {
+          amount: number
+          cash_movement_id: string
+          confirmed_at: string
+          event_id: string
+          from_stage_id: string
+          order_id: string
+          payment_id: string
+          public_number: number
+          stage_code: string
+          to_stage_id: string
+          updated_at: string
+        }[]
+      }
       correct_cash_movement: {
         Args: {
           p_amount: number
@@ -1207,6 +1349,23 @@ export type Database = {
           operational_date: string
         }[]
       }
+      get_order_board: {
+        Args: never
+        Returns: {
+          current_stage_id: string
+          customer_name: string
+          has_design_image: boolean
+          id: string
+          image_updated_at: string
+          order_type: Database["public"]["Enums"]["order_type"]
+          payment_confirmed_at: string
+          promised_delivery_date: string
+          public_number: number
+          quantity: number
+          total_amount: number
+          updated_at: string
+        }[]
+      }
       get_order_timeline: {
         Args: { p_order_id: string }
         Returns: {
@@ -1232,6 +1391,10 @@ export type Database = {
           closure_kind: string
           operational_date: string
         }[]
+      }
+      m11_payment_fingerprint: {
+        Args: { p_expected_updated_at: string; p_order_id: string }
+        Returns: string
       }
       move_order: {
         Args: {

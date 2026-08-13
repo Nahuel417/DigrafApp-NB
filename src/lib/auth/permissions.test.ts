@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canCreateManualOrder, canManageCatalogs, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canManageCatalogs, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash } from "./permissions";
 
 describe("M3 permissions", () => {
   it("allows Attention to create manual orders without catalog administration", () => {
@@ -60,5 +60,14 @@ describe("cash permissions", () => {
     expect(canReopenCash("admin")).toBe(true);
     expect(canReopenCash("attention")).toBe(true);
     expect(canReopenCash("employee")).toBe(false);
+  });
+});
+
+describe("payment permissions", () => {
+  it("allows only financial operational roles to confirm payment", () => {
+    expect(canConfirmPayment("super_admin")).toBe(true);
+    expect(canConfirmPayment("admin")).toBe(true);
+    expect(canConfirmPayment("attention")).toBe(true);
+    expect(canConfirmPayment("employee")).toBe(false);
   });
 });
