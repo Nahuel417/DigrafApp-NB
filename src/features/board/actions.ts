@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canEditOrderDescription, canEditOrderSensitive, canMoveOrder } from "@/lib/auth/permissions";
+import { canConfirmPayment, canEditOrderDescription, canEditOrderSensitive, canMoveOrder } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 
-import { getOrderMovementSnapshot } from "./queries";
-import { moveOrderSchema, reconcileOrderSchema } from "./schemas";
+import { getOrderBoardSnapshot, getOrderMovementSnapshot } from "./queries";
+import { confirmOrderPaymentSchema, moveOrderSchema, reconcileOrderSchema } from "./schemas";
 import { getOrderDetail, getOrderTimeline } from "../orders/detail-queries";
 
 export type MoveOrderActionState = MutationState & {
@@ -22,6 +22,14 @@ export type MoveOrderActionState = MutationState & {
     currentStageId: string;
     updatedAt: string;
   };
+};
+
+export type ConfirmOrderPaymentActionState = MutationState & {
+  code?: "permission_denied" | "version_conflict" | "idempotency_conflict" | "cash_closed" | "already_paid" | "invalid_stage" | "not_found" | "invalid_request";
+  paymentId?: string;
+  cashMovementId?: string | null;
+  confirmedAt?: string;
+  reconciledOrder?: Awaited<ReturnType<typeof getOrderBoardSnapshot>>;
 };
 
 function formValues(formData: FormData) {
@@ -47,6 +55,86 @@ function moveOrderErrorMessage(message: string) {
   ];
 
   return knownMessages.find((knownMessage) => message.includes(knownMessage)) ?? "No se pudo mover el pedido. Intentá nuevamente.";
+}
+
+const paymentErrorMessages = [
+  ["permission_denied", "No tenés permiso para confirmar pagos.", ["No tenés permiso para confirmar pagos."]],
+  ["version_conflict", "El pedido cambió en otra sesión. Actualizá el tablero e intentá nuevamente.", ["El pedido cambió en otra sesión"]],
+  ["idempotency_conflict", "La clave de idempotencia ya fue utilizada para otra confirmación de pago.", ["La clave de idempotencia ya fue utilizada para otra confirmación de pago."]],
+  ["cash_closed", "La caja está cerrada y no admite nuevas cobranzas.", ["La caja está cerrada y no admite nuevas cobranzas."]],
+  ["already_paid", "El pedido ya está pagado.", ["El pedido ya está pagado."]],
+  ["invalid_stage", "La etapa Pagado no está disponible.", ["La etapa Pagado no está disponible."]],
+  ["not_found", "El pedido seleccionado no existe.", ["El pedido seleccionado no existe."]],
+  ["invalid_request", "La confirmación de pago no es válida.", ["La confirmación de pago no es válida."]],
+] as const;
+
+function paymentError(message: string) {
+  const match = paymentErrorMessages.find(([code, , markers]) => message.includes(code) || markers.some((marker) => message.includes(marker)));
+  return match
+    ? { code: match[0], message: match[1] }
+    : { code: "invalid_request" as const, message: "No se pudo confirmar el pago. Intentá nuevamente." };
+}
+
+function paymentFormValues(formData: FormData) {
+  return {
+    orderId: String(formData.get("orderId") ?? ""),
+    expectedUpdatedAt: String(formData.get("expectedUpdatedAt") ?? ""),
+    idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
+  };
+}
+
+async function paymentSnapshot(orderId: string, role: Parameters<typeof getOrderBoardSnapshot>[1]) {
+  const snapshot = await getOrderBoardSnapshot(orderId, role);
+  return snapshot ? { reconciledOrder: snapshot } : {};
+}
+
+export async function confirmOrderPaymentAction(
+  _previous: ConfirmOrderPaymentActionState,
+  formData: FormData,
+): Promise<ConfirmOrderPaymentActionState> {
+  const parsed = confirmOrderPaymentSchema.safeParse(paymentFormValues(formData));
+  if (!parsed.success) {
+    return { ...mutationResult("error", parsed.error.issues[0]?.message ?? "La confirmación de pago no es válida.", parsed.error.flatten().fieldErrors), code: "invalid_request" };
+  }
+
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword || !canConfirmPayment(profile.role)) {
+    return { ...mutationResult("error", "No tenés permiso para confirmar pagos."), code: "permission_denied" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("confirm_order_payment", {
+    p_order_id: parsed.data.orderId,
+    p_expected_updated_at: parsed.data.expectedUpdatedAt,
+    p_idempotency_key: parsed.data.idempotencyKey,
+  });
+
+  if (error) {
+    const mapped = paymentError(error.message);
+    revalidatePath("/orders");
+    revalidatePath(`/orders/${parsed.data.orderId}`);
+    revalidatePath("/cash");
+    const recoverable = mapped.code !== "permission_denied" && mapped.code !== "invalid_request";
+    return {
+      ...mutationResult("error", mapped.message),
+      code: mapped.code,
+      ...(recoverable ? await paymentSnapshot(parsed.data.orderId, profile.role) : {}),
+    };
+  }
+
+  const payment = data?.[0];
+  if (!payment) return { ...mutationResult("error", "No se pudo confirmar el pago. Intentá nuevamente."), code: "invalid_request" };
+
+  revalidatePath("/orders");
+  revalidatePath(`/orders/${parsed.data.orderId}`);
+  revalidatePath("/cash");
+  return {
+    ...mutationResult("success", `PED-${String(payment.public_number).padStart(6, "0")} quedó confirmado como Pagado.`),
+    paymentId: payment.payment_id,
+    cashMovementId: payment.cash_movement_id,
+    confirmedAt: payment.confirmed_at,
+    ...(await paymentSnapshot(parsed.data.orderId, profile.role)),
+  };
 }
 
 export async function moveOrderAction(

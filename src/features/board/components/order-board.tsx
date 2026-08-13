@@ -21,13 +21,15 @@ import Link from "next/link";
 import { startTransition, useState, useTransition } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
+import { formatArs } from "@/lib/money/decimal";
 
-import { getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, type MoveOrderActionState, type OrderQuickView } from "../actions";
-import { moveBoardOrder } from "../board-state";
+import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, type ConfirmOrderPaymentActionState, type MoveOrderActionState, type OrderQuickView } from "../actions";
+import { moveBoardOrder, replaceBoardOrder } from "../board-state";
 import type { BoardColumn, BoardOrder } from "../queries";
 import { OrderDesignThumbnail } from "./order-design-thumbnail";
 import { OrderQuickView as OrderQuickViewPanel } from "./order-quick-view";
@@ -35,6 +37,7 @@ import { OrderQuickView as OrderQuickViewPanel } from "./order-quick-view";
 type MoveSource = Pick<BoardOrder, "id" | "currentStageId" | "updatedAt">;
 type MovementMethod = "selector" | "dnd";
 type QuickViewData = OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">;
+type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
 
 function orderId(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -75,11 +78,13 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
 }
 
 function MoveOrderSelector({
+  canConfirmPayment,
   columns,
   isPending,
   onMove,
   order,
 }: {
+  canConfirmPayment: boolean;
   columns: BoardColumn[];
   isPending: boolean;
   onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
@@ -89,7 +94,7 @@ function MoveOrderSelector({
   const selectId = `move-order-${order.id}`;
   const paidStageId = columns.find((column) => column.code === "paid")?.id;
   const movementLocked = order.currentStageId === paidStageId;
-  const availableDestinations = columns.filter((column) => column.id !== order.currentStageId && column.code !== "paid");
+  const availableDestinations = columns.filter((column) => column.id !== order.currentStageId && (canConfirmPayment || column.code !== "paid"));
 
   if (movementLocked) {
     return <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">Los movimientos desde Pagado se habilitarán al confirmar el cobro.</p>;
@@ -126,12 +131,14 @@ function MoveOrderSelector({
 }
 
 function DraggableOrderCard({
+  canConfirmPayment,
   columns,
   isPending,
   onMove,
   onQuickView,
   order,
 }: {
+  canConfirmPayment: boolean;
   columns: BoardColumn[];
   isPending: boolean;
   onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
@@ -175,33 +182,41 @@ function DraggableOrderCard({
         </div>
       </div>
       <Button aria-label={`Vista rápida de ${orderId(order.publicNumber)}`} className="mt-3 w-full" data-no-drag="true" onClick={() => onQuickView(order.id)} onPointerDown={(event) => event.stopPropagation()} type="button" variant="ghost"><Eye data-icon="inline-start" />Vista rápida</Button>
-      <MoveOrderSelector columns={columns} isPending={isPending} onMove={onMove} order={order} />
+      <MoveOrderSelector canConfirmPayment={canConfirmPayment} columns={columns} isPending={isPending} onMove={onMove} order={order} />
     </article>
   );
 }
 
 function BoardColumnView({
   activeOrder,
+  canConfirmPayment,
   children,
   column,
   paidStageId,
 }: {
   activeOrder: BoardOrder | null;
+  canConfirmPayment: boolean;
   children: React.ReactNode;
   column: BoardColumn;
   paidStageId?: string;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: column.id, data: { code: column.code } });
+  const { isOver, setNodeRef } = useDroppable({ disabled: !canConfirmPayment && column.id === paidStageId, id: column.id, data: { code: column.code } });
   const isCurrentStage = activeOrder?.currentStageId === column.id;
-  const isPaidTransition = Boolean(activeOrder && (column.id === paidStageId || activeOrder.currentStageId === paidStageId));
-  const isValidTarget = Boolean(activeOrder && !isCurrentStage && !isPaidTransition);
+  const isMovingFromPaid = Boolean(activeOrder && activeOrder.currentStageId === paidStageId);
+  const isPaidTarget = Boolean(activeOrder && column.id === paidStageId && activeOrder.currentStageId !== paidStageId);
+  const isPaymentTarget = Boolean(canConfirmPayment && isPaidTarget);
+  const isValidTarget = Boolean(activeOrder && !isCurrentStage && !isMovingFromPaid && (!isPaidTarget || canConfirmPayment));
   const targetLabel = !activeOrder
     ? null
-    : isPaidTransition
+    : isMovingFromPaid
       ? "Destino no disponible"
-      : isCurrentStage
-        ? "Etapa actual"
-        : "Destino disponible";
+      : isPaidTarget && !canConfirmPayment
+        ? "Destino no disponible"
+      : isPaymentTarget
+        ? "Confirmar cobro"
+        : isCurrentStage
+          ? "Etapa actual"
+          : "Destino disponible";
 
   return (
     <section
@@ -232,13 +247,14 @@ function BoardColumnView({
   );
 }
 
-export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrders: boolean; initialColumns: BoardColumn[] }) {
+export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns }: { canConfirmPayment: boolean; canCreateOrders: boolean; initialColumns: BoardColumn[] }) {
   const [columns, setColumns] = useState(initialColumns);
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("Tablero listo para mover pedidos.");
-  const [mutationState, setMutationState] = useState<MoveOrderActionState>({});
+  const [mutationState, setMutationState] = useState<MoveOrderActionState | ConfirmOrderPaymentActionState>({});
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [quickView, setQuickView] = useState<QuickViewData | null>(null);
   const [quickViewError, setQuickViewError] = useState<string | null>(null);
   const [isQuickViewPending, startQuickViewTransition] = useTransition();
@@ -299,6 +315,71 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
     focusOrderControl(order.id, method);
   }
 
+  function openPaymentConfirmation(order: BoardOrder, source: MoveSource, method: MovementMethod) {
+    setErrorMessage(null);
+    setPaymentRequest({ order, source, method });
+    setAnnouncement(`Se abrió la confirmación de cobro para ${orderId(order.publicNumber)}.`);
+  }
+
+  function closePaymentConfirmation(announce = true) {
+    if (!paymentRequest) return;
+    const request = paymentRequest;
+    setPaymentRequest(null);
+    if (announce) {
+      setAnnouncement(`Cancelaste la confirmación de cobro de ${orderId(request.order.publicNumber)}. El pedido permanece en ${stageName(request.source.currentStageId)}.`);
+    }
+    focusOrderControl(request.order.id, request.method);
+  }
+
+  function confirmPayment() {
+    if (!paymentRequest || pendingOrderIds.has(paymentRequest.order.id)) return;
+    const { order, source, method } = paymentRequest;
+    const formData = new FormData();
+    formData.set("orderId", order.id);
+    formData.set("expectedUpdatedAt", source.updatedAt);
+    formData.set("idempotencyKey", crypto.randomUUID());
+
+    setErrorMessage(null);
+    setPendingOrderIds((current) => new Set(current).add(order.id));
+    setAnnouncement(`Confirmando el cobro de ${orderId(order.publicNumber)}.`);
+    startTransition(async () => {
+      try {
+        const result = await confirmOrderPaymentAction({}, formData);
+        if (result.status === "success") {
+          setColumns((current) => result.reconciledOrder ? replaceBoardOrder(current, result.reconciledOrder) : moveBoardOrder(current, order.id, paidStageId ?? source.currentStageId, result.confirmedAt));
+          setMutationState(result);
+          setPaymentRequest(null);
+          setAnnouncement(result.message ?? `${orderId(order.publicNumber)} quedó confirmado como Pagado.`);
+        } else {
+          if (result.reconciledOrder) setColumns((current) => replaceBoardOrder(current, result.reconciledOrder!));
+          setErrorMessage(result.message ?? "No se pudo confirmar el cobro. Intentá nuevamente.");
+          setMutationState(result);
+          setPaymentRequest(null);
+          setAnnouncement(`${orderId(order.publicNumber)} no se confirmó. ${result.message ?? "Intentá nuevamente."}`);
+        }
+      } catch {
+        const canonicalOrder = await reconcileOrderAction(order.id);
+        if (canonicalOrder) {
+          setColumns((current) => moveBoardOrder(current, order.id, canonicalOrder.currentStageId, canonicalOrder.updatedAt));
+          const message = `Estado actualizado: ${orderId(order.publicNumber)} permanece en ${stageName(canonicalOrder.currentStageId)}.`;
+          setErrorMessage(message);
+          setMutationState({ message, status: "error", toastId: crypto.randomUUID() });
+          setPaymentRequest(null);
+          setAnnouncement(message);
+        } else {
+          const message = "Estado no confirmado. Recargá el tablero para verificar el cobro.";
+          setErrorMessage(message);
+          setMutationState({ message, status: "error", toastId: crypto.randomUUID() });
+          setPaymentRequest(null);
+          setAnnouncement(message);
+        }
+      } finally {
+        clearPending(order.id);
+        focusOrderControl(order.id, method);
+      }
+    });
+  }
+
   function requestMove(source: MoveSource, targetStageId: string, method: MovementMethod) {
     const order = findOrder(source.id);
     if (!order) return;
@@ -311,8 +392,16 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
       focusOrderControl(source.id, method);
       return;
     }
-    if (source.currentStageId === paidStageId || targetStageId === paidStageId) {
-      reportLocalRejection(order, "Los movimientos hacia o desde Pagado estarán disponibles al confirmar el cobro.", method);
+    if (source.currentStageId === paidStageId) {
+      reportLocalRejection(order, "Los movimientos desde Pagado estarán disponibles en una etapa posterior.", method);
+      return;
+    }
+    if (targetStageId === paidStageId) {
+      if (!canConfirmPayment) {
+        reportLocalRejection(order, "No tenés permiso para confirmar pagos.", method);
+        return;
+      }
+      openPaymentConfirmation(order, source, method);
       return;
     }
 
@@ -396,8 +485,12 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
     const targetStageId = String(event.over.id);
     if (targetStageId === order.currentStageId) {
       setAnnouncement(`${orderId(order.publicNumber)} está sobre su etapa actual. Soltar no realizará cambios.`);
-    } else if (targetStageId === paidStageId || order.currentStageId === paidStageId) {
-      setAnnouncement(`Pagado no está disponible como destino para ${orderId(order.publicNumber)}.`);
+    } else if (targetStageId === paidStageId && order.currentStageId !== paidStageId) {
+      setAnnouncement(canConfirmPayment
+        ? `${orderId(order.publicNumber)} está sobre Pagado. Soltá para confirmar el cobro.`
+        : `Pagado no está disponible como destino para ${orderId(order.publicNumber)}.`);
+    } else if (order.currentStageId === paidStageId) {
+      setAnnouncement(`Pagado no está disponible como origen para ${orderId(order.publicNumber)}.`);
     } else {
       setAnnouncement(`${orderId(order.publicNumber)} está sobre ${stageName(targetStageId)}. Soltá para moverlo.`);
     }
@@ -450,6 +543,7 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
   };
 
   const orderCount = columns.reduce((count, column) => count + column.orders.length, 0);
+  const paymentAmount = canConfirmPayment ? paymentRequest?.order.totalAmount ?? null : null;
 
   return (
     <DndContext
@@ -488,15 +582,35 @@ export function OrderBoard({ canCreateOrders, initialColumns }: { canCreateOrder
         <div className="w-full min-w-0 overflow-x-hidden">
           <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overflow-x-auto lg:overscroll-x-contain lg:pb-3">
             {columns.map((column) => (
-              <BoardColumnView activeOrder={activeOrder} column={column} key={column.id} paidStageId={paidStageId}>
+              <BoardColumnView activeOrder={activeOrder} canConfirmPayment={canConfirmPayment} column={column} key={column.id} paidStageId={paidStageId}>
                 {column.orders.map((order) => (
-                  <DraggableOrderCard columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} onQuickView={openQuickView} order={order} />
+                  <DraggableOrderCard canConfirmPayment={canConfirmPayment} columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} onQuickView={openQuickView} order={order} />
                 ))}
               </BoardColumnView>
             ))}
           </div>
         </div>
       </section>
+      <AlertDialog open={Boolean(paymentRequest)} onOpenChange={(open) => { if (!open && !pendingOrderIds.size) closePaymentConfirmation(); }}>
+        {paymentRequest ? (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar cobro</AlertDialogTitle>
+              <AlertDialogDescription>Esta acción registrará el cobro total, un ingreso en caja cuando corresponda y moverá el pedido a Pagado. El actor y la hora del servidor quedarán en el historial.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <dl className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+              <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Pedido</dt><dd className="font-mono font-semibold">{orderId(paymentRequest.order.publicNumber)}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Cliente</dt><dd className="text-right font-medium">{paymentRequest.order.customerName}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Importe total</dt><dd className="font-mono font-semibold tabular-nums">{paymentAmount === null ? "El importe se mostrará solo a los roles autorizados." : formatArs(String(paymentAmount))}</dd></div>
+              <div className="flex items-center justify-between gap-4"><dt className="text-muted-foreground">Destino</dt><dd className="font-medium">Pagado</dd></div>
+            </dl>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={pendingOrderIds.has(paymentRequest.order.id)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction asChild><Button disabled={pendingOrderIds.has(paymentRequest.order.id)} onClick={confirmPayment} type="button">{pendingOrderIds.has(paymentRequest.order.id) ? "Confirmando..." : "Confirmar cobro"}</Button></AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : null}
+      </AlertDialog>
       <DragOverlay dropAnimation={null}>
         {activeOrder ? (
           <div className="w-72 rounded-lg border border-primary bg-card p-4 shadow-lg forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight]" data-testid="drag-overlay">

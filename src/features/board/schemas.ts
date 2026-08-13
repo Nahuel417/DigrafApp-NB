@@ -15,4 +15,11 @@ export const reconcileOrderSchema = z.object({
   orderId: z.string().uuid("El pedido seleccionado no es válido."),
 });
 
+export const confirmOrderPaymentSchema = z.object({
+  orderId: z.string().uuid("El pedido seleccionado no es válido."),
+  expectedUpdatedAt: z.string().datetime({ offset: true, message: "La versión del pedido no es válida." }),
+  idempotencyKey: z.string().trim().min(1, "La confirmación de pago no es válida.").max(200, "La confirmación de pago no es válida."),
+});
+
 export type MoveOrderValues = z.infer<typeof moveOrderSchema>;
+export type ConfirmOrderPaymentValues = z.infer<typeof confirmOrderPaymentSchema>;
