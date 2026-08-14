@@ -53,24 +53,19 @@ export function OrderDesignImagePanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const lastAutomaticRenewalRef = useRef<string | null>(null);
-
-  function focusFeedback() {
-    window.requestAnimationFrame(() => feedbackRef.current?.focus());
-  }
+  const focusFeedbackAfterCommitRef = useRef(false);
 
   function reportError(title: string, description: string, focusInput = false) {
+    if (!focusInput) focusFeedbackAfterCommitRef.current = true;
     setFeedback({ description, kind: "error", title });
     toast.error(description);
-    window.requestAnimationFrame(() => {
-      if (focusInput) fileInputRef.current?.focus();
-      else feedbackRef.current?.focus();
-    });
+    if (focusInput) fileInputRef.current?.focus();
   }
 
   function reportSuccess(title: string, description: string) {
+    focusFeedbackAfterCommitRef.current = true;
     setFeedback({ description, kind: "success", title });
     toast.success(title);
-    focusFeedback();
   }
 
   function runExclusive(nextOperation: Exclude<Operation, "idle">, work: () => Promise<void>) {
@@ -113,6 +108,12 @@ export function OrderDesignImagePanel({
     const timeout = window.setTimeout(() => renewPreviewEvent(true), delay);
     return () => window.clearTimeout(timeout);
   }, [preview]);
+
+  useEffect(() => {
+    if (!focusFeedbackAfterCommitRef.current) return;
+    focusFeedbackAfterCommitRef.current = false;
+    feedbackRef.current?.focus();
+  }, [feedback]);
 
   function submitImage() {
     const file = fileInputRef.current?.files?.[0] ?? null;

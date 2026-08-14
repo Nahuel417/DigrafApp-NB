@@ -23,6 +23,14 @@ export function canReadOrderFinancials(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention";
 }
 
+export function canConfirmPayment(role: AppRole) {
+  return canReadOrderFinancials(role);
+}
+
+export function canReversePayment(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
 export function canMoveOrder(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }

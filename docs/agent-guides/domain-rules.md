@@ -125,7 +125,12 @@ Decisión confirmada:
 
 No cambiar esta regla para registrar seña y saldo por separado sin aprobación explícita.
 
-Admin puede revertir el pago solamente mientras la caja del día correspondiente esté abierta. La reversión anula el ingreso automático; no lo elimina. Atención puede confirmar pago, pero no revertirlo salvo decisión futura.
+M12 agrega una única entrada de servidor para la reversión: `reverse_order_payment`. Solo Admin y Super admin pueden ejecutarla, con reconfirmación explícita; Atención puede confirmar el pago, pero no revertirlo.
+
+- La reversión exige que el pedido esté en `paid` y restaura exactamente la etapa previa registrada en la confirmación. Luego permite reconfirmar el pago mediante un nuevo pago activo.
+- Si el importe es positivo, la caja correspondiente debe estar abierta. Se crea una contrapartida `expense` enlazada al pago, sin borrar el ingreso original. El motivo es opcional.
+- Si el importe es cero, no se exige caja ni se crea movimiento de caja.
+- Se mantienen las protecciones M10: los movimientos vinculados a pagos no se pueden corregir ni anular.
 
 ## Caja diaria
 

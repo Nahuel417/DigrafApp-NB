@@ -1,7 +1,7 @@
 import type { AppRole } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 
-import { sortBoardOrders } from "./board-state";
+import { sortBoardOrders, sortPaidBoardOrders } from "./board-state";
 
 export type BoardStage = {
   id: string;
@@ -21,6 +21,8 @@ export type BoardOrder = {
   updatedAt: string;
   hasDesignImage: boolean;
   imageUpdatedAt: string | null;
+  totalAmount: number | null;
+  paymentConfirmedAt: string | null;
 };
 
 export type BoardColumn = BoardStage & {
@@ -31,36 +33,6 @@ export type OrderBoard = {
   columns: BoardColumn[];
   role: AppRole;
 };
-
-const boardOrderSelect = "id, public_number, customer_name, quantity, order_type, promised_delivery_date, current_stage_id, updated_at, order_design_images (updated_at)";
-
-function toBoardOrder(order: {
-  id: string;
-  public_number: number;
-  customer_name: string;
-  quantity: number;
-  order_type: "set" | "individual";
-  promised_delivery_date: string;
-  current_stage_id: string;
-  updated_at: string;
-  order_design_images: { updated_at: string } | { updated_at: string }[] | null;
-}): BoardOrder {
-  const image = Array.isArray(order.order_design_images)
-    ? order.order_design_images[0] ?? null
-    : order.order_design_images;
-  return {
-    id: order.id,
-    publicNumber: order.public_number,
-    customerName: order.customer_name,
-    quantity: order.quantity,
-    orderType: order.order_type,
-    promisedDeliveryDate: order.promised_delivery_date,
-    currentStageId: order.current_stage_id,
-    updatedAt: order.updated_at,
-    hasDesignImage: image !== null,
-    imageUpdatedAt: image?.updated_at ?? null,
-  };
-}
 
 export function buildBoardColumns(stages: BoardStage[], orders: BoardOrder[]): BoardColumn[] {
   const columns = stages
@@ -79,7 +51,7 @@ export function buildBoardColumns(stages: BoardStage[], orders: BoardOrder[]): B
   }
 
   for (const column of columns) {
-    column.orders = sortBoardOrders(column.orders);
+    column.orders = column.code === "paid" ? sortPaidBoardOrders(column.orders) : sortBoardOrders(column.orders);
   }
 
   return columns;
@@ -89,7 +61,7 @@ export async function getOrderBoard(role: AppRole): Promise<OrderBoard> {
   const supabase = await createClient();
   const [stagesResult, ordersResult] = await Promise.all([
     supabase.from("workflow_stages").select("id, code, name, position").eq("is_active", true).order("position"),
-    supabase.from("orders").select(boardOrderSelect),
+    supabase.rpc("get_order_board"),
   ]);
 
   if (stagesResult.error || ordersResult.error) throw new Error("No se pudo cargar el tablero de pedidos.");
@@ -104,10 +76,31 @@ export async function getOrderBoard(role: AppRole): Promise<OrderBoard> {
     promised_delivery_date: string;
     current_stage_id: string;
     updated_at: string;
-    order_design_images: { updated_at: string } | { updated_at: string }[] | null;
-  }>).map(toBoardOrder);
+    has_design_image: boolean;
+    image_updated_at: string | null;
+    total_amount: number | null;
+    payment_confirmed_at: string | null;
+  }>).map((order) => ({
+    id: order.id,
+    publicNumber: order.public_number,
+    customerName: order.customer_name,
+    quantity: order.quantity,
+    orderType: order.order_type,
+    promisedDeliveryDate: order.promised_delivery_date,
+    currentStageId: order.current_stage_id,
+    updatedAt: order.updated_at,
+    hasDesignImage: order.has_design_image,
+    imageUpdatedAt: order.image_updated_at,
+    totalAmount: order.total_amount,
+    paymentConfirmedAt: order.payment_confirmed_at,
+  }));
 
   return { columns: buildBoardColumns(stages, orders), role };
+}
+
+export async function getOrderBoardSnapshot(orderId: string, role: AppRole): Promise<BoardOrder | null> {
+  const board = await getOrderBoard(role);
+  return board.columns.flatMap((column) => column.orders).find((order) => order.id === orderId) ?? null;
 }
 
 export type OrderMovementSnapshot = Pick<BoardOrder, "currentStageId" | "updatedAt">;

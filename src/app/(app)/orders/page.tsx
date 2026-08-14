@@ -1,7 +1,7 @@
 import { OrderBoard } from "@/features/board/components/order-board";
 import { getOrderBoard } from "@/features/board/queries";
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canCreateManualOrder } from "@/lib/auth/permissions";
+import { canConfirmPayment, canCreateManualOrder } from "@/lib/auth/permissions";
 
 export default async function OrdersPage() {
   const profile = await requireActiveProfile();
@@ -14,7 +14,7 @@ export default async function OrdersPage() {
         <h1 className="mt-1 text-2xl font-semibold tracking-display sm:text-3xl">Tablero de pedidos</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Mové cada pedido entre etapas. Todos los cambios quedan registrados.</p>
       </header>
-      <OrderBoard canCreateOrders={canCreateManualOrder(profile.role)} initialColumns={board.columns} />
+      <OrderBoard canConfirmPayment={canConfirmPayment(profile.role)} canCreateOrders={canCreateManualOrder(profile.role)} initialColumns={board.columns} />
     </main>
   );
 }

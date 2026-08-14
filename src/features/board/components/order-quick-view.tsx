@@ -1,13 +1,17 @@
 "use client";
 
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight, RotateCcw, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { useMutationToast } from "@/hooks/use-mutation-toast";
 
-import type { OrderQuickView } from "../actions";
+import { reverseOrderPaymentAction, type OrderQuickView, type ReverseOrderPaymentActionState } from "../actions";
 import type { BoardOrder } from "../queries";
 
 import { OrderDesignThumbnail } from "./order-design-thumbnail";
@@ -25,7 +29,68 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Cordoba" }).format(new Date(value));
 }
 
-export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">; onClose: () => void; stageNames: Record<string, string> }) {
+function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [state, setState] = useState<ReverseOrderPaymentActionState>({});
+  const [isPending, startTransition] = useTransition();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useMutationToast(state);
+
+  function submit() {
+    if (isPending || !data.paymentId) return;
+    const formData = new FormData();
+    formData.set("orderId", data.id);
+    formData.set("paymentId", data.paymentId);
+    formData.set("expectedUpdatedAt", data.expectedUpdatedAt);
+    formData.set("idempotencyKey", crypto.randomUUID());
+    if (reason.trim()) formData.set("reason", reason.trim());
+
+    startTransition(async () => {
+      const result = await reverseOrderPaymentAction({}, formData);
+      setState(result);
+      if (result.reconciledOrder) onReconciled(result.reconciledOrder);
+      if (result.status === "success") {
+        setOpen(false);
+        setReason("");
+      }
+    });
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!isPending) setOpen(nextOpen); }}>
+      <AlertDialogTrigger asChild>
+        <Button data-no-drag="true" disabled={!data.paymentId || isPending} onPointerDown={(event) => event.stopPropagation()} type="button" variant="destructive">
+          <RotateCcw data-icon="inline-start" />
+          Revertir pago
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Revertir pago</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se conservarán el pago y el ingreso original, se registrará la contrapartida y el pedido volverá a su etapa anterior. Esta acción no elimina el historial.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium" htmlFor={`reverse-payment-reason-${data.id}`}>Motivo <span className="font-normal text-muted-foreground">(opcional)</span></label>
+          <Textarea disabled={isPending} id={`reverse-payment-reason-${data.id}`} maxLength={500} onChange={(event) => setReason(event.target.value)} placeholder="Qué se corrigió y por qué (opcional)." rows={3} value={reason} />
+        </div>
+        {state.status === "error" ? <Alert variant="destructive"><AlertTitle>No se pudo revertir el pago</AlertTitle><AlertDescription>{state.message}</AlertDescription></Alert> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending} ref={cancelRef}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <Button disabled={isPending || !data.paymentId} onClick={(event) => { event.preventDefault(); submit(); }} type="button" variant="destructive">
+              {isPending ? "Revirtiendo..." : "Revertir pago"}
+            </Button>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
@@ -88,6 +153,7 @@ export function OrderQuickView({ data, onClose, stageNames }: { data: OrderQuick
       <div className="mt-5 flex flex-wrap gap-3 border-t border-border pt-4">
         <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
         {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath}>Editar pedido</Link></Button> : null}
+        {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} /> : null}
       </div>
       <dialog
         aria-labelledby={`expanded-design-heading-${data.id}`}

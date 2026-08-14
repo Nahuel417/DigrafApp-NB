@@ -7,6 +7,28 @@ export function sortBoardOrders(orders: BoardOrder[]) {
   ));
 }
 
+export function sortPaidBoardOrders(orders: BoardOrder[]) {
+  return orders.toSorted((left, right) => (
+    (right.paymentConfirmedAt ? Date.parse(right.paymentConfirmedAt) : Number.NEGATIVE_INFINITY)
+      - (left.paymentConfirmedAt ? Date.parse(left.paymentConfirmedAt) : Number.NEGATIVE_INFINITY)
+    || right.publicNumber - left.publicNumber
+  ));
+}
+
+function sortOrdersForColumn(column: BoardColumn, orders: BoardOrder[]) {
+  return column.code === "paid" ? sortPaidBoardOrders(orders) : sortBoardOrders(orders);
+}
+
+export function replaceBoardOrder(columns: BoardColumn[], replacement: BoardOrder): BoardColumn[] {
+  if (!columns.some((column) => column.id === replacement.currentStageId)) return columns;
+
+  return columns.map((column) => {
+    const orders = column.orders.filter((order) => order.id !== replacement.id);
+    if (column.id !== replacement.currentStageId) return { ...column, orders };
+    return { ...column, orders: sortOrdersForColumn(column, [...orders, replacement]) };
+  });
+}
+
 export function moveBoardOrder(
   columns: BoardColumn[],
   orderId: string,
@@ -25,7 +47,7 @@ export function moveBoardOrder(
 
     return {
       ...column,
-      orders: sortBoardOrders([
+      orders: sortOrdersForColumn(column, [
         ...ordersWithoutMoved,
         {
           ...movedOrder,

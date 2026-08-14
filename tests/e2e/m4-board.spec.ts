@@ -140,14 +140,19 @@ test.describe("Tablero M4", () => {
     await expect(page.getByText(names.success, { exact: true })).toHaveCount(1);
   });
 
-  test("excluye Pagado, reconcilia un conflicto y permite reintentar", async ({ page }) => {
+  test("abre confirmación para Pagado, reconcilia un conflicto y permite reintentar", async ({ page }) => {
     await login(page);
     await page.goto("/orders");
 
     const conflictCard = page.getByText(names.conflict).locator("xpath=ancestor::article");
     await conflictCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
-    await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);
-    await page.keyboard.press("Escape");
+    await expect(page.getByRole("option", { name: "Pagado", exact: true })).toBeVisible();
+    await page.getByRole("option", { name: "Pagado", exact: true }).click();
+    await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Confirmar cobro" })).toBeVisible();
+    await expect(page.locator('[data-drop-stage="received"]').getByText(names.conflict)).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar" }).click();
 
     const { error: updateError } = await admin
       .from("orders")
@@ -169,7 +174,7 @@ test.describe("Tablero M4", () => {
     await expect(page.getByRole("heading", { name: "Diseño", exact: true }).locator("xpath=ancestor::section").getByText(names.conflict)).toBeVisible();
   });
 
-  test("DnD comparte éxito, no-op, rechazo de Pagado, anuncios, Escape y foco", async ({ page }) => {
+  test("DnD comparte éxito, no-op, confirmación de Pagado, anuncios, Escape y foco", async ({ page }) => {
     await login(page);
     await page.goto("/orders");
 
@@ -192,9 +197,12 @@ test.describe("Tablero M4", () => {
 
     await beginPointerDrag(page, handle);
     await dropOn(page, page.locator('[data-drop-stage="paid"]'));
-    await expect(page.getByRole("alert").filter({ hasText: "Los movimientos hacia o desde Pagado" })).toBeVisible();
-    await expect(page.getByTestId("board-announcement")).toContainText("no se movió");
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Confirmar cobro" })).toBeVisible();
+    await expect(page.getByTestId("board-announcement")).toContainText("Se abrió la confirmación de cobro");
     await expect(designColumn.getByText(names.dnd)).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar" }).click();
+    await expect(page.getByTestId("board-announcement")).toContainText("Cancelaste la confirmación de cobro");
 
     handle = designColumn.getByRole("button", { name: handleName });
     await beginPointerDrag(page, handle);
