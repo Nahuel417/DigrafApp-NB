@@ -83,6 +83,35 @@ describe("cash dashboard M10 controls", () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
   });
 
+  it("shows an application-owned amount error after rejected insertion and clears it on valid edit", () => {
+    render(createElement(MovementForm, { categories: [], direction: "income" }));
+    const amount = screen.getByLabelText("Importe");
+
+    fireEvent.keyDown(amount, { key: "x" });
+    expect(screen.getByText("Ingresá un importe.")).toBeTruthy();
+    expect(amount.getAttribute("aria-invalid")).toBe("true");
+    expect(amount.getAttribute("aria-describedby")).toBe("cash-income-amount-error");
+    expect(amount.closest("[data-invalid]")?.getAttribute("data-invalid")).toBe("true");
+    expect(document.activeElement).toBe(amount);
+
+    fireEvent.input(amount, { target: { value: "12" } });
+    expect(screen.queryByText("Ingresá un importe.")).toBeNull();
+    expect(amount.getAttribute("aria-invalid")).toBe("false");
+    expect(amount.hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("blocks the opening action when the amount has client-invalid syntax", async () => {
+    const { container } = render(createElement(OpeningForm, { summary }));
+    const amount = screen.getByLabelText("Saldo inicial");
+
+    fireEvent.input(amount, { target: { value: "1." } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar apertura" }));
+
+    await waitFor(() => expect(openingAction).not.toHaveBeenCalled());
+    expect(screen.getByText("Usá un importe con hasta dos decimales.")).toBeTruthy();
+    expect(container.querySelector("form")?.checkValidity()).toBe(false);
+  });
+
   it("shows confirmed correction, void, and close controls for an open day", () => {
     render(createElement(CashDashboard, { canOperate: true, canClose: true, summary: { ...summary, movements: [{ id: "1", direction: "income", amount: "1.00", description: "Venta", expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-06T03:00:00.000Z" }] }, closedDays: [], selectedHistory: null }));
     expect(screen.getByRole("button", { name: "Editar" })).toBeTruthy();

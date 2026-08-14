@@ -226,14 +226,17 @@ test.describe("Navegación de Caja M9", () => {
     });
 
     const invalidCases = [
-      ["#cash-opening-amount", "1.", "Guardar apertura", "Usá un importe con hasta dos decimales."],
-      ["#cash-income-amount", "0", "Registrar ingreso", "El importe debe ser mayor que cero."],
-      ["#cash-expense-amount", "1.234", "Registrar egreso", "Usá un importe con hasta dos decimales."],
+      ["#cash-opening-amount", "1.", "1.", "Guardar apertura", "Usá un importe con hasta dos decimales."],
+      ["#cash-income-amount", "0", "0", "Registrar ingreso", "El importe debe ser mayor que cero."],
+      ["#cash-expense-amount", "1.234", "", "Registrar egreso", "Ingresá un importe."],
     ] as const;
-    for (const [selector, value, submitLabel, message] of invalidCases) {
+    for (const [selector, value, retainedValue, submitLabel, message] of invalidCases) {
       const input = page.locator(selector);
       await input.fill(value);
-      await expect.poll(() => input.evaluate((element) => (element as HTMLInputElement).validationMessage)).toBe(message);
+      await expect(input).toHaveValue(retainedValue);
+      await expect(input).toHaveAttribute("aria-invalid", "true");
+      await expect(input).toHaveAttribute("aria-describedby", /amount-error/);
+      await expect(page.getByText(message, { exact: true })).toBeVisible();
       await page.getByRole("button", { name: submitLabel, exact: true }).click();
       await expect.poll(() => actionRequests).toBe(0);
     }
