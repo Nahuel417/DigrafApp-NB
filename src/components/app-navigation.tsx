@@ -45,6 +45,7 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
     <nav
       aria-label={compact ? "Navegación principal móvil" : "Navegación principal"}
       className={cn(compact ? "grid grid-cols-2 gap-1" : "flex flex-col gap-1")}
+      id={compact ? undefined : "primary-navigation"}
     >
       {items.map((item) => {
         const active = item.href === activeHref;
@@ -54,7 +55,7 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
           <Link
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+              "app-navigation-link flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
               compact && "min-h-11 justify-center text-center",
               active
                 ? "border-l-2 border-sidebar-primary-foreground/70 bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
@@ -64,7 +65,7 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
             key={item.href}
           >
             <Icon aria-hidden="true" className="size-[1.125rem]" />
-            <span>{item.label}</span>
+            <span className="sidebar-label">{item.label}</span>
           </Link>
         );
       })}
