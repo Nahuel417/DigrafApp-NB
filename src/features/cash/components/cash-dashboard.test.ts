@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeCashDayAction, correctCashMovementAction, createCashMovementAction, reopenCashDayAction, setCashOpeningAction, voidCashMovementAction } from "../actions";
-import { buildCashDashboardViewModel, CashDashboard, CASH_REOPEN_REASON_REQUIRED_MESSAGE, formatCashDateTime, MovementForm, OpeningForm, validateReopenReason } from "./cash-dashboard";
+import { buildCashDashboardViewModel, CashDashboard, CASH_REOPEN_REASON_REQUIRED_MESSAGE, formatCashDateTime, MovementForm, OpeningForm, preventInvalidCashBeforeInput, validateReopenReason } from "./cash-dashboard";
 
 vi.mock("../actions", () => ({
   closeCashDayAction: vi.fn(),
@@ -70,6 +70,19 @@ describe("cash dashboard view model", () => {
 });
 
 describe("cash dashboard M10 controls", () => {
+  it("prevents invalid insertion when beforeinput has no inputType", () => {
+    render(createElement(MovementForm, { categories: [], direction: "income" }));
+    const amount = screen.getByLabelText("Importe");
+    const event = {
+      currentTarget: amount,
+      nativeEvent: { data: "x", inputType: undefined },
+      preventDefault: vi.fn(),
+    } as unknown as Parameters<typeof preventInvalidCashBeforeInput>[0];
+
+    expect(() => preventInvalidCashBeforeInput(event)).not.toThrow();
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+  });
+
   it("shows confirmed correction, void, and close controls for an open day", () => {
     render(createElement(CashDashboard, { canOperate: true, canClose: true, summary: { ...summary, movements: [{ id: "1", direction: "income", amount: "1.00", description: "Venta", expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-06T03:00:00.000Z" }] }, closedDays: [], selectedHistory: null }));
     expect(screen.getByRole("button", { name: "Editar" })).toBeTruthy();

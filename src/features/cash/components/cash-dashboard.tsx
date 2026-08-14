@@ -55,9 +55,9 @@ function canInsertCashAmountText(input: HTMLInputElement, inserted: string) {
 function preventInvalidCashInsertion(input: HTMLInputElement, inserted: string, event: { preventDefault: () => void }) {
   if (!canInsertCashAmountText(input, inserted)) event.preventDefault();
 }
-function preventInvalidCashBeforeInput(event: FormEvent<HTMLInputElement>) {
+export function preventInvalidCashBeforeInput(event: FormEvent<HTMLInputElement>) {
   const inputEvent = event.nativeEvent as InputEvent;
-  if (inputEvent.inputType.startsWith("delete")) return;
+  if (inputEvent.inputType?.startsWith("delete")) return;
   preventInvalidCashInsertion(event.currentTarget, inputEvent.data ?? "", event);
 }
 function preventInvalidCashKey(event: KeyboardEvent<HTMLInputElement>) {

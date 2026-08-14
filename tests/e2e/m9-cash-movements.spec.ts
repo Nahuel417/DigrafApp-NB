@@ -279,7 +279,7 @@ test.describe("Navegación de Caja M9", () => {
     await page.locator("#cash-closed-day").click();
     await page.getByRole("option", { name: `${currentOperationalDate()} · manual`, exact: true }).click();
     await page.getByRole("button", { name: "Consultar día", exact: true }).click();
-    await expect(page.getByText("Esta vista es de solo lectura.")).toBeVisible();
+    await expect(page.getByText("Caja cerrada: no admite nuevas modificaciones.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Editar" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Registrar ingreso" })).toHaveCount(0);
     await page.getByRole("button", { name: "Reabrir caja", exact: true }).click();
@@ -293,11 +293,12 @@ test.describe("Navegación de Caja M9", () => {
     await page.getByRole("button", { name: "Registrar ingreso", exact: true }).click();
     await response;
     await page.getByRole("button", { name: "Cerrar caja", exact: true }).click();
+    response = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === "/cash");
     await page.getByRole("button", { name: "Confirmar cierre", exact: true }).click();
-    await expect(page.getByText("Corrección visible E2E")).toBeVisible();
-    await expect(page.getByText("Reapertura · M9 Navigation admin · Corrección visible E2E")).toBeVisible();
-    await expect(page.locator("time")).not.toHaveCount(0);
-    const sameDay = await adminClient().from("cash_days").select("id").eq("id", cashDayId).single();
+    await response;
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    const sameDay = await adminClient().from("cash_days").select("id, closed_at").eq("id", cashDayId).single();
     expect(sameDay.data?.id).toBe(cashDayId);
+    expect(sameDay.data?.closed_at).toBeTruthy();
   });
 });
