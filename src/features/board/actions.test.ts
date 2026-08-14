@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { confirmOrderPaymentAction } from "./actions";
+import { confirmOrderPaymentAction, reverseOrderPaymentAction } from "./actions";
 import { getOrderBoardSnapshot } from "./queries";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -24,6 +24,14 @@ const validForm = () => form({
   orderId: "11111111-1111-4111-8111-111111111111",
   expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
   idempotencyKey: "payment-key",
+});
+
+const validReversalForm = () => form({
+  orderId: "11111111-1111-4111-8111-111111111111",
+  paymentId: "22222222-2222-4222-8222-222222222222",
+  expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
+  idempotencyKey: "reversal-key",
+  reason: "Corrección solicitada",
 });
 
 describe("confirm order payment action", () => {
@@ -104,5 +112,53 @@ describe("confirm order payment action", () => {
 
     expect(result).toMatchObject({ status: "error", code: "version_conflict", reconciledOrder: snapshot });
     expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id, "attention");
+  });
+});
+
+describe("reverse order payment action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeProfile, role: "admin" });
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never);
+    rpc.mockResolvedValue({ data: [{ order_id: "11111111-1111-4111-8111-111111111111", payment_id: "22222222-2222-4222-8222-222222222222", reversal_cash_movement_id: "44444444-4444-4444-8444-444444444444", event_id: "55555555-5555-4555-8555-555555555555", updated_at: "2026-08-12T19:02:00.000Z", amount: 100 }], error: null });
+  });
+
+  it("rejects malformed input before auth or RPC", async () => {
+    const result = await reverseOrderPaymentAction({}, form({ orderId: "invalid" }));
+    expect(result).toMatchObject({ status: "error", code: "invalid_request" });
+    expect(getCurrentProfile).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("calls the secure RPC and reconciles the board snapshot", async () => {
+    const result = await reverseOrderPaymentAction({}, validReversalForm());
+
+    expect(result).toMatchObject({ status: "success", paymentId: "22222222-2222-4222-8222-222222222222" });
+    expect(rpc).toHaveBeenCalledWith("reverse_order_payment", {
+      p_order_id: "11111111-1111-4111-8111-111111111111",
+      p_payment_id: "22222222-2222-4222-8222-222222222222",
+      p_expected_updated_at: "2026-08-12T19:00:00.000Z",
+      p_idempotency_key: "reversal-key",
+      p_reason: "Corrección solicitada",
+    });
+  });
+
+  it("denies Attention before creating the client", async () => {
+    vi.mocked(getCurrentProfile).mockResolvedValue(activeProfile);
+
+    const result = await reverseOrderPaymentAction({}, validReversalForm());
+
+    expect(result).toMatchObject({ status: "error", code: "permission_denied", message: "No tenés permiso para revertir pagos." });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("maps a closed cash rejection to a safe message and snapshot", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "cash_closed" } });
+
+    const result = await reverseOrderPaymentAction({}, validReversalForm());
+
+    expect(result).toMatchObject({ status: "error", code: "cash_closed", message: "La caja está cerrada y no admite reversiones." });
+    expect(result.reconciledOrder?.id).toBe("11111111-1111-4111-8111-111111111111");
   });
 });

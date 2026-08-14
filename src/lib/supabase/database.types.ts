@@ -285,6 +285,7 @@ export type Database = {
           id: string
           idempotency_fingerprint: string
           idempotency_key: string
+          is_payment_reversal: boolean
         }
         Insert: {
           actor_id: string
@@ -299,6 +300,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint: string
           idempotency_key: string
+          is_payment_reversal?: boolean
         }
         Update: {
           actor_id?: string
@@ -313,6 +315,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint?: string
           idempotency_key?: string
+          is_payment_reversal?: boolean
         }
         Relationships: [
           {
@@ -1205,6 +1208,29 @@ export type Database = {
           movement_id: string
         }[]
       }
+      correct_cash_movement_m10: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_direction: string
+          p_expense_category_id: string
+          p_idempotency_key: string
+          p_movement_id: string
+        }
+        Returns: {
+          actor_id: string
+          amount: number
+          cash_day_id: string
+          created_at: string
+          description: string
+          direction: string
+          event_id: string
+          expense_category_code: string
+          expense_category_id: string
+          expense_category_name: string
+          movement_id: string
+        }[]
+      }
       create_cash_movement: {
         Args: {
           p_amount: number
@@ -1396,6 +1422,15 @@ export type Database = {
         Args: { p_expected_updated_at: string; p_order_id: string }
         Returns: string
       }
+      m12_reversal_fingerprint: {
+        Args: {
+          p_expected_updated_at: string
+          p_order_id: string
+          p_payment_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       move_order: {
         Args: {
           p_expected_updated_at: string
@@ -1475,6 +1510,26 @@ export type Database = {
           stage_id: string
         }[]
       }
+      reverse_order_payment: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+          p_payment_id: string
+          p_reason?: string
+        }
+        Returns: {
+          amount: number
+          event_id: string
+          from_stage_id: string
+          order_id: string
+          payment_id: string
+          reversal_cash_movement_id: string
+          stage_code: string
+          to_stage_id: string
+          updated_at: string
+        }[]
+      }
       set_cash_opening: {
         Args: {
           p_amount: number
@@ -1540,6 +1595,19 @@ export type Database = {
         }[]
       }
       void_cash_movement: {
+        Args: {
+          p_idempotency_key: string
+          p_movement_id: string
+          p_reason: string
+        }
+        Returns: {
+          cash_day_id: string
+          event_id: string
+          movement_id: string
+          voided: boolean
+        }[]
+      }
+      void_cash_movement_m10: {
         Args: {
           p_idempotency_key: string
           p_movement_id: string

@@ -151,13 +151,16 @@ describe("cash server action contracts", () => {
     expect(rpc).toHaveBeenCalledWith("close_cash_day", { p_cash_day_id: "44444444-4444-4444-8444-444444444444", p_idempotency_key: "close-key" });
   });
 
-  it("calls reopen for Atención and denies Employee before RPC", async () => {
-    const result = await reopenCashDayAction({}, reopen());
-    expect(result.status).toBe("success");
-    expect(rpc).toHaveBeenCalledWith("reopen_cash_day", { p_cash_day_id: "44444444-4444-4444-8444-444444444444", p_reason: "Corrección de cierre", p_idempotency_key: "reopen-key" });
+  it("calls reopen for every authorized role and denies Employee before RPC", async () => {
+    for (const role of ["super_admin", "admin", "attention"] as const) {
+      vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeProfile, role });
+      expect((await reopenCashDayAction({}, reopen())).status).toBe("success");
+    }
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect(rpc).toHaveBeenLastCalledWith("reopen_cash_day", { p_cash_day_id: "44444444-4444-4444-8444-444444444444", p_reason: "Corrección de cierre", p_idempotency_key: "reopen-key" });
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeProfile, role: "employee" });
     const denied = await reopenCashDayAction({}, reopen());
     expect(denied.message).toBe("No tenés permiso para reabrir la caja.");
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(3);
   });
 });

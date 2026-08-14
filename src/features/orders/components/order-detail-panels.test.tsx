@@ -21,4 +21,20 @@ describe("order payment timeline", () => {
     expect(screen.getByText("Atención")).toBeTruthy();
     expect(screen.getByText(/12\/8\/26/)).toBeTruthy();
   });
+
+  it("renders a payment reversal without exposing restricted details through the label", () => {
+    render(<Timeline events={[{
+      id: "reversal-event",
+      type: "payment_reversed",
+      actor: "Admin",
+      occurredAt: "2026-08-12T19:02:00.000Z",
+      body: null,
+      changeNote: null,
+      details: { version: 1, payment_reversed: true },
+    }]} />);
+
+    expect(screen.getByText("Pago revertido")).toBeTruthy();
+    expect(screen.getByText("Admin")).toBeTruthy();
+    expect(screen.queryByText(/100/)).toBeNull();
+  });
 });
