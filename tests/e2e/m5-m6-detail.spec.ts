@@ -17,7 +17,8 @@ test.describe("Detalle y colaboración M5/M6", () => {
   const identities: Array<{ email: string; id: string; role: string }> = [];
   const orderIds: string[] = [];
   const catalogIds: string[] = [];
-  let catalog: { garmentUpper: string; neckline: string; upperPattern: string; fabric: string };
+  const catalogProductIds: string[] = [];
+  let catalog: { garmentUpper: string; garmentUpperProduct: string; neckline: string; upperPattern: string; fabric: string };
   let receivedStageId: string;
   let superAdminOrder: { id: string; publicNumber: number };
   let adminOrder: { id: string; publicNumber: number };
@@ -57,6 +58,11 @@ test.describe("Detalle y colaboración M5/M6", () => {
       .single();
     if (error || !data) throw error ?? new Error("No se pudo crear un catálogo E2E M5/M6.");
     catalogIds.push(data.id);
+    if (kind === "garment") {
+      const projection = await admin.from("catalog_products").select("id").eq("legacy_catalog_item_id", data.id).single();
+      if (projection.error || !projection.data) throw projection.error ?? new Error("No se proyectó el catálogo E2E M5/M6.");
+      catalogProductIds.push(projection.data.id);
+    }
     return data.id;
   }
 
@@ -65,6 +71,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
       .from("orders")
       .insert({
         customer_name: customerName,
+        client_name: customerName,
+        team_name: `Equipo ${customerName}`,
+        phone: "3515550199",
         quantity: 4,
         order_type: "individual",
         order_date: "2026-07-29",
@@ -103,6 +112,24 @@ test.describe("Detalle y colaboración M5/M6", () => {
     })));
     if (selectionsError) throw selectionsError;
 
+    const { error: lineError } = await admin.from("order_lines").insert({
+      order_id: data.id,
+      position: 0,
+      line_type: "individual",
+      product_id: catalog.garmentUpperProduct,
+      product_name_snapshot: "Remera",
+      quantity: 4,
+      configuration: {
+        legacy_options: {
+          neckline: { id: catalog.neckline, name: "Redondo" },
+          upper_pattern: { id: catalog.upperPattern, name: "Recto" },
+          fabric: { id: catalog.fabric, name: "Microfibra" },
+          extras: [],
+        },
+      },
+    });
+    if (lineError) throw lineError;
+
     return { id: data.id, publicNumber: data.public_number, updatedAt: data.updated_at };
   }
 
@@ -133,8 +160,12 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await createIdentity("attention");
     await createIdentity("employee");
 
+    const garmentUpper = await createCatalog("garment", `Remera M5 M6 ${runId}`, "upper");
+    const garmentUpperProduct = catalogProductIds.at(-1);
+    if (!garmentUpperProduct) throw new Error("No se obtuvo la prenda proyectada M5/M6.");
     catalog = {
-      garmentUpper: await createCatalog("garment", `Remera M5 M6 ${runId}`, "upper"),
+      garmentUpper,
+      garmentUpperProduct,
       neckline: await createCatalog("neckline", `Redondo M5 M6 ${runId}`),
       upperPattern: await createCatalog("upper_pattern", `Recto M5 M6 ${runId}`),
       fabric: await createCatalog("fabric", `Microfibra M5 M6 ${runId}`),
@@ -159,10 +190,15 @@ test.describe("Detalle y colaboración M5/M6", () => {
       await cleanup("order_comments", admin.from("order_comments").delete().in("order_id", orderIds));
       await cleanup("order_change_events", admin.from("order_change_events").delete().in("order_id", orderIds));
       await cleanup("order_stage_events", admin.from("order_stage_events").delete().in("order_id", orderIds));
+      const lines = await admin.from("order_lines").select("id").in("order_id", orderIds);
+      const lineIds = (lines.data ?? []).map((line) => line.id);
+      if (lineIds.length) await cleanup("order_line_shields", admin.from("order_line_shields").delete().in("order_line_id", lineIds));
+      await cleanup("order_lines", admin.from("order_lines").delete().in("order_id", orderIds));
       await cleanup("order_catalog_items", admin.from("order_catalog_items").delete().in("order_id", orderIds));
       await cleanup("order_financials", admin.from("order_financials").delete().in("order_id", orderIds));
       await cleanup("orders", admin.from("orders").delete().in("id", orderIds));
     }
+    if (catalogProductIds.length) await cleanup("catalog_products", admin.from("catalog_products").delete().in("id", catalogProductIds));
     if (catalogIds.length) await cleanup("catalog_items", admin.from("catalog_items").delete().in("id", catalogIds));
     for (const identity of identities) await cleanup(`auth user ${identity.id}`, admin.auth.admin.deleteUser(identity.id));
     if (failures.length) throw new Error(`Falló el cleanup E2E M5/M6:\n${failures.join("\n")}`);
@@ -283,8 +319,8 @@ test.describe("Detalle y colaboración M5/M6", () => {
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
     const updatedCustomer = `Equipo actualizado ${runId}`;
-    await editSection.locator("#edit-customer-name").fill(updatedCustomer);
-    await editSection.locator("#edit-quantity").fill("8");
+    await editSection.locator("#edit-team-name").fill(updatedCustomer);
+    await editSection.getByLabel("Cantidad").fill("8");
     await editSection.locator("#edit-promised-date").fill("2026-08-10");
     await editSection.getByRole("button", { name: "Guardar cambios" }).click();
 
@@ -296,7 +332,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     const orderData = page.getByRole("heading", { name: "Datos del pedido" }).locator("xpath=ancestor::section");
     await expect(orderData.getByText(updatedCustomer)).toBeVisible();
     const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
-    await expect(timeline.getByText("Se actualizó el pedido", { exact: true })).toBeVisible();
+    await expect(timeline.getByText("Se actualizó el pedido", { exact: true }).first()).toBeVisible();
     await expect(timeline.getByText("Se actualizó la fecha prometida", { exact: true })).toBeVisible();
   });
 
@@ -314,7 +350,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
       .eq("id", conflictOrder.id);
     if (updateError) throw updateError;
 
-    await editSection.locator("#edit-customer-name").fill(`Intento de edición ${runId}`);
+    await editSection.locator("#edit-client-name").fill(`Intento de edición ${runId}`);
     await editSection.getByRole("button", { name: "Guardar cambios" }).click();
     await page.getByRole("alertdialog", { name: "Confirmar edición del pedido" }).getByRole("button", { name: "Confirmar cambios" }).click();
 
@@ -383,9 +419,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
-    const customerField = editSection.locator("#edit-customer-name");
+    const customerField = editSection.locator("#edit-client-name");
     await customerField.fill("");
-    await editSection.locator("#edit-quantity").fill("0");
+    await editSection.getByLabel("Cantidad").fill("0");
     await editSection.getByRole("button", { name: "Guardar cambios" }).click();
 
     await expect(page.getByRole("alertdialog", { name: "Confirmar edición del pedido" })).toHaveCount(0);
@@ -406,9 +442,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     const specs = page.getByRole("heading", { name: "Especificaciones" }).locator("xpath=ancestor::section");
     await expect(specs).toBeVisible();
-    await expect(specs.getByText("Remera")).toBeVisible();
-    await expect(specs.getByText("Redondo")).toBeVisible();
-    await expect(specs.getByText("Microfibra")).toBeVisible();
+    await expect(specs.getByText("Remera").first()).toBeVisible();
+    await expect(specs.getByText("Redondo").first()).toBeVisible();
+    await expect(specs.getByText("Microfibra").first()).toBeVisible();
   });
 
   test("Atención puede ver importes pero no editar campos sensibles", async ({ page }) => {

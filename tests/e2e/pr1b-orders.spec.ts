@@ -15,6 +15,7 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
   const runId = randomUUID().slice(0, 8);
   let userId: string | undefined;
   let orderId: string | undefined;
+  const legacyIds: string[] = [];
   const productIds: string[] = [];
   const cleanupFailures: string[] = [];
 
@@ -47,14 +48,24 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     const sections = await service.from("catalog_sections").select("id, code").in("code", ["garments", "flags"]);
     if (sections.error || !sections.data) throw sections.error ?? new Error("Faltan secciones PR1B.");
     const sectionByCode = new Map(sections.data.map((section) => [section.code, section.id]));
-    for (const [code, kind] of [["garments", "garment"], ["flags", "flag"]] as const) {
-      const sectionId = sectionByCode.get(code);
-      if (!sectionId) throw new Error(`No se encontró la sección ${code} PR1B.`);
-      const productName = kind === "flag" ? `Bandera PR1B ${runId}` : `Remera PR1B ${runId}`;
-      const product = await service.from("catalog_products").insert({ section_id: sectionId, kind, name: productName, created_by: actorId, updated_by: actorId }).select("id").single();
-      if (product.error || !product.data) throw product.error ?? new Error("No se creó el producto PR1B.");
-      productIds.push(product.data.id);
-    }
+    const legacy = await service.from("catalog_items").insert([
+      { kind: "garment", garment_layer: "upper", name: `Remera PR1B ${runId}`, created_by: actorId, updated_by: actorId },
+      { kind: "neckline", garment_layer: null, name: `Cuello PR1B ${runId}`, created_by: actorId, updated_by: actorId },
+      { kind: "upper_pattern", garment_layer: null, name: `Molde superior PR1B ${runId}`, created_by: actorId, updated_by: actorId },
+      { kind: "fabric", garment_layer: null, name: `Tela PR1B ${runId}`, created_by: actorId, updated_by: actorId },
+    ]).select("id, kind");
+    if (legacy.error || !legacy.data) throw legacy.error ?? new Error("No se creó el catálogo legacy PR1B.");
+    legacyIds.push(...legacy.data.map((item) => item.id));
+    const legacyByKind = new Map(legacy.data.map((item) => [item.kind, item.id]));
+    const garment = await service.from("catalog_products").select("id").eq("legacy_catalog_item_id", legacyByKind.get("garment")!).single();
+    if (garment.error || !garment.data) throw garment.error ?? new Error("No se proyectó la prenda PR1B.");
+    productIds.push(garment.data.id);
+
+    const flagSectionId = sectionByCode.get("flags");
+    if (!flagSectionId) throw new Error("No se encontró la sección flags PR1B.");
+    const flag = await service.from("catalog_products").insert({ section_id: flagSectionId, kind: "flag", name: `Bandera PR1B ${runId}`, created_by: actorId, updated_by: actorId }).select("id").single();
+    if (flag.error || !flag.data) throw flag.error ?? new Error("No se creó el producto bandera PR1B.");
+    productIds.push(flag.data.id);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Contraseña").fill(password);
@@ -71,6 +82,9 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     const promisedDateValue = [promisedDate.getFullYear(), String(promisedDate.getMonth() + 1).padStart(2, "0"), String(promisedDate.getDate()).padStart(2, "0")].join("-");
     await page.getByLabel("Fecha prometida de entrega").fill(promisedDateValue);
     await page.getByLabel("Producto de catálogo").first().selectOption(productIds[0]!);
+    await page.getByLabel("Cuello").selectOption(legacyByKind.get("neckline")!);
+    await page.getByLabel("Molde superior").selectOption(legacyByKind.get("upper_pattern")!);
+    await page.getByLabel("Tela").selectOption(legacyByKind.get("fabric")!);
     await page.getByRole("button", { name: "Agregar renglón" }).click();
     await page.getByLabel("Tipo de renglón").nth(1).selectOption("flag");
     await page.getByLabel("Producto de catálogo").nth(1).selectOption(productIds[1]!);
@@ -106,6 +120,7 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
       await cleanup("orders", service.from("orders").delete().eq("id", orderId));
     }
     if (productIds.length) await cleanup("catalog_products", service.from("catalog_products").delete().in("id", productIds));
+    if (legacyIds.length) await cleanup("catalog_items", service.from("catalog_items").delete().in("id", legacyIds));
     if (userId) {
       await cleanup("profile", service.from("profiles").delete().eq("id", userId));
       await cleanup("auth user", service.auth.admin.deleteUser(userId));
