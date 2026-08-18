@@ -11,7 +11,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const board = await getOrderBoard(profile.role, search);
 
   return (
-    <main className="mx-auto flex w-full max-w-[100rem] flex-col gap-6 overflow-x-hidden px-5 py-6 sm:px-8 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-10 lg:py-8">
+    <main className="mx-auto flex w-full max-w-[100rem] flex-col gap-6 overflow-x-hidden px-5 py-6 sm:px-8 lg:h-dvh lg:min-h-0 lg:overflow-clip lg:[contain:layout_paint] lg:px-10 lg:py-8">
       <header>
         <p className="text-sm text-muted-foreground">Pedidos</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-display sm:text-3xl">Tablero de pedidos</h1>

@@ -56,7 +56,7 @@ function nullableText(value: unknown) {
 
 function actorDisplayName(value: unknown) { return typeof value === "string" && value.length > 0 ? value : "Sistema"; }
 
-function nullableDecimal(value: unknown, label: string) { return value === null || value === undefined ? null : decimal(value, label); }
+function nullableDecimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) { return value === null || value === undefined ? null : decimal(value, label, normalize); }
 
 function decimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) {
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`La respuesta de caja no contiene ${label} válido.`);
@@ -103,7 +103,7 @@ function mapEvent(value: unknown): CashMovementEvent { const event = record(valu
 
 function mapLifecycleEvent(value: unknown): CashLifecycleEvent { const event = record(value, "el ciclo de caja"); const eventType = event.event_type; if (eventType !== "close" && eventType !== "reopen") throw new Error("La respuesta de caja contiene un ciclo inválido."); return { id: text(event.id, "el identificador del ciclo"), sequenceNo: typeof event.sequence_no === "number" ? event.sequence_no : Number(event.sequence_no), eventType, closureKind: nullableText(event.closure_kind), closingBalance: nullableDecimal(event.closing_balance, "el saldo del ciclo"), actorId: nullableText(event.actor_id), actorDisplayName: actorDisplayName(event.actor_display_name), createdAt: text(event.created_at, "la fecha del ciclo"), reason: nullableText(event.reason) }; }
 
-function closureFields(row: JsonRecord) { return { closedAt: nullableText(row.closed_at), closedBy: nullableText(row.closed_by), closedByDisplayName: nullableText(row.closed_by_display_name), closureKind: nullableText(row.closure_kind), closingBalance: nullableDecimal(row.closing_balance, "el saldo de cierre") }; }
+function closureFields(row: JsonRecord) { return { closedAt: nullableText(row.closed_at), closedBy: nullableText(row.closed_by), closedByDisplayName: nullableText(row.closed_by_display_name), closureKind: nullableText(row.closure_kind), closingBalance: nullableDecimal(row.closing_balance, "el saldo de cierre", normalizeAggregateMoney) }; }
 
 export function mapCashSummary(row: unknown): CashSummary {
   const value = record(row, "el resumen");

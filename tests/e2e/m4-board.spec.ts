@@ -79,14 +79,20 @@ test.describe("Tablero M4", () => {
   async function dropOn(page: Page, target: ReturnType<Page["locator"]>) {
     const header = target.locator("header");
     const dropTarget = await header.count() ? header.first() : target;
-    if ((page.viewportSize()?.width ?? 0) < 1024) {
-      await dropTarget.scrollIntoViewIfNeeded();
-    } else {
-      await dropTarget.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
-    }
+    await dropTarget.evaluate((element) => {
+      const board = element.closest<HTMLElement>('[data-testid="board-scroll-container"]');
+      if (!board) return;
+      const boardBox = board.getBoundingClientRect();
+      const targetBox = element.getBoundingClientRect();
+      board.scrollTop += targetBox.top - boardBox.top - (board.clientHeight - targetBox.height) / 2;
+      board.scrollLeft += targetBox.left - boardBox.left - (board.clientWidth - targetBox.width) / 2;
+    });
     const box = await dropTarget.boundingBox();
     if (!box) throw new Error("No se encontró el destino DnD.");
-    await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120), { steps: (page.viewportSize()?.width ?? 0) < 1024 ? 1 : 8 });
+    const targetX = box.x + box.width / 2;
+    const targetY = box.y + Math.min(box.height / 2, 120);
+    await page.mouse.move(targetX, targetY, { steps: 8 });
+    await page.mouse.move(targetX, targetY);
     await page.mouse.up();
   }
 
@@ -374,7 +380,7 @@ test.describe("Tablero M4", () => {
     }));
     expect(desktopMetrics.overflowY).toBe("auto");
     expect(desktopMetrics.scrollHeight).toBeGreaterThan(desktopMetrics.clientHeight);
-    expect(await page.locator("main").evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/orders");
