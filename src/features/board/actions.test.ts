@@ -101,8 +101,7 @@ describe("confirm order payment action", () => {
       promisedDeliveryDate: "2026-08-13",
       currentStageId: "22222222-2222-4222-8222-222222222222",
       updatedAt: "2026-08-12T19:02:00.000Z",
-      hasDesignImage: false,
-      imageUpdatedAt: null,
+      primaryDesignImage: null,
       totalAmount: 100,
       paymentConfirmedAt: null,
     };
@@ -144,8 +143,18 @@ describe("reverse order payment action", () => {
     });
   });
 
-  it("denies Attention before creating the client", async () => {
+  it("allows Attention to reverse payment through the secure RPC", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue(activeProfile);
+
+    const result = await reverseOrderPaymentAction({}, validReversalForm());
+
+    expect(result).toMatchObject({ status: "success", paymentId: "22222222-2222-4222-8222-222222222222" });
+    expect(createClient).toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("reverse_order_payment", expect.any(Object));
+  });
+
+  it("denies Employee before creating the client", async () => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeProfile, role: "employee" });
 
     const result = await reverseOrderPaymentAction({}, validReversalForm());
 

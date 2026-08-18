@@ -114,6 +114,25 @@ test.describe("Diseño vigente M7", () => {
     if (finalized.error) throw finalized.error;
   }
 
+  async function seedImageCollection(orderId: string, count = 3, identity = identities[0]!) {
+    const client = await signedClient(identity);
+    for (let index = 0; index < count; index += 1) {
+      const objectPath = `orders/${orderId}/${randomUUID()}.png`;
+      const upload = await client.storage.from(bucketId).upload(objectPath, pngBytes, { contentType: "image/png", upsert: false });
+      if (upload.error) throw upload.error;
+      objectPaths.push(objectPath);
+      const added = await service.rpc("mutate_order_design_image", {
+        p_action: "add",
+        p_actor_id: identity.id,
+        p_idempotency_key: `m7-ui-add-${randomUUID()}`,
+        p_make_primary: index === 0,
+        p_object_path: objectPath,
+        p_order_id: orderId,
+      });
+      if (added.error) throw added.error;
+    }
+  }
+
   async function login(page: Page, identity: Identity) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(identity.email);
@@ -203,7 +222,8 @@ test.describe("Diseño vigente M7", () => {
     await page.getByRole("button", { name: "Cargar diseño" }).click();
     await expect(page.getByRole("button", { name: "Procesando diseño..." })).toBeDisabled();
     await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño cargado" })).toBeFocused();
-    await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Diseño adicional del pedido 1" })).toBeVisible();
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
     await expect(page.locator("body")).not.toContainText("orders/");
   });
 
@@ -285,6 +305,7 @@ test.describe("Diseño vigente M7", () => {
     await login(page, identities[0]!);
     await page.goto("/orders");
     const card = page.locator(`[data-order-id="${orderId}"]`);
+    await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
     await expect(card.getByRole("img")).toBeVisible();
     await expect(card.getByRole("img")).toHaveAttribute("loading", "lazy");
@@ -328,5 +349,86 @@ test.describe("Diseño vigente M7", () => {
     await dialog.getByRole("button", { name: "Cerrar imagen ampliada" }).click();
     await expect(dialog).toBeHidden();
     await expect(thumbnail).toBeFocused();
+  });
+
+  test("gestiona tres imágenes, exige selección primaria y no promociona al borrar", async ({ page }) => {
+    const orderId = await createOrder("Colección M7");
+    await login(page, identities[2]!);
+    await openDetail(page, orderId);
+
+    await selectPng(page, "first.png");
+    await page.getByRole("button", { name: "Cargar diseño" }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño cargado" })).toBeFocused();
+
+    for (const name of ["second.png", "third.png"]) {
+      await selectPng(page, name);
+      await page.getByRole("button", { name: "Agregar diseño" }).click();
+      await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño agregado" })).toBeFocused();
+    }
+
+    await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);
+    await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(0);
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
+
+    await designPanel(page).locator("[data-design-image]").first().getByRole("button", { name: "Seleccionar como principal" }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño principal actualizado" })).toBeFocused();
+    await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
+
+    await designPanel(page).getByRole("button", { name: "Quitar como principal" }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño principal actualizado" })).toBeFocused();
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
+
+    const firstImage = designPanel(page).locator("[data-design-image]").first();
+    await firstImage.getByRole("button", { name: "Eliminar diseño" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar diseño", exact: true }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño eliminado" })).toBeFocused();
+    await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(2);
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
+  });
+
+  test("reemplaza la imagen primaria sin cambiarla y mantiene privacidad por rol", async ({ page }) => {
+    const orderId = await createOrder("Reemplazo colección M7");
+    await seedImageCollection(orderId);
+
+    await login(page, identities[2]!);
+    await openDetail(page, orderId);
+    const primary = designPanel(page).locator("[data-design-image]").first();
+    await expect(primary.getByText("Principal", { exact: true })).toBeVisible();
+    await selectPng(page, "replacement-primary.png");
+    await primary.getByRole("button", { name: "Reemplazar diseño" }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño reemplazado" })).toBeFocused();
+    await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);
+    await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
+    await expect(page.locator("body")).not.toContainText("orders/");
+
+    await logout(page);
+    await login(page, identities[3]!);
+    await openDetail(page, orderId);
+    await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);
+    await expect(page.getByLabel("Archivo de diseño")).toHaveCount(0);
+    await expect(designPanel(page).getByRole("button", { name: /Eliminar diseño|Seleccionar como principal|Quitar como principal|Reemplazar diseño/ })).toHaveCount(0);
+  });
+
+  test("muestra placeholder en tablero y vista rápida cuando no hay primaria", async ({ page }) => {
+    const orderId = await createOrder("Placeholder M7");
+    await seedImageCollection(orderId, 2);
+    const client = await signedClient(identities[0]!);
+    const { data: images, error } = await client.from("order_design_images").select("id").eq("order_id", orderId).order("created_at").order("id");
+    if (error || !images?.[0]) throw error ?? new Error("No se encontraron imágenes para limpiar la primaria.");
+    const cleared = await service.rpc("mutate_order_design_image", {
+      p_action: "clear_primary",
+      p_actor_id: identities[0]!.id,
+      p_idempotency_key: `m7-ui-clear-${randomUUID()}`,
+      p_order_id: orderId,
+    });
+    if (cleared.error) throw cleared.error;
+
+    await login(page, identities[3]!);
+    await page.goto("/orders");
+    const card = page.locator(`[data-order-id="${orderId}"]`);
+    await expect(card.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
+    await card.getByRole("button", { name: /Vista rápida/ }).click();
+    const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+    await expect(quickView.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
   });
 });

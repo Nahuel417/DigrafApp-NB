@@ -1,10 +1,11 @@
 'use client';
 
+import { FileImage } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { getOrderDesignImageReadUrlAction } from '@/features/orders/image-actions';
 
-type ThumbnailState = 'idle' | 'loading' | 'ready' | 'error';
+type ThumbnailState = 'empty' | 'idle' | 'loading' | 'ready' | 'error';
 
 function makeFormData(orderId: string) {
     const formData = new FormData();
@@ -30,9 +31,34 @@ export function OrderDesignThumbnail({
     const [state, setState] = useState<ThumbnailState>('loading');
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+    const [isNearViewport, setIsNearViewport] = useState(false);
+    const [thumbnailElement, setThumbnailElement] = useState<HTMLElement | null>(null);
     const maxRetries = 2;
 
     useEffect(() => {
+        if (!imageUpdatedAt || !thumbnailElement) {
+            return;
+        }
+
+        if (!('IntersectionObserver' in window)) {
+            setIsNearViewport(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(([entry]) => {
+            if (!entry?.isIntersecting) return;
+            setIsNearViewport(true);
+            observer.disconnect();
+        }, { rootMargin: '200px' });
+        observer.observe(thumbnailElement);
+        return () => observer.disconnect();
+    }, [imageUpdatedAt, thumbnailElement]);
+
+    useEffect(() => {
+        if (!imageUpdatedAt || !isNearViewport) {
+            return;
+        }
+
         let cancelled = false;
         getOrderDesignImageReadUrlAction({}, makeFormData(orderId))
             .then((result) => {
@@ -51,7 +77,7 @@ export function OrderDesignThumbnail({
         return () => {
             cancelled = true;
         };
-    }, [imageUpdatedAt, onUrlReady, orderId]);
+    }, [imageUpdatedAt, isNearViewport, onUrlReady, orderId]);
 
     function handleImageError() {
         if (retryCount < maxRetries) {
@@ -73,11 +99,22 @@ export function OrderDesignThumbnail({
         }
     }
 
-    if (state === 'idle' || state === 'loading') {
-        return <div aria-hidden="true" className={`overflow-hidden rounded-md bg-muted animate-pulse ${className ?? 'aspect-[4/3]'}`} />;
+    const visibleState = imageUpdatedAt ? state : 'empty';
+
+    if (visibleState === 'empty') {
+        return (
+            <div aria-label="No hay diseño principal" className={`flex flex-col items-center justify-center gap-2 overflow-hidden rounded-md border border-dashed border-border bg-muted/50 p-3 text-center text-xs text-muted-foreground ${className ?? 'aspect-[4/3]'}`} role="img">
+                <FileImage aria-hidden="true" />
+                <span>Sin diseño principal</span>
+            </div>
+        );
     }
 
-    if (state === 'error' || !signedUrl) {
+    if (visibleState === 'idle' || visibleState === 'loading') {
+        return <div aria-hidden="true" className={`overflow-hidden rounded-md bg-muted animate-pulse ${className ?? 'aspect-[4/3]'}`} ref={setThumbnailElement} />;
+    }
+
+    if (visibleState === 'error' || !signedUrl) {
         return null;
     }
 
@@ -94,11 +131,12 @@ export function OrderDesignThumbnail({
                 aria-label={`Abrir ${alt.toLowerCase()}`}
                 className={`block cursor-zoom-in overflow-hidden rounded-md bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className ?? 'aspect-[4/3]'}`}
                 onClick={(event) => onActivate(event.currentTarget)}
+                ref={setThumbnailElement}
                 type="button">
                 {image}
             </button>
         );
     }
 
-    return <div className={`overflow-hidden rounded-md bg-muted ${className ?? 'aspect-[4/3]'}`}>{image}</div>;
+    return <div className={`overflow-hidden rounded-md bg-muted ${className ?? 'aspect-[4/3]'}`} ref={setThumbnailElement}>{image}</div>;
 }

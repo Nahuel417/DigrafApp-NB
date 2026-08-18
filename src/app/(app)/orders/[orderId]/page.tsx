@@ -7,7 +7,7 @@ import { canEditOrderDescription, canEditOrderSensitive, canReadOrderFinancials 
 import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
-import { getOrderDesignImageReadUrl } from "@/features/orders/image-queries";
+import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const profile = await requireActiveProfile();
   const { orderId } = await params;
 
-  const [data, timelineEvents, stageNames, designImageResult] = await Promise.all([
+  const [data, timelineEvents, stageNames, designImagesResult] = await Promise.all([
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
-    getOrderDesignImageReadUrl(orderId)
-      .then((image) => ({ error: null, image }))
-      .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", image: null })),
+    getOrderDesignImagesReadUrls(orderId)
+      .then((images) => ({ error: null, images }))
+      .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", images: [] })),
   ]);
 
   if (!data) {
@@ -136,12 +136,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         <div className="flex flex-col gap-6">
           <OrderDesignImagePanel
             canManage={canManageDesignImage}
-            initialError={designImageResult.error}
-            initialImage={designImageResult.image ? {
-              expiresAt: designImageResult.image.expiresAt,
-              signedUrl: designImageResult.image.signedUrl,
-              updatedAt: designImageResult.image.updatedAt,
-            } : null}
+            initialError={designImagesResult.error}
+            initialImages={designImagesResult.images.map((image) => ({
+              expiresAt: image.expiresAt,
+              id: image.id,
+              isPrimary: image.isPrimary,
+              signedUrl: image.signedUrl,
+              updatedAt: image.updatedAt,
+            }))}
             orderId={order.id}
           />
           {canReadFinances ? (

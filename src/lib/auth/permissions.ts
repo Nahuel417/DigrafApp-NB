@@ -28,7 +28,7 @@ export function canConfirmPayment(role: AppRole) {
 }
 
 export function canReversePayment(role: AppRole) {
-  return role === "super_admin" || role === "admin";
+  return role === "super_admin" || role === "admin" || role === "attention";
 }
 
 export function canMoveOrder(role: AppRole) {
@@ -36,7 +36,11 @@ export function canMoveOrder(role: AppRole) {
 }
 
 export function canEditOrderSensitive(role: AppRole) {
-  return role === "super_admin" || role === "admin";
+  return role === "super_admin" || role === "admin" || role === "attention";
+}
+
+export function canManageOrderDesignImages(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention";
 }
 
 export function canEditOrderDescription(role: AppRole) {

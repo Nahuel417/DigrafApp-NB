@@ -30,8 +30,7 @@ const order = {
   promisedDeliveryDate: "2026-08-13",
   currentStageId: receivedId,
   updatedAt: "2026-08-12T19:00:00.000Z",
-  hasDesignImage: false,
-  imageUpdatedAt: null,
+  primaryDesignImage: null,
   totalAmount: 100,
   paymentConfirmedAt: null,
 };
