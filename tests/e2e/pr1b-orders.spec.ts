@@ -33,20 +33,10 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     if (authError || !auth.user) throw authError ?? new Error("No se creó la identidad E2E PR1B.");
     const actorId = auth.user.id;
     userId = actorId;
-    const stableProfile = await service.from("profiles").select("id").in("role", ["super_admin", "admin"]).eq("is_active", true).order("created_at").limit(1).single();
-    if (stableProfile.error || !stableProfile.data) throw stableProfile.error ?? new Error("No se encontró un perfil Admin seed estable para PR1B.");
     const { error: profileError } = await service.from("profiles").insert({ id: actorId, display_name: `PR1B E2E ${runId}`, role: "super_admin", is_active: true, must_change_password: false });
     if (profileError) throw profileError;
-    const { error: sectionUpsertError } = await service.from("catalog_sections").upsert(
-      [
-        { code: "garments", name: "Prendas", created_by: stableProfile.data.id, updated_by: stableProfile.data.id },
-        { code: "flags", name: "Banderas", created_by: stableProfile.data.id, updated_by: stableProfile.data.id },
-      ],
-      { onConflict: "code" },
-    );
-    if (sectionUpsertError) throw sectionUpsertError;
     const sections = await service.from("catalog_sections").select("id, code").in("code", ["garments", "flags"]);
-    if (sections.error || !sections.data) throw sections.error ?? new Error("Faltan secciones PR1B.");
+    if (sections.error || !sections.data || sections.data.length !== 2) throw sections.error ?? new Error("Faltan secciones PR1B.");
     const sectionByCode = new Map(sections.data.map((section) => [section.code, section.id]));
     const legacy = await service.from("catalog_items").insert([
       { kind: "garment", garment_layer: "upper", name: `Remera PR1B ${runId}`, created_by: actorId, updated_by: actorId },

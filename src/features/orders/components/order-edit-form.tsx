@@ -35,12 +35,12 @@ export function OrderEditForm({ action, catalogs, financials, order }: { action:
   useMutationToast(state);
   useEffect(() => {
     if (!state.toastId) return;
-    if (state.status === "success") { if (idempotencyRef.current) idempotencyRef.current.value = crypto.randomUUID(); window.requestAnimationFrame(() => router.refresh()); }
+    if (state.status === "success") { if (idempotencyRef.current) idempotencyRef.current.value = ""; window.requestAnimationFrame(() => router.refresh()); }
     else window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
   }, [router, state.status, state.toastId]);
 
-  return <form action={formAction} className="flex flex-col gap-6" noValidate ref={formRef}>
-    <input name="orderId" type="hidden" value={order.id} /><input name="idempotencyKey" defaultValue={crypto.randomUUID()} ref={idempotencyRef} type="hidden" /><input name="expectedUpdatedAt" type="hidden" value={order.updatedAt} /><input name="orderDate" type="hidden" value={order.orderDate} />
+  return <form action={formAction} className="flex flex-col gap-6" noValidate onSubmit={() => { if (idempotencyRef.current && !idempotencyRef.current.value) idempotencyRef.current.value = crypto.randomUUID(); }} ref={formRef}>
+    <input name="orderId" type="hidden" value={order.id} /><input name="idempotencyKey" ref={idempotencyRef} type="hidden" /><input name="expectedUpdatedAt" type="hidden" value={order.updatedAt} /><input name="orderDate" type="hidden" value={order.orderDate} />
     <FieldSet><FieldLegend>Identificación</FieldLegend><FieldGroup className="grid gap-4 md:grid-cols-3"><Field data-invalid={Boolean(errorsFor(state, "clientName")?.length)}><FieldLabel htmlFor="edit-client-name">Cliente</FieldLabel><Input defaultValue={order.clientName ?? ""} id="edit-client-name" name="clientName" required /><FieldError errors={errorsFor(state, "clientName")} /></Field><Field data-invalid={Boolean(errorsFor(state, "teamName")?.length)}><FieldLabel htmlFor="edit-team-name">Equipo</FieldLabel><Input defaultValue={order.teamName ?? ""} id="edit-team-name" name="teamName" required /><FieldError errors={errorsFor(state, "teamName")} /></Field><Field data-invalid={Boolean(errorsFor(state, "phone")?.length)}><FieldLabel htmlFor="edit-phone">Teléfono</FieldLabel><Input defaultValue={order.phone ?? ""} id="edit-phone" inputMode="tel" name="phone" required /><FieldError errors={errorsFor(state, "phone")} /></Field></FieldGroup><FieldDescription>Los históricos pueden aparecer vacíos, pero deben completarse para guardar.</FieldDescription></FieldSet>
     <FieldSet><FieldLegend>Fechas</FieldLegend><Field><FieldLabel htmlFor="edit-promised-date">Fecha prometida de entrega</FieldLabel><Input defaultValue={order.promisedDeliveryDate} id="edit-promised-date" name="promisedDeliveryDate" required type="date" /><FieldError errors={errorsFor(state, "promisedDeliveryDate")} /></Field></FieldSet>
     <OrderLineEditor catalogs={catalogs} initialLines={orderLinesForEdit(order.lines)} />

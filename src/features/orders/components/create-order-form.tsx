@@ -30,6 +30,7 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
   const [totalAmount, setTotalAmount] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPaid, setDepositPaid] = useState(false);
+  const idempotencyRef = useRef<HTMLInputElement>(null);
   const total = safeMoney(totalAmount);
   const deposit = safeMoney(depositAmount);
   const balance = total && deposit ? safeOrderBalance(total, deposit) : null;
@@ -44,8 +45,8 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
 
   return <>
     {state.createdOrder ? <div aria-live="polite" className="rounded-xl border border-primary/30 bg-success p-5 text-success-foreground" ref={resultRef} tabIndex={-1}><div className="flex items-start gap-3"><CircleCheck aria-hidden="true" /><div><h2 className="font-semibold">PED-{String(state.createdOrder.publicNumber).padStart(6, "0")} creado</h2><p className="mt-1 text-sm">El pedido quedó en Pedido recibido.</p></div></div></div> : null}
-    <form action={formAction} className="flex flex-col gap-7 rounded-xl border border-border bg-card p-5 shadow-xs" key={state.status === "success" && state.toastId ? state.toastId : "create-order-form"} noValidate ref={formRef}>
-      <input defaultValue={crypto.randomUUID()} name="idempotencyKey" type="hidden" />
+    <form action={formAction} className="flex flex-col gap-7 rounded-xl border border-border bg-card p-5 shadow-xs" key={state.status === "success" && state.toastId ? state.toastId : "create-order-form"} noValidate onSubmit={() => { if (idempotencyRef.current && !idempotencyRef.current.value) idempotencyRef.current.value = crypto.randomUUID(); }} ref={formRef}>
+      <input name="idempotencyKey" ref={idempotencyRef} type="hidden" />
       <FieldSet><FieldLegend>Identificación</FieldLegend><FieldGroup className="grid gap-4 md:grid-cols-3">
         <Field data-invalid={Boolean(errorsFor(state, "clientName")?.length)}><FieldLabel htmlFor="order-client-name">Cliente</FieldLabel><Input aria-describedby="order-client-name-error" aria-invalid={Boolean(errorsFor(state, "clientName")?.length)} id="order-client-name" name="clientName" required /><FieldError errors={errorsFor(state, "clientName")} id="order-client-name-error" /></Field>
         <Field data-invalid={Boolean(errorsFor(state, "teamName")?.length)}><FieldLabel htmlFor="order-team-name">Equipo</FieldLabel><Input aria-describedby="order-team-name-error" aria-invalid={Boolean(errorsFor(state, "teamName")?.length)} id="order-team-name" name="teamName" required /><FieldError errors={errorsFor(state, "teamName")} id="order-team-name-error" /></Field>

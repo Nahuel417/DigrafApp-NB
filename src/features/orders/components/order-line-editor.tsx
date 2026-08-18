@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldSet } from "@/components/ui/field";
@@ -153,7 +153,11 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
 }
 
 export function OrderLineEditor({ catalogs, initialLines = [], name = "lines" }: { catalogs: OrderFormCatalogs; initialLines?: OrderLineInput[]; name?: string }) {
-  const [lines, setLines] = useState<EditableLine[]>(() => (initialLines.length ? initialLines : [line()]).map((item) => ({ ...item, key: crypto.randomUUID() })));
+  const lineId = useId();
+  const [lines, setLines] = useState<EditableLine[]>(() => {
+    const initial = initialLines.length ? initialLines : [{ position: 0, line_type: "individual" as const, quantity: 1, color: "", options: [] }];
+    return initial.map((item, index) => ({ ...item, key: `${lineId}-${index}` }));
+  });
   function replace(index: number, value: EditableLine) { setLines((current) => current.map((item, itemIndex) => itemIndex === index ? value : item)); }
   function move(index: number, direction: -1 | 1) { setLines((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target]!, next[index]!]; return next; }); }
 
