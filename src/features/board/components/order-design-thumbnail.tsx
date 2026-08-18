@@ -34,11 +34,15 @@ export function OrderDesignThumbnail({
     const [isNearViewport, setIsNearViewport] = useState(false);
     const [thumbnailElement, setThumbnailElement] = useState<HTMLElement | null>(null);
     const maxRetries = 2;
+    const loadImmediately = Boolean(onActivate);
+    const shouldLoad = loadImmediately || isNearViewport;
 
     useEffect(() => {
         if (!imageUpdatedAt || !thumbnailElement) {
             return;
         }
+
+        if (loadImmediately) return;
 
         if (!('IntersectionObserver' in window)) {
             const frame = requestAnimationFrame(() => setIsNearViewport(true));
@@ -52,10 +56,10 @@ export function OrderDesignThumbnail({
         }, { rootMargin: '200px' });
         observer.observe(thumbnailElement);
         return () => observer.disconnect();
-    }, [imageUpdatedAt, thumbnailElement]);
+    }, [imageUpdatedAt, loadImmediately, thumbnailElement]);
 
     useEffect(() => {
-        if (!imageUpdatedAt || !isNearViewport) {
+        if (!imageUpdatedAt || !shouldLoad) {
             return;
         }
 
@@ -77,7 +81,7 @@ export function OrderDesignThumbnail({
         return () => {
             cancelled = true;
         };
-    }, [imageUpdatedAt, isNearViewport, onUrlReady, orderId]);
+    }, [imageUpdatedAt, onUrlReady, orderId, shouldLoad]);
 
     function handleImageError() {
         if (retryCount < maxRetries) {
