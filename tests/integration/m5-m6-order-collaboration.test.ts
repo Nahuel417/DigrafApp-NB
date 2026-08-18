@@ -10,13 +10,14 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const localUrl = url ?? "http://127.0.0.1:54396";
 const password = `M5M6${randomUUID().replaceAll("-", "")}7`;
+const runId = randomUUID().slice(0, 8);
 
 type Role = Database["public"]["Enums"]["app_role"];
 type Identity = { email: string; id: string; role: Role };
 type RestError = { message: string };
 type RestResult<T> = { data: T | null; error: RestError | null };
 type OrderSeed = { id: string; updatedAt: string };
-type Catalog = Record<"garmentUpper" | "neckline" | "upperPattern" | "fabric", string>;
+type Catalog = Record<"garmentUpper" | "garmentProduct" | "neckline" | "upperPattern" | "fabric", string>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -146,9 +147,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
   function sensitiveInput(order: OrderSeed, overrides: Record<string, unknown> = {}) {
     return {
       p_order_id: order.id,
-      p_customer_name: "Equipo M5 M6",
-      p_quantity: 8,
-      p_order_type: "individual",
+      p_client_name: "Cliente M5 M6",
+      p_team_name: "Equipo M5 M6",
+      p_phone: "3515550506",
       p_order_date: "2026-07-29",
       p_promised_delivery_date: "2026-08-07",
       p_description: "Detalle actualizado",
@@ -156,13 +157,15 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
       p_total_amount: 2000,
       p_deposit_amount: 500,
       p_deposit_paid: true,
-      p_garment_upper_id: catalog.garmentUpper,
-      p_garment_lower_id: null,
-      p_neckline_id: catalog.neckline,
-      p_upper_pattern_id: catalog.upperPattern,
-      p_lower_pattern_id: null,
-      p_fabric_id: catalog.fabric,
-      p_extra_ids: [],
+      p_lines: [{
+        position: 0,
+        line_type: "individual",
+        product_id: catalog.garmentProduct,
+        quantity: 8,
+        options: [],
+        configuration: { legacy_options: { neckline_id: catalog.neckline, upper_pattern_id: catalog.upperPattern, fabric_id: catalog.fabric, extra_ids: [] } },
+        shield_product_ids: [],
+      }],
       p_expected_updated_at: order.updatedAt,
       p_idempotency_key: randomUUID(),
       ...overrides,
@@ -176,11 +179,15 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
 
     for (const role of ["super_admin", "admin", "attention", "employee"] as const) await createIdentity(role);
     catalog = {
-      garmentUpper: await createCatalog("garment", "Remera M5 M6", "upper"),
-      neckline: await createCatalog("neckline", "Redondo M5 M6"),
-      upperPattern: await createCatalog("upper_pattern", "Recto M5 M6"),
-      fabric: await createCatalog("fabric", "Microfibra M5 M6"),
+      garmentUpper: await createCatalog("garment", `Remera M5 M6 ${runId}`, "upper"),
+      garmentProduct: "",
+      neckline: await createCatalog("neckline", `Redondo M5 M6 ${runId}`),
+      upperPattern: await createCatalog("upper_pattern", `Recto M5 M6 ${runId}`),
+      fabric: await createCatalog("fabric", `Microfibra M5 M6 ${runId}`),
     };
+    const projection = await admin.from("catalog_products").select("id").eq("legacy_catalog_item_id", catalog.garmentUpper).single();
+    if (projection.error) throw projection.error;
+    catalog.garmentProduct = projection.data.id;
   });
 
   afterAll(async () => {
@@ -195,12 +202,22 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
       await request<unknown[]>(`/rest/v1/order_comments?order_id=in.(${ids})`, { method: "DELETE", token: serviceRoleKey });
       await request<unknown[]>(`/rest/v1/order_change_events?order_id=in.(${ids})`, { method: "DELETE", token: serviceRoleKey });
       await cleanup("order_stage_events", admin.from("order_stage_events").delete().in("order_id", orderIds));
+      const lines = await admin.from("order_lines").select("id").in("order_id", orderIds);
+      const lineIds = (lines.data ?? []).map((line) => line.id);
+      if (lineIds.length) await cleanup("order_line_shields", admin.from("order_line_shields").delete().in("order_line_id", lineIds));
+      await cleanup("order_lines", admin.from("order_lines").delete().in("order_id", orderIds));
       await cleanup("order_catalog_items", admin.from("order_catalog_items").delete().in("order_id", orderIds));
       await cleanup("order_financials", admin.from("order_financials").delete().in("order_id", orderIds));
       await cleanup("orders", admin.from("orders").delete().in("id", orderIds));
     }
+    const actorIds = identities.map((identity) => identity.id);
+    if (actorIds.length) await cleanup("catalog_item_events", admin.from("catalog_item_events").delete().in("actor_id", actorIds));
+    if (catalogIds.length) await cleanup("catalog_products", admin.from("catalog_products").delete().in("legacy_catalog_item_id", catalogIds));
     if (catalogIds.length) await cleanup("catalog_items", admin.from("catalog_items").delete().in("id", catalogIds));
-    for (const identity of identities) await cleanup(`auth user ${identity.id}`, admin.auth.admin.deleteUser(identity.id));
+    for (const identity of identities) {
+      await cleanup(`profile ${identity.id}`, admin.from("profiles").delete().eq("id", identity.id));
+      await cleanup(`auth user ${identity.id}`, admin.auth.admin.deleteUser(identity.id));
+    }
     if (failures.length) throw new Error(`Falló el cleanup M5/M6:\n${failures.join("\n")}`);
   });
 
@@ -267,7 +284,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     const { error: deleteCatalogError } = await admin.from("catalog_items").delete().eq("id", deletedFabric);
     expect(deleteCatalogError).toBeNull();
 
-    const input = sensitiveInput(order, { p_fabric_id: null });
+    const input = sensitiveInput(order);
     const first = await request<Array<{ event_id: string; updated_at: string }>>("/rest/v1/rpc/update_order", { body: input, token: await tokenFor(superAdmin) });
     expect(first.error).toBeNull();
 
@@ -305,14 +322,14 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     const current = { ...order, updatedAt: first.data?.[0]?.updated_at ?? "" };
     for (const identity of [attention, employee]) {
       const denied = await request<unknown[]>("/rest/v1/rpc/update_order", {
-        body: sensitiveInput(current, { p_fabric_id: null, p_idempotency_key: randomUUID() }),
+        body: sensitiveInput(current, { p_idempotency_key: randomUUID() }),
         token: await tokenFor(identity),
       });
-      expect(denied.error?.message).toContain("datos sensibles");
+      expect(denied.error?.message).toContain("No tenés permiso");
     }
 
     const adminUpdate = await request<Array<{ order_id: string }>>("/rest/v1/rpc/update_order", {
-      body: sensitiveInput(current, { p_fabric_id: null, p_quantity: 9, p_idempotency_key: randomUUID() }),
+      body: sensitiveInput(current, { p_lines: [{ ...sensitiveInput(current).p_lines[0], quantity: 9 }], p_idempotency_key: randomUUID() }),
       token: await tokenFor(adminIdentity),
     });
     expect(adminUpdate.error).toBeNull();

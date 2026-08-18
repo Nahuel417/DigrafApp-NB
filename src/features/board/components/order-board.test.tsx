@@ -24,6 +24,7 @@ const order = {
   id: "33333333-3333-4333-8333-333333333333",
   publicNumber: 7,
   customerName: "Equipo M11",
+  teamName: "Equipo M11",
   quantity: 1,
   orderType: "individual" as const,
   promisedDeliveryDate: "2026-08-13",
@@ -58,9 +59,15 @@ function choosePaid() {
 }
 
 function getColumn(name: string) {
-  const column = screen.getByRole("heading", { name }).closest("section");
+  const column = screen.getByRole("heading", { name: new RegExp(`^${name}$`) }).closest("section");
   if (!(column instanceof HTMLElement)) throw new Error(`No se encontró la columna ${name}.`);
   return column;
+}
+
+function getOrderCard() {
+  const card = screen.getByRole("button", { hidden: true, name: "Vista rápida de PED-000007" }).closest("article");
+  if (!(card instanceof HTMLElement)) throw new Error("No se encontró la tarjeta del pedido.");
+  return card;
 }
 
 describe("order board payment confirmation", () => {
@@ -71,7 +78,7 @@ describe("order board payment confirmation", () => {
 
     expect(screen.getByRole("alertdialog")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Confirmar cobro" })).toBeTruthy();
-    expect(screen.getAllByText("Equipo M11")).toHaveLength(2);
+    expect(within(screen.getByRole("alertdialog")).getByText("Equipo M11", { exact: true })).toBeTruthy();
     expect(screen.getByText("$ 100,00")).toBeTruthy();
     expect(screen.getByText("Destino")).toBeTruthy();
     expect(screen.getAllByText("Pagado").length).toBeGreaterThanOrEqual(2);
@@ -111,8 +118,8 @@ describe("order board payment confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirmar cobro" }));
 
     await waitFor(() => expect(confirmOrderPaymentAction).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(within(getColumn("Pagado")).getByText("Equipo M11")).toBeTruthy());
-    expect(within(getColumn("Pedido recibido")).queryByText("Equipo M11")).toBeNull();
+    await waitFor(() => expect(within(getColumn("Pagado")).getByRole("link", { name: /^Equipo M11$/ })).toBeTruthy());
+    expect(within(getColumn("Pedido recibido")).queryByRole("link", { name: /^Equipo M11$/ })).toBeNull();
     expect(screen.getByTestId("board-announcement").textContent).toContain("quedó confirmado como Pagado");
   });
 
@@ -130,8 +137,8 @@ describe("order board payment confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirmar cobro" }));
 
     await waitFor(() => expect(confirmOrderPaymentAction).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(within(getColumn("Pagado")).getByText("Equipo M11")).toBeTruthy());
-    expect(within(getColumn("Pedido recibido")).queryByText("Equipo M11")).toBeNull();
+    await waitFor(() => expect(within(getColumn("Pagado")).getByRole("link", { name: /^Equipo M11$/ })).toBeTruthy());
+    expect(within(getColumn("Pedido recibido")).queryByRole("link", { name: /^Equipo M11$/ })).toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("El pedido ya está pagado.");
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
@@ -139,11 +146,13 @@ describe("order board payment confirmation", () => {
   it("does not offer Pagado as an Employee destination", () => {
     render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, totalAmount: null }] }, columns[1]]} />);
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Mover PED-000007 a" }));
+    const trigger = screen.getByRole("combobox", { name: "Mover PED-000007 a" });
+    fireEvent.click(trigger);
 
     expect(screen.queryByRole("option", { name: "Pagado" })).toBeNull();
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(screen.getByText("Equipo M11", { exact: true })).toBeTruthy();
+    fireEvent.click(trigger);
+    expect(within(getOrderCard()).getByRole("link", { hidden: true, name: /^Equipo M11$/ })).toBeTruthy();
     expect(confirmOrderPaymentAction).not.toHaveBeenCalled();
   });
 });

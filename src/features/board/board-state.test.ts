@@ -7,6 +7,7 @@ const first: BoardOrder = {
   id: "first",
   publicNumber: 2,
   customerName: "Primero",
+  teamName: "Equipo primero",
   quantity: 1,
   orderType: "individual",
   promisedDeliveryDate: "2026-08-02",

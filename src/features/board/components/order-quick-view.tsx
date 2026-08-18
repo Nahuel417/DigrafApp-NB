@@ -119,7 +119,8 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{formatOrderNumber(data.publicNumber)}</p>
-          <h2 className="mt-1 break-words text-lg font-semibold">{data.customerName}</h2>
+           <h2 className="mt-1 break-words text-lg font-semibold">{data.customerName ?? "Cliente histórico"}</h2>
+           <p className="mt-1 text-sm text-muted-foreground">{data.teamName ?? "Equipo sin completar"}</p>
         </div>
         <Button aria-label="Cerrar vista rápida" data-no-drag="true" onClick={onClose} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
       </div>

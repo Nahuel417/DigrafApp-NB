@@ -278,9 +278,10 @@ export async function reconcileOrderAction(orderId: string) {
 export type OrderQuickView = {
   id: string;
   publicNumber: number;
-  customerName: string;
+  customerName: string | null;
+  teamName: string | null;
   quantity: number;
-  orderType: "set" | "individual";
+  orderType: "set" | "individual" | null;
   promisedDeliveryDate: string;
   description: string | null;
   stageName: string;
@@ -317,6 +318,7 @@ export async function getOrderQuickViewAction(orderId: string): Promise<{ data?:
       id: detail.order.id,
       publicNumber: detail.order.publicNumber,
       customerName: detail.order.customerName,
+      teamName: detail.order.teamName,
       quantity: detail.order.quantity,
       orderType: detail.order.orderType,
       promisedDeliveryDate: detail.order.promisedDeliveryDate,

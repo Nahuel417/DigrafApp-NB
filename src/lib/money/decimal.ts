@@ -87,6 +87,20 @@ export function visibleBalance(total: string, deposit: string, depositPaid: bool
   return `${balanceCents / BigInt(100)}.${(balanceCents % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
+export function orderBalance(total: string, deposit: string) {
+  const balanceCents = moneyToCents(total) - moneyToCents(deposit);
+  if (balanceCents < BigInt(0)) throw new Error("La seña no puede superar el total.");
+  return `${balanceCents / BigInt(100)}.${(balanceCents % BigInt(100)).toString().padStart(2, "0")}`;
+}
+
+export function safeOrderBalance(total: string, deposit: string) {
+  try {
+    return orderBalance(total, deposit);
+  } catch {
+    return null;
+  }
+}
+
 export function formatArs(value: string) {
   const [integerPart, fractionPart] = normalizeAggregateMoney(value).split(".");
   const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");

@@ -12,6 +12,9 @@ export const catalogItemKinds = [
 ] as const satisfies readonly Database["public"]["Enums"]["catalog_item_kind"][];
 
 export type CatalogItemKind = (typeof catalogItemKinds)[number];
+export const productCatalogKinds = ["flag", "bag", "shield"] as const;
+export type ProductCatalogKind = (typeof productCatalogKinds)[number];
+export type CatalogManagerKind = CatalogItemKind | ProductCatalogKind;
 export type GarmentLayer = Database["public"]["Enums"]["garment_layer"];
 
 export const catalogItemKindLabels: Record<CatalogItemKind, string> = {
@@ -22,6 +25,14 @@ export const catalogItemKindLabels: Record<CatalogItemKind, string> = {
   fabric: "Telas",
   extra: "Extras",
 };
+
+export const productCatalogKindLabels: Record<ProductCatalogKind, string> = {
+  flag: "Banderas",
+  bag: "Bolsos",
+  shield: "Escudos",
+};
+
+export const catalogManagerKinds: readonly CatalogManagerKind[] = [...catalogItemKinds, ...productCatalogKinds];
 
 export const garmentLayerLabels: Record<GarmentLayer, string> = {
   upper: "Prenda superior",
@@ -53,6 +64,22 @@ export const catalogItemIdSchema = z.object({
   itemId: z.string().uuid("El ítem seleccionado no es válido."),
 });
 
+export const catalogProductSchema = z.object({
+  kind: z.enum(productCatalogKinds),
+  name: z.string().trim().min(2, "Ingresá un nombre de al menos 2 caracteres.").max(100, "El nombre no puede superar los 100 caracteres."),
+  categoryId: z.union([z.literal(""), z.string().uuid("La categoría seleccionada no es válida.")]),
+});
+
+export const catalogCategorySchema = z.object({
+  name: z.string().trim().min(2, "Ingresá un nombre de al menos 2 caracteres.").max(80, "El nombre no puede superar los 80 caracteres."),
+});
+
 export function catalogItemKindLabel(kind: CatalogItemKind) {
   return catalogItemKindLabels[kind];
+}
+
+export function catalogManagerKindLabel(kind: CatalogManagerKind) {
+  return kind in productCatalogKindLabels
+    ? productCatalogKindLabels[kind as ProductCatalogKind]
+    : catalogItemKindLabels[kind as CatalogItemKind];
 }
