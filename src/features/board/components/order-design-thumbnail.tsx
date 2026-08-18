@@ -41,8 +41,8 @@ export function OrderDesignThumbnail({
         }
 
         if (!('IntersectionObserver' in window)) {
-            setIsNearViewport(true);
-            return;
+            const frame = window.requestAnimationFrame(() => setIsNearViewport(true));
+            return () => window.cancelAnimationFrame(frame);
         }
 
         const observer = new IntersectionObserver(([entry]) => {
