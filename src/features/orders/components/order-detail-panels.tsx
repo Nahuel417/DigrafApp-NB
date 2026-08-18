@@ -26,7 +26,7 @@ export function CreateCommentForm({ orderId }: { orderId: string }) {
     if (state.status === "success") {
       formRef.current?.reset();
       if (idempotencyInputRef.current) {
-        idempotencyInputRef.current.value = crypto.randomUUID();
+        idempotencyInputRef.current.value = "";
       }
       return;
     }
@@ -34,9 +34,9 @@ export function CreateCommentForm({ orderId }: { orderId: string }) {
   }, [state.fieldErrors?.body, state.status, state.toastId]);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3" ref={formRef}>
+    <form action={formAction} className="flex flex-col gap-3" onSubmit={() => { if (idempotencyInputRef.current && !idempotencyInputRef.current.value) idempotencyInputRef.current.value = crypto.randomUUID(); }} ref={formRef}>
       <input name="orderId" type="hidden" value={orderId} />
-      <input defaultValue={crypto.randomUUID()} name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
+      <input name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
       <Field>
         <FieldLabel className="text-sm" htmlFor="comment-body">Nuevo comentario</FieldLabel>
         <Textarea
@@ -162,7 +162,7 @@ export function EditableDescription({
   useEffect(() => {
     if (state.status !== "success" || !state.toastId) return;
     if (idempotencyInputRef.current) {
-      idempotencyInputRef.current.value = crypto.randomUUID();
+      idempotencyInputRef.current.value = "";
     }
     window.requestAnimationFrame(() => router.refresh());
   }, [router, state.status, state.toastId]);
@@ -188,9 +188,9 @@ export function EditableDescription({
 
   if (editing) {
     return (
-      <form action={formAction} className="flex flex-col gap-3">
-        <input name="orderId" type="hidden" value={orderId} />
-        <input defaultValue={crypto.randomUUID()} name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
+        <form action={formAction} className="flex flex-col gap-3" onSubmit={(event) => { const input = event.currentTarget.elements.namedItem("idempotencyKey"); if (input instanceof HTMLInputElement && !input.value) input.value = crypto.randomUUID(); }}>
+          <input name="orderId" type="hidden" value={orderId} />
+          <input name="idempotencyKey" ref={idempotencyInputRef} type="hidden" />
         <input name="expectedUpdatedAt" type="hidden" value={updatedAt} />
         <Textarea defaultValue={description} id="order-description" name="description" ref={textareaRef} rows={4} />
         <Field>

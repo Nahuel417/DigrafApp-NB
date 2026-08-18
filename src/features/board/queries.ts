@@ -13,9 +13,10 @@ export type BoardStage = {
 export type BoardOrder = {
   id: string;
   publicNumber: number;
-  customerName: string;
+  customerName: string | null;
+  teamName: string | null;
   quantity: number;
-  orderType: "set" | "individual";
+  orderType: "set" | "individual" | null;
   promisedDeliveryDate: string;
   currentStageId: string;
   updatedAt: string;
@@ -57,33 +58,27 @@ export function buildBoardColumns(stages: BoardStage[], orders: BoardOrder[]): B
   return columns;
 }
 
-export async function getOrderBoard(role: AppRole): Promise<OrderBoard> {
+type BoardRpcRow = {
+  id: string; public_number: number; customer_name: string; team_name: string | null; quantity: number; order_type: "set" | "individual" | null;
+  promised_delivery_date: string; current_stage_id: string; updated_at: string; has_design_image: boolean; image_updated_at: string | null;
+  total_amount: number | null; payment_confirmed_at: string | null;
+};
+
+export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBoard> {
   const supabase = await createClient();
   const [stagesResult, ordersResult] = await Promise.all([
     supabase.from("workflow_stages").select("id, code, name, position").eq("is_active", true).order("position"),
-    supabase.rpc("get_order_board"),
+    supabase.rpc("get_order_board", { p_search: search } as never),
   ]);
 
   if (stagesResult.error || ordersResult.error) throw new Error("No se pudo cargar el tablero de pedidos.");
 
   const stages = stagesResult.data as BoardStage[];
-  const orders = (ordersResult.data as Array<{
-    id: string;
-    public_number: number;
-    customer_name: string;
-    quantity: number;
-    order_type: "set" | "individual";
-    promised_delivery_date: string;
-    current_stage_id: string;
-    updated_at: string;
-    has_design_image: boolean;
-    image_updated_at: string | null;
-    total_amount: number | null;
-    payment_confirmed_at: string | null;
-  }>).map((order) => ({
+  const orders = (ordersResult.data as unknown as BoardRpcRow[]).map((order) => ({
     id: order.id,
     publicNumber: order.public_number,
     customerName: order.customer_name,
+    teamName: order.team_name,
     quantity: order.quantity,
     orderType: order.order_type,
     promisedDeliveryDate: order.promised_delivery_date,

@@ -26,23 +26,16 @@ function formValue(formData: FormData, name: string) {
 
 function formValues(formData: FormData) {
   return {
-    customerName: formValue(formData, "customerName"),
-    quantity: formValue(formData, "quantity"),
-    orderType: formValue(formData, "orderType"),
+    clientName: formValue(formData, "clientName"),
+    teamName: formValue(formData, "teamName"),
+    phone: formValue(formData, "phone"),
+    lines: formValue(formData, "lines"),
     orderDate: formValue(formData, "orderDate"),
     promisedDeliveryDate: formValue(formData, "promisedDeliveryDate"),
     description: formValue(formData, "description"),
     totalAmount: formValue(formData, "totalAmount"),
     depositAmount: formValue(formData, "depositAmount"),
     depositPaid: formData.get("depositPaid") === "true" || formData.get("depositPaid") === "on",
-    individualLayer: formValue(formData, "individualLayer"),
-    garmentUpperId: formValue(formData, "garmentUpperId"),
-    garmentLowerId: formValue(formData, "garmentLowerId"),
-    necklineId: formValue(formData, "necklineId"),
-    upperPatternId: formValue(formData, "upperPatternId"),
-    lowerPatternId: formValue(formData, "lowerPatternId"),
-    fabricId: formValue(formData, "fabricId"),
-    extraIds: formData.getAll("extraIds").map(String),
     idempotencyKey: formValue(formData, "idempotencyKey"),
   };
 }
@@ -103,22 +96,16 @@ export async function createOrderAction(
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_order", {
-    p_customer_name: parsed.data.customerName,
-    p_quantity: parsed.data.quantity,
-    p_order_type: parsed.data.orderType,
+     p_client_name: parsed.data.clientName,
+    p_team_name: parsed.data.teamName,
+    p_phone: parsed.data.phone,
     p_order_date: parsed.data.orderDate,
     p_promised_delivery_date: parsed.data.promisedDeliveryDate,
     p_description: parsed.data.description,
     p_total_amount: parsed.data.totalAmount,
     p_deposit_amount: parsed.data.depositAmount,
     p_deposit_paid: parsed.data.depositPaid,
-    p_garment_upper_id: parsed.data.garmentUpperId,
-    p_garment_lower_id: parsed.data.garmentLowerId,
-    p_neckline_id: parsed.data.necklineId,
-    p_upper_pattern_id: parsed.data.upperPatternId,
-    p_lower_pattern_id: parsed.data.lowerPatternId,
-    p_fabric_id: parsed.data.fabricId,
-    p_extra_ids: parsed.data.extraIds,
+     p_lines: parsed.data.lines,
     p_idempotency_key: parsed.data.idempotencyKey,
   });
 

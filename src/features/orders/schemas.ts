@@ -2,8 +2,6 @@ import { z } from "zod";
 
 import { compareMoney, normalizeMoney } from "@/lib/money/decimal";
 
-const uuidOrEmpty = z.string().trim().refine((value) => value === "" || z.string().uuid().safeParse(value).success, "La selección no es válida.");
-
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresá una fecha válida.");
 
 const moneyValue = z
@@ -14,25 +12,61 @@ const moneyValue = z
   .refine((value) => /^\d{1,12}(?:\.\d{1,2})?$/.test(value), "Usá un importe con hasta dos decimales.")
   .transform((value) => normalizeMoney(value));
 
+const optionSelectionSchema = z.object({ option_id: z.string().uuid(), value_ids: z.array(z.string().uuid()) });
+const legacyOptionsSchema = z.object({
+  neckline_id: z.string().uuid().optional(),
+  upper_pattern_id: z.string().uuid().optional(),
+  lower_pattern_id: z.string().uuid().optional(),
+  fabric_id: z.string().uuid().optional(),
+  extra_ids: z.array(z.string().uuid()).optional(),
+});
+
+const orderLineSchema = z.object({
+  position: z.number().int().nonnegative(),
+  line_type: z.enum(["individual", "set", "flag", "bag", "shield"]),
+  product_id: z.string().uuid().optional(),
+  quantity: z.number().int().positive(),
+  color: z.string().max(100).nullable().optional(),
+  options: z.array(optionSelectionSchema).optional(),
+  configuration: z.object({
+    upper: z.object({ product_id: z.string().uuid(), options: z.array(optionSelectionSchema).optional() }).optional(),
+    lower: z.object({ product_id: z.string().uuid(), options: z.array(optionSelectionSchema).optional() }).optional(),
+    legacy_options: legacyOptionsSchema.optional(),
+  }).optional(),
+  shield_product_ids: z.array(z.string().uuid()).optional(),
+}).superRefine((line, context) => {
+  if (line.line_type === "set") {
+    if (!line.configuration?.upper) context.addIssue({ code: "custom", path: ["configuration", "upper"], message: "Seleccioná la parte superior." });
+    if (!line.configuration?.lower) context.addIssue({ code: "custom", path: ["configuration", "lower"], message: "Seleccioná la parte inferior." });
+  } else if (!line.product_id) {
+    context.addIssue({ code: "custom", path: ["product_id"], message: "Seleccioná un producto." });
+  }
+});
+
+export const orderLinesValue = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  },
+  z.array(orderLineSchema).min(1, "El pedido requiere al menos un renglón."),
+);
+
 export const orderFormSchema = z
   .object({
-    customerName: z.string().trim().min(2, "Ingresá el cliente o equipo.").max(200, "El cliente o equipo no puede superar los 200 caracteres."),
-    quantity: z.string().regex(/^[1-9]\d*$/, "La cantidad debe ser mayor que cero.").transform(Number),
-    orderType: z.enum(["set", "individual"]),
+    clientName: z.string().trim().min(2, "Ingresá el cliente.").max(200, "El cliente no puede superar los 200 caracteres."),
+    teamName: z.string().trim().min(2, "Ingresá el equipo.").max(200, "El equipo no puede superar los 200 caracteres."),
+    phone: z.string().trim().min(6, "Ingresá un teléfono válido.").max(40, "El teléfono no puede superar los 40 caracteres."),
+    lines: orderLinesValue,
     orderDate: dateValue,
     promisedDeliveryDate: dateValue,
     description: z.string().trim().max(5000, "La descripción no puede superar los 5000 caracteres."),
     totalAmount: moneyValue,
     depositAmount: moneyValue,
     depositPaid: z.boolean(),
-    individualLayer: z.enum(["", "upper", "lower"]),
-    garmentUpperId: uuidOrEmpty,
-    garmentLowerId: uuidOrEmpty,
-    necklineId: uuidOrEmpty,
-    upperPatternId: uuidOrEmpty,
-    lowerPatternId: uuidOrEmpty,
-    fabricId: uuidOrEmpty,
-    extraIds: z.array(z.string().uuid("Uno de los extras seleccionados no es válido.")),
     idempotencyKey: z.string().trim().min(1, "La solicitud de creación no es válida.").max(200, "La solicitud de creación no es válida."),
   })
   .superRefine((value, context) => {
@@ -48,38 +82,6 @@ export const orderFormSchema = z
       context.addIssue({ code: "custom", path: ["promisedDeliveryDate"], message: "La fecha prometida no puede ser anterior a la fecha del pedido." });
     }
 
-    if (!value.fabricId) {
-      context.addIssue({ code: "custom", path: ["fabricId"], message: "Seleccioná una tela." });
-    }
-
-    if (value.orderType === "set") {
-      if (!value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Seleccioná una prenda superior." });
-      if (!value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Seleccioná una prenda inferior." });
-      if (!value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "Seleccioná un cuello." });
-      if (!value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Seleccioná un molde superior." });
-      if (!value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Seleccioná un molde inferior." });
-      return;
-    }
-
-    if (!value.individualLayer) {
-      context.addIssue({ code: "custom", path: ["individualLayer"], message: "Indicá si la prenda es superior o inferior." });
-    }
-
-    if (value.individualLayer === "upper") {
-      if (!value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Seleccioná una prenda superior." });
-      if (!value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "Seleccioná un cuello." });
-      if (!value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Seleccioná un molde superior." });
-      if (value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Una prenda superior no lleva prenda inferior." });
-      if (value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Una prenda superior no lleva molde inferior." });
-    }
-
-    if (value.individualLayer === "lower") {
-      if (!value.garmentLowerId) context.addIssue({ code: "custom", path: ["garmentLowerId"], message: "Seleccioná una prenda inferior." });
-      if (!value.lowerPatternId) context.addIssue({ code: "custom", path: ["lowerPatternId"], message: "Seleccioná un molde inferior." });
-      if (value.garmentUpperId) context.addIssue({ code: "custom", path: ["garmentUpperId"], message: "Una prenda inferior no lleva prenda superior." });
-      if (value.necklineId) context.addIssue({ code: "custom", path: ["necklineId"], message: "El cuello no aplica a una prenda inferior." });
-      if (value.upperPatternId) context.addIssue({ code: "custom", path: ["upperPatternId"], message: "Una prenda inferior no lleva molde superior." });
-    }
   });
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;

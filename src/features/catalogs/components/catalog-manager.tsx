@@ -7,11 +7,13 @@ import { Separator } from "@/components/ui/separator";
 
 import { CatalogItemForm } from "./catalog-item-form";
 import { CatalogItemList } from "./catalog-item-list";
-import { catalogItemKindLabel, catalogItemKinds, type CatalogItemKind } from "../schemas";
-import type { CatalogItem } from "../queries";
+import { CatalogProductManager } from "./catalog-product-manager";
+import { catalogItemKinds, catalogManagerKindLabel, catalogManagerKinds, type CatalogItemKind, type CatalogManagerKind, type ProductCatalogKind } from "../schemas";
+import type { CatalogCategory, CatalogItem, CatalogProduct } from "../queries";
 
-export function CatalogManager({ items }: { items: CatalogItem[] }) {
-  const [selectedKind, setSelectedKind] = useState<CatalogItemKind>("garment");
+export function CatalogManager({ categories, items, products, shieldSectionId }: { categories: CatalogCategory[]; items: CatalogItem[]; products: CatalogProduct[]; shieldSectionId: string | null }) {
+  const [selectedKind, setSelectedKind] = useState<CatalogManagerKind>("garment");
+  const isLegacyKind = catalogItemKinds.includes(selectedKind as CatalogItemKind);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
@@ -25,7 +27,7 @@ export function CatalogManager({ items }: { items: CatalogItem[] }) {
       <div className="grid lg:grid-cols-[14rem_minmax(0,1fr)]">
         <nav aria-label="Tipos de catálogo" className="overflow-x-auto border-b border-border p-3 lg:border-b-0 lg:border-r">
           <div className="flex min-w-max gap-1 lg:min-w-0 lg:flex-col">
-            {catalogItemKinds.map((kind) => {
+            {catalogManagerKinds.map((kind) => {
               const selected = selectedKind === kind;
               return (
                 <Button
@@ -36,7 +38,7 @@ export function CatalogManager({ items }: { items: CatalogItem[] }) {
                   type="button"
                   variant={selected ? "default" : "ghost"}
                 >
-                  {catalogItemKindLabel(kind)}
+                  {catalogManagerKindLabel(kind)}
                 </Button>
               );
             })}
@@ -50,13 +52,7 @@ export function CatalogManager({ items }: { items: CatalogItem[] }) {
               <h3 className="mt-1 text-lg font-semibold">Nuevo ítem</h3>
               <p className="mt-1 text-sm text-muted-foreground">El nombre queda disponible para los nuevos pedidos cuando lo guardes.</p>
             </div>
-            <CatalogItemForm key={selectedKind} kind={selectedKind} />
-            <Separator />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Listado</p>
-              <h3 className="mt-1 text-lg font-semibold">{catalogItemKindLabel(selectedKind)}</h3>
-            </div>
-            <CatalogItemList items={items} kind={selectedKind} />
+             {isLegacyKind ? <><CatalogItemForm key={selectedKind} kind={selectedKind as CatalogItemKind} /><Separator /><div><p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Listado</p><h3 className="mt-1 text-lg font-semibold">{catalogManagerKindLabel(selectedKind)}</h3></div><CatalogItemList items={items} kind={selectedKind as CatalogItemKind} /></> : <CatalogProductManager categories={categories} kind={selectedKind as ProductCatalogKind} products={products} shieldSectionId={shieldSectionId} />}
           </div>
         </div>
       </div>

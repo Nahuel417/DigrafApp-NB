@@ -95,6 +95,7 @@ describe("confirm order payment action", () => {
       id: "11111111-1111-4111-8111-111111111111",
       publicNumber: 7,
       customerName: "Equipo",
+      teamName: "Equipo",
       quantity: 1,
       orderType: "individual" as const,
       promisedDeliveryDate: "2026-08-13",

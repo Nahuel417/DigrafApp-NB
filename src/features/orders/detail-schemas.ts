@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { compareMoney, normalizeMoney } from "@/lib/money/decimal";
 
-const uuidOrEmpty = z.string().trim().refine((value) => value === "" || z.string().uuid().safeParse(value).success, "La selección no es válida.");
+import { orderLinesValue } from "./schemas";
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresá una fecha válida.");
 const moneyValue = z
   .string()
@@ -33,9 +33,10 @@ export type CreateOrderCommentValues = z.infer<typeof createOrderCommentSchema>;
 export const updateOrderSchema = z
   .object({
     orderId: z.string().uuid("El pedido seleccionado no es válido."),
-    customerName: z.string().trim().min(2, "Ingresá el cliente o equipo.").max(200, "El cliente o equipo no puede superar los 200 caracteres."),
-    quantity: z.coerce.number().int("La cantidad debe ser un número entero.").min(1, "La cantidad debe ser mayor que cero."),
-    orderType: z.enum(["set", "individual"]),
+    clientName: z.string().trim().min(2, "Ingresá el cliente.").max(200, "El cliente no puede superar los 200 caracteres."),
+    teamName: z.string().trim().min(2, "Ingresá el equipo.").max(200, "El equipo no puede superar los 200 caracteres."),
+    phone: z.string().trim().min(6, "Ingresá un teléfono válido.").max(40, "El teléfono no puede superar los 40 caracteres."),
+    lines: orderLinesValue,
     orderDate: dateValue,
     promisedDeliveryDate: dateValue,
     description: z.string().trim().max(5000, "La descripción no puede superar los 5000 caracteres."),
@@ -43,14 +44,6 @@ export const updateOrderSchema = z
     totalAmount: moneyValue,
     depositAmount: moneyValue,
     depositPaid: z.enum(["true", "false"]).transform((value) => value === "true"),
-    individualLayer: z.enum(["", "upper", "lower"]),
-    garmentUpperId: uuidOrEmpty,
-    garmentLowerId: uuidOrEmpty,
-    necklineId: uuidOrEmpty,
-    upperPatternId: uuidOrEmpty,
-    lowerPatternId: uuidOrEmpty,
-    fabricId: uuidOrEmpty,
-    extraIds: z.array(z.string().uuid("Uno de los extras seleccionados no es válido.")),
     expectedUpdatedAt: z.string().datetime({ offset: true, message: "La versión del pedido no es válida." }),
     idempotencyKey: z.string().trim().min(1, "La solicitud de edición no es válida.").max(200, "La solicitud de edición no es válida."),
   })
@@ -67,9 +60,6 @@ export const updateOrderSchema = z
       context.addIssue({ code: "custom", path: ["promisedDeliveryDate"], message: "La fecha prometida no puede ser anterior a la fecha del pedido." });
     }
 
-    if (value.orderType === "individual" && !value.individualLayer) {
-      context.addIssue({ code: "custom", path: ["individualLayer"], message: "Indicá si la prenda es superior o inferior." });
-    }
   });
 
 export type UpdateOrderValues = z.infer<typeof updateOrderSchema>;

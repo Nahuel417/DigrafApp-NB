@@ -1,19 +1,37 @@
 import { createClient } from "@/lib/supabase/server";
+import { getOrderFormCatalogs, type OrderFormCatalogs } from "./queries";
 
 import type { Database } from "@/lib/supabase/database.types";
 
 export type OrderDetail = {
   id: string;
   publicNumber: number;
-  customerName: string;
+  customerName: string | null;
+  clientName: string | null;
+  teamName: string | null;
+  phone: string | null;
   quantity: number;
-  orderType: Database["public"]["Enums"]["order_type"];
+  orderType: Database["public"]["Enums"]["order_type"] | null;
   orderDate: string;
   promisedDeliveryDate: string;
   description: string | null;
   currentStage: { id: string; code: string; name: string };
   createdAt: string;
   updatedAt: string;
+  lines: OrderDetailLine[];
+};
+
+export type OrderDetailLine = {
+  id: string;
+  position: number;
+  lineType: Database["public"]["Enums"]["order_line_type"];
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  color: string | null;
+  configurationSnapshot: Record<string, unknown>;
+  shieldNames: string[];
+  shieldProductIds: string[];
 };
 
 export type OrderFinancials = {
@@ -31,14 +49,7 @@ export type OrderSelection = {
   catalogItemId: string | null;
 };
 
-export type OrderDetailCatalogs = {
-  garments: Array<{ id: string; garmentLayer: Database["public"]["Enums"]["garment_layer"]; name: string }>;
-  necklines: Array<{ id: string; name: string }>;
-  upperPatterns: Array<{ id: string; name: string }>;
-  lowerPatterns: Array<{ id: string; name: string }>;
-  fabrics: Array<{ id: string; name: string }>;
-  extras: Array<{ id: string; name: string }>;
-};
+export type OrderDetailCatalogs = OrderFormCatalogs;
 
 export type OrderDetailData = {
   order: OrderDetail;
@@ -52,7 +63,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, public_number, customer_name, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, updated_at, created_at, workflow_stages (id, code, name)")
+    .select("id, public_number, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, updated_at, created_at, workflow_stages (id, code, name)")
     .eq("id", orderId)
     .single();
 
@@ -60,27 +71,22 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   const stage = Array.isArray(order.workflow_stages) ? order.workflow_stages[0] : order.workflow_stages;
 
-  const [{ data: financials }, { data: selections }, { data: catalogItems }] = await Promise.all([
+  const [{ data: financials }, { data: selections }, { data: lines }, formCatalogs] = await Promise.all([
     supabase.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId).single(),
     supabase.from("order_catalog_items").select("id, selection_key, catalog_kind, garment_layer, item_name, catalog_item_id").eq("order_id", orderId),
-    supabase.from("catalog_items").select("id, kind, garment_layer, name").eq("is_active", true),
+    supabase.from("order_lines").select("id, position, line_type, product_id, product_name_snapshot, quantity, color, configuration, order_line_shields(shield_product_id, shield_name_snapshot)").eq("order_id", orderId).order("position"),
+    getOrderFormCatalogs(),
   ]);
-
-  const catalogItemsData = catalogItems ?? [];
-  const catalogs: OrderDetailCatalogs = {
-    garments: catalogItemsData.filter((item) => item.kind === "garment").map((item) => ({ id: item.id, garmentLayer: item.garment_layer!, name: item.name })),
-    necklines: catalogItemsData.filter((item) => item.kind === "neckline").map((item) => ({ id: item.id, name: item.name })),
-    upperPatterns: catalogItemsData.filter((item) => item.kind === "upper_pattern").map((item) => ({ id: item.id, name: item.name })),
-    lowerPatterns: catalogItemsData.filter((item) => item.kind === "lower_pattern").map((item) => ({ id: item.id, name: item.name })),
-    fabrics: catalogItemsData.filter((item) => item.kind === "fabric").map((item) => ({ id: item.id, name: item.name })),
-    extras: catalogItemsData.filter((item) => item.kind === "extra").map((item) => ({ id: item.id, name: item.name })),
-  };
+  const catalogs: OrderDetailCatalogs = formCatalogs ?? { garments: [], flags: [], bags: [], shields: [], necklines: [], upperPatterns: [], lowerPatterns: [], fabrics: [], extras: [] };
 
   return {
     order: {
       id: order.id,
       publicNumber: order.public_number,
       customerName: order.customer_name,
+      clientName: order.client_name,
+      teamName: order.team_name,
+      phone: order.phone,
       quantity: order.quantity,
       orderType: order.order_type,
       orderDate: order.order_date,
@@ -89,6 +95,18 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
       currentStage: { id: stage.id, code: stage.code, name: stage.name },
       createdAt: order.created_at,
       updatedAt: order.updated_at,
+      lines: (lines ?? []).map((line) => ({
+        id: line.id,
+        position: line.position,
+        lineType: line.line_type,
+        productId: line.product_id,
+        quantity: line.quantity,
+        color: line.color,
+        productName: line.product_name_snapshot,
+        configurationSnapshot: line.configuration as unknown as Record<string, unknown>,
+        shieldNames: (Array.isArray(line.order_line_shields) ? line.order_line_shields : []).map((shield) => shield.shield_name_snapshot),
+        shieldProductIds: (Array.isArray(line.order_line_shields) ? line.order_line_shields : []).flatMap((shield) => shield.shield_product_id ? [shield.shield_product_id] : []),
+      })),
     },
     financials: financials
       ? { totalAmount: financials.total_amount, depositAmount: financials.deposit_amount, depositPaid: financials.deposit_paid }

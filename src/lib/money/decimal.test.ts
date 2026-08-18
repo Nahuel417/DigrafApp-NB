@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canInsertCashAmount, cashAmountError, compareMoney, formatArs, normalizeAggregateMoney, normalizeMoney, visibleBalance } from "./decimal";
+import { canInsertCashAmount, cashAmountError, compareMoney, formatArs, normalizeAggregateMoney, normalizeMoney, safeOrderBalance, visibleBalance } from "./decimal";
 
 describe("money decimals", () => {
   it("normalizes ARS values without floating point arithmetic", () => {
@@ -33,6 +33,12 @@ describe("money decimals", () => {
     expect(visibleBalance("1000", "250", true)).toBe("750.00");
     expect(visibleBalance("1000", "250", false)).toBe("1000.00");
     expect(() => visibleBalance("100", "100.01", true)).toThrow();
+  });
+
+  it("does not throw while the order amounts are partial or invalid", () => {
+    expect(safeOrderBalance("", "250")).toBeNull();
+    expect(safeOrderBalance("100", "100.01")).toBeNull();
+    expect(safeOrderBalance("1000", "250")).toBe("750.00");
   });
 
   it("rejects values outside numeric(14,2)", () => {

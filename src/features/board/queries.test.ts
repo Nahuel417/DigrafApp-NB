@@ -11,7 +11,8 @@ const stages: BoardStage[] = [
 const order = (id: string, currentStageId: string, promisedDeliveryDate: string, publicNumber: number): BoardOrder => ({
   id,
   publicNumber,
-  customerName: `Equipo ${id}`,
+       customerName: `Equipo ${id}`,
+       teamName: `Equipo ${id}`,
   quantity: 1,
   orderType: "individual",
   promisedDeliveryDate,
