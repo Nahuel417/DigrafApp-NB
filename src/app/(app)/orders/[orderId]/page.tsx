@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canEditOrderDescription, canEditOrderSensitive, canReadOrderFinancials } from "@/lib/auth/permissions";
-import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
+import { formatArsFromNumber, formatArsFromString, formatDate, formatOrderNumber, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
 import { getOrderDesignImageReadUrl } from "@/features/orders/image-queries";
@@ -64,7 +64,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <Badge variant="outline">{order.currentStage.name}</Badge>
         </div>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          {order.customerName} · {orderTypeLabel(order.orderType)} · {order.quantity} unidades
+           {order.clientName ?? order.customerName ?? "Cliente histórico"} · {order.teamName ?? "Equipo histórico"} · {order.quantity} unidades
         </p>
       </header>
 
@@ -73,10 +73,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Datos del pedido</h2>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-border bg-muted/40 p-3">
-                <dt className="text-xs text-muted-foreground">Cliente o equipo</dt>
-                <dd className="mt-1 text-sm font-medium">{order.customerName}</dd>
-              </div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Cliente</dt><dd className="mt-1 text-sm font-medium">{order.clientName ?? order.customerName ?? "Sin completar"}</dd></div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Equipo</dt><dd className="mt-1 text-sm font-medium">{order.teamName ?? "Sin completar"}</dd></div>
+              <div className="rounded-lg border border-border bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">Teléfono</dt><dd className="mt-1 text-sm font-medium">{order.phone ?? "Sin completar"}</dd></div>
               <div className="rounded-lg border border-border bg-muted/40 p-3">
                 <dt className="text-xs text-muted-foreground">Cantidad</dt>
                 <dd className="mt-1 font-mono text-sm font-medium">{order.quantity}</dd>
@@ -95,7 +94,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Especificaciones</h2>
             <dl className="mt-4 flex flex-col gap-3">
-              {selections.map((selection) => (
+              {order.lines.map((line) => (
+                <div className="rounded-lg border border-border bg-muted/40 p-3" key={line.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{line.lineType}</p><p className="mt-1 font-medium">{line.productName}</p></div><span className="font-mono text-sm">{line.quantity} unidades</span></div>{line.color ? <p className="mt-2 text-sm text-muted-foreground">Color: {line.color}</p> : null}{line.shieldNames.length ? <p className="mt-2 text-sm text-muted-foreground">Escudos: {line.shieldNames.join(", ")}</p> : null}<pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs text-muted-foreground">{JSON.stringify(line.configurationSnapshot, null, 2)}</pre></div>
+              ))}
+              {order.lines.length === 0 ? selections.map((selection) => (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3" key={selection.id}>
                   <div>
                     <dt className="text-xs text-muted-foreground">{selectionLabel(selection)}</dt>
@@ -103,7 +105,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
                   </div>
                   {selectionIsHistorical(selection) ? <Badge variant="inactive">Ya no disponible</Badge> : null}
                 </div>
-              ))}
+              )) : null}
             </dl>
           </section>
 
@@ -125,7 +127,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
               <h2 className="text-base font-semibold">Editar pedido</h2>
               <p className="mt-1 text-sm text-muted-foreground">Los cambios quedan auditados y requieren confirmación.</p>
               <div className="mt-4">
-                <OrderEditForm action={updateOrderAction} catalogs={catalogs} financials={financials} order={order} selections={selections} />
+               <OrderEditForm action={updateOrderAction} catalogs={catalogs} financials={financials} order={order} />
               </div>
             </section>
           ) : null}

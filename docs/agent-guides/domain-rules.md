@@ -19,7 +19,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Ver y operar caja | Sí | Sí | Sí | No |
 | Cerrar caja | Sí | Sí | No | No |
 | Comentar pedido | Sí | Sí | Sí | Sí |
-| Editar datos sensibles | Sí | Sí | No | No |
+| Editar datos sensibles | Sí | Sí | Sí | No |
 
 `super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
 
@@ -51,6 +51,11 @@ La primera cuenta `super_admin` de cada entorno es una excepción inicial: un de
 
 ## Pedidos y tablero
 
+Desde PR 1A un pedido nuevo tiene uno o más renglones posicionados. Cada renglón
+es una prenda individual, conjunto, bandera, bolso o escudo; el conjunto conserva
+sus partes superior e inferior dentro de la configuración del mismo renglón y
+usa una cantidad común. El pedido mantiene un único importe total.
+
 Un pedido se representa como tarjeta Kanban. Se puede crear manualmente por Super admin, Admin o Atención. Empleado no puede crear pedidos manuales.
 
 Etapas iniciales:
@@ -78,16 +83,17 @@ Un pedido pagado puede no estar entregado. No derivar uno de otro.
 
 Campos mínimos:
 
-- Cliente/equipo como texto libre.
-- Cantidad total de unidades.
-- Tipo de pedido: conjunto o prenda individual.
+- Cliente, equipo y teléfono como textos separados y obligatorios en pedidos nuevos.
+- Los pedidos históricos pueden conservar `customer_name` como referencia y tener los tres campos nuevos en NULL hasta su próxima edición.
+- La cantidad total se deriva de los renglones.
+- Tipo de pedido: conjunto o prenda individual para históricos compatibles; los pedidos nuevos pueden combinar tipos de renglón.
 - Fecha de pedido y fecha prometida de entrega.
 - Tipo de prenda, cuello, molde, tela y extras desde catálogos.
 - Descripción libre.
 - Imagen actual del diseño.
 - Monto total manual, monto de seña y estado de seña pagada.
 
-Los catálogos son listas simples sin precio. Los moldes de prendas superiores y de short/pollera deben mantenerse diferenciados para evitar combinaciones inválidas. Los extras admiten selección múltiple.
+Los catálogos son listas sin precio, organizadas por secciones y productos. Banderas, bolsos y escudos tienen secciones propias; las categorías de escudos solo las administran Admin y Super admin. Las opciones de producto son opcionales y admiten selección simple o múltiple.
 
 La matriz de especificaciones del alta manual es:
 
@@ -108,7 +114,7 @@ Los importes del pedido se almacenan como `numeric(14,2)`:
 
 Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super admin y Admin pueden administrar catálogos. Empleado no obtiene permisos adicionales en M3. Los importes son visibles para Super admin, Admin y Atención; Empleado no puede leerlos.
 
-Los ítems de catálogo se pueden borrar físicamente. Los pedidos conservan un snapshot del tipo y nombre de cada selección, por lo que la eliminación del catálogo no altera su historia.
+Los productos, categorías, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
 Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Todos los roles operativos pueden modificar descripción; solo Super admin, Admin y Atención pueden cargar o reemplazar la imagen vigente.
 

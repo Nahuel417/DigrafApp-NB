@@ -1023,4 +1023,25 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     expect((await attention.from("cash_day_lifecycle_events").delete().eq("id", existing.data.id)).error).not.toBeNull();
     expect((await attention.from("cash_day_lifecycle_events").insert({ cash_day_id: cashDayId, sequence_no: 999999, event_type: "reopen", actor_id: identities[0]!.id, reason: "DML directo", idempotency_key: `m10-direct-${randomUUID()}`, idempotency_fingerprint: "d".repeat(32) })).error).not.toBeNull();
   });
+
+  it("conserva las secciones canónicas cuando desaparece su perfil propietario", async () => {
+    const owner = await createIdentity("super_admin");
+    const codes = ["garments", "flags", "bags", "shields"];
+    const { error: ownershipError } = await service
+      .from("catalog_sections")
+      .update({ created_by: owner.id, updated_by: owner.id })
+      .in("code", codes);
+    expect(ownershipError).toBeNull();
+
+    const { error: profileError } = await service.from("profiles").delete().eq("id", owner.id);
+    expect(profileError).toBeNull();
+
+    const sections = await service
+      .from("catalog_sections")
+      .select("code, created_by, updated_by")
+      .in("code", codes)
+      .order("code");
+    expect(sections.error).toBeNull();
+    expect(sections.data).toEqual(codes.toSorted().map((code) => ({ code, created_by: null, updated_by: null })));
+  });
 });

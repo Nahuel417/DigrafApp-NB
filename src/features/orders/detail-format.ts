@@ -1,4 +1,5 @@
 import type { OrderDetail, OrderFinancials, OrderSelection } from "./detail-queries";
+import type { OrderLineInput, CatalogOptionSelection, LegacyLineOptions } from "./line-contracts";
 
 export function formatOrderNumber(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -23,6 +24,7 @@ export function timelineStageName(snapshotName: string | null, currentName: stri
 }
 
 export function orderTypeLabel(orderType: OrderDetail["orderType"]) {
+  if (orderType === null) return "Tipo histórico no disponible";
   return orderType === "set" ? "Conjunto" : "Prenda individual";
 }
 
@@ -106,6 +108,60 @@ type OperationalChange = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function optionSelections(value: unknown): CatalogOptionSelection[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item) || typeof item.option_id !== "string" || !Array.isArray(item.values)) return [];
+    const valueIds = item.values.flatMap((entry) => isRecord(entry) && typeof entry.value_id === "string" ? [entry.value_id] : []);
+    return [{ option_id: item.option_id, value_ids: valueIds }];
+  });
+}
+
+function legacyOptions(value: unknown): LegacyLineOptions {
+  if (!isRecord(value)) return {};
+  const id = (key: string) => typeof value[key] === "string" ? value[key] : isRecord(value[key]) && typeof value[key].id === "string" ? value[key].id : undefined;
+  const extras = Array.isArray(value.extras) ? value.extras.flatMap((entry) => isRecord(entry) && typeof entry.id === "string" ? [entry.id] : []) : undefined;
+  return {
+    ...(id("neckline") ? { neckline_id: id("neckline") } : {}),
+    ...(id("upper_pattern") ? { upper_pattern_id: id("upper_pattern") } : {}),
+    ...(id("lower_pattern") ? { lower_pattern_id: id("lower_pattern") } : {}),
+    ...(id("fabric") ? { fabric_id: id("fabric") } : {}),
+    ...(extras ? { extra_ids: extras } : {}),
+  };
+}
+
+export function orderLinesForEdit(lines: OrderDetail["lines"]): OrderLineInput[] {
+  return lines.map((line) => {
+    const configuration = line.configurationSnapshot;
+    if (line.lineType === "set") {
+      const upper = isRecord(configuration.upper) ? configuration.upper : null;
+      const lower = isRecord(configuration.lower) ? configuration.lower : null;
+      return {
+        position: line.position,
+        line_type: "set",
+        quantity: line.quantity,
+        color: line.color,
+         configuration: {
+           ...(upper && typeof upper.product_id === "string" ? { upper: { product_id: upper.product_id, options: optionSelections(upper.options) } } : {}),
+           ...(lower && typeof lower.product_id === "string" ? { lower: { product_id: lower.product_id, options: optionSelections(lower.options) } } : {}),
+           legacy_options: legacyOptions(configuration.legacy_options),
+         },
+         shield_product_ids: line.shieldProductIds,
+      };
+    }
+    return {
+      position: line.position,
+      line_type: line.lineType,
+      product_id: line.productId ?? undefined,
+      quantity: line.quantity,
+       color: line.color,
+       options: optionSelections(configuration.options),
+       configuration: { legacy_options: legacyOptions(configuration.legacy_options) },
+       shield_product_ids: line.shieldProductIds,
+     };
+  });
 }
 
 export function operationalChanges(details: Record<string, unknown>): OperationalChange[] {

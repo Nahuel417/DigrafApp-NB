@@ -48,6 +48,7 @@ function orderDetailPath(orderId: string) {
 }
 
 function orderTypeLabel(orderType: BoardOrder["orderType"]) {
+  if (orderType === null) return "Varios tipos";
   return orderType === "set" ? "Conjunto" : "Prenda individual";
 }
 
@@ -65,9 +66,10 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
       <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
       <h3 className="mt-2 break-words font-semibold">
         <a className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" href={orderDetailPath(order.id)} onPointerDown={(event) => event.stopPropagation()}>
-          {order.customerName}
+           {order.customerName ?? "Cliente histórico"}
         </a>
       </h3>
+      <p className="mt-1 break-words text-sm text-muted-foreground">{order.teamName ?? "Equipo sin completar"}</p>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div><dt className="text-muted-foreground">Cantidad</dt><dd className="mt-0.5 font-mono font-medium">{order.quantity}</dd></div>
         <div><dt className="text-muted-foreground">Tipo</dt><dd className="mt-0.5">{orderTypeLabel(order.orderType)}</dd></div>

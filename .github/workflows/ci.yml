@@ -69,7 +69,7 @@ jobs:
                   node-version: 22
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
-            - run: pnpm exec playwright install --with-deps chromium
+            - run: pnpm exec playwright install chromium
             - run: |
                   pnpm db:start
                   pnpm db:reset
