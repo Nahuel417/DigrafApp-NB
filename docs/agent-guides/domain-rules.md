@@ -90,7 +90,7 @@ Campos mínimos:
 - Fecha de pedido y fecha prometida de entrega.
 - Tipo de prenda, cuello, molde, tela y extras desde catálogos.
 - Descripción libre.
-- Imagen actual del diseño.
+- Colección privada de 0 a 3 imágenes de diseño, con una primaria opcional.
 - Monto total manual, monto de seña y estado de seña pagada.
 
 Los catálogos son listas sin precio, organizadas por secciones y productos. Banderas, bolsos y escudos tienen secciones propias; las categorías de escudos solo las administran Admin y Super admin. Las opciones de producto son opcionales y admiten selección simple o múltiple.
@@ -116,9 +116,11 @@ Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super ad
 
 Los productos, categorías, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
-Solo Admin/Super admin pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida puede cambiar solo por Admin/Super admin y debe quedar auditada. Todos los roles operativos pueden modificar descripción; solo Super admin, Admin y Atención pueden cargar o reemplazar la imagen vigente.
+Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción; Super admin, Admin y Atención pueden gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
 
-El MVP conserva una sola imagen vigente de diseño; no implementar historial de versiones todavía.
+Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. No recibe autoridad administrativa no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja; Empleado permanece rechazado para esas operaciones. El servidor y RLS son la frontera final de autorización.
+
+- El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primaria es opcional; tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
 
 ## Pago y caja
 
@@ -131,7 +133,7 @@ Decisión confirmada:
 
 No cambiar esta regla para registrar seña y saldo por separado sin aprobación explícita.
 
-M12 agrega una única entrada de servidor para la reversión: `reverse_order_payment`. Solo Admin y Super admin pueden ejecutarla, con reconfirmación explícita; Atención puede confirmar el pago, pero no revertirlo.
+M12 agrega una única entrada de servidor para la reversión: `reverse_order_payment`. Super admin, Admin y Atención pueden ejecutarla, con reconfirmación explícita y las mismas validaciones; Empleado y las llamadas directas sin actor autenticado son rechazados. Esta excepción de Atención no modifica ninguna semántica financiera.
 
 - La reversión exige que el pedido esté en `paid` y restaura exactamente la etapa previa registrada en la confirmación. Luego permite reconfirmar el pago mediante un nuevo pago activo.
 - Si el importe es positivo, la caja correspondiente debe estar abierta. Se crea una contrapartida `expense` enlazada al pago, sin borrar el ingreso original. El motivo es opcional.
@@ -155,7 +157,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 
 ## Comentarios, imágenes y auditoría
 
-Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; solo Super admin, Admin y Atención pueden cargar o reemplazar.
+Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; Super admin, Admin y Atención pueden gestionar la colección y los demás roles conservan únicamente la lectura interna autorizada.
 
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 

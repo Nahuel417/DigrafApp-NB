@@ -56,8 +56,11 @@ function operationalDateOffset(days: number) {
 }
 
 function moneyCents(value: string | number) {
-  const [integer, fraction = ""] = String(value).replace(".", ".").split(".");
-  return BigInt(integer) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+  const normalized = String(value);
+  const negative = normalized.startsWith("-");
+  const [integer, fraction = ""] = (negative ? normalized.slice(1) : normalized).split(".");
+  const cents = BigInt(integer) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+  return negative ? -cents : cents;
 }
 
 function centsText(value: bigint) {

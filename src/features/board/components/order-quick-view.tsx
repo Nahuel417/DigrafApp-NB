@@ -90,7 +90,7 @@ function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; on
   );
 }
 
-export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
+export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "primaryDesignImage">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
@@ -115,7 +115,7 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
   }
 
   return (
-    <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs">
+    <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs lg:max-h-full lg:overflow-y-auto">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{formatOrderNumber(data.publicNumber)}</p>
@@ -124,19 +124,18 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
         </div>
         <Button aria-label="Cerrar vista rápida" data-no-drag="true" onClick={onClose} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
       </div>
-      {data.hasDesignImage ? (
-        <OrderDesignThumbnail
-          alt={`Diseño de ${data.customerName}`}
-          className="mt-3 h-24 w-32 sm:h-28 sm:w-40"
-          imageUpdatedAt={data.imageUpdatedAt}
-          onActivate={(trigger) => {
-            triggerRef.current = trigger;
-            setIsExpanded(true);
-          }}
-          onUrlReady={handleUrlReady}
-          orderId={data.id}
-        />
-      ) : null}
+      <OrderDesignThumbnail
+        alt={`Diseño de ${data.customerName}`}
+        className="mt-3 h-24 w-32 sm:h-28 sm:w-40"
+        imageUpdatedAt={data.primaryDesignImage?.updatedAt ?? null}
+        key={data.primaryDesignImage?.updatedAt ?? "empty"}
+        onActivate={(trigger) => {
+          triggerRef.current = trigger;
+          setIsExpanded(true);
+        }}
+        onUrlReady={handleUrlReady}
+        orderId={data.id}
+      />
       <div className="mt-4 flex flex-wrap items-center gap-2"><Badge variant="outline">{data.stageName}</Badge><span className="text-sm text-muted-foreground">{data.quantity} unidades · {data.orderType === "set" ? "Conjunto" : "Prenda individual"}</span></div>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2">
         <div><dt className="text-xs text-muted-foreground">Entrega prometida</dt><dd className="mt-1 font-mono text-sm font-medium">{formatDate(data.promisedDeliveryDate)}</dd></div>

@@ -31,6 +31,7 @@ test.describe("Reversión de pago M12", () => {
   let admin: Identity;
   let attention: Identity;
   let order: Order;
+  let attentionOrder: Order;
 
   async function createIdentity(role: Role) {
     const email = `${role}-m12-e2e-${randomUUID()}@digraf.local`;
@@ -61,8 +62,8 @@ test.describe("Reversión de pago M12", () => {
     }
   }
 
-  async function createOrder() {
-    const customerName = `Cliente M12 ${runId}`;
+  async function createOrder(label = "Cliente M12") {
+    const customerName = `${label} ${runId}`;
     const { data, error } = await service.from("orders").insert({
       customer_name: customerName,
       quantity: 2,
@@ -81,11 +82,11 @@ test.describe("Reversión de pago M12", () => {
     return { id: data.id, publicNumber: data.public_number, updatedAt: data.updated_at, customerName };
   }
 
-  async function confirmPayment() {
+  async function confirmPayment(target: Order) {
     const client = await signedClient(attention);
-    const result = await client.rpc("confirm_order_payment", { p_order_id: order.id, p_expected_updated_at: order.updatedAt, p_idempotency_key: `m12-e2e-confirm-${randomUUID()}` });
+    const result = await client.rpc("confirm_order_payment", { p_order_id: target.id, p_expected_updated_at: target.updatedAt, p_idempotency_key: `m12-e2e-confirm-${randomUUID()}` });
     if (result.error || !result.data?.[0]) throw result.error ?? new Error("No se pudo confirmar el pago E2E M12.");
-    return { ...order, updatedAt: result.data[0].updated_at, paymentId: result.data[0].payment_id };
+    return { ...target, updatedAt: result.data[0].updated_at, paymentId: result.data[0].payment_id };
   }
 
   async function login(page: Page, identity: Identity) {
@@ -96,10 +97,12 @@ test.describe("Reversión de pago M12", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
-  async function openQuickView(page: Page) {
-    const card = page.getByText(order.customerName, { exact: true }).locator("xpath=ancestor::article");
-    await card.getByRole("button", { name: `Vista rápida de ${publicId(order)}` }).click();
-    const panel = page.getByRole("complementary", { name: publicId(order) });
+  async function openQuickView(page: Page, target: Order = order) {
+    const card = page.getByText(target.customerName, { exact: true }).locator("xpath=ancestor::article");
+    const trigger = card.getByRole("button", { name: `Vista rápida de ${publicId(target)}` });
+    await trigger.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+    await trigger.click();
+    const panel = page.getByRole("complementary", { name: publicId(target) });
     await expect(panel).toBeVisible();
     return panel;
   }
@@ -131,7 +134,9 @@ test.describe("Reversión de pago M12", () => {
     attention = await createIdentity("attention");
     await ensureOpen();
     order = await createOrder();
-    order = await confirmPayment();
+    order = await confirmPayment(order);
+    attentionOrder = await createOrder("Cliente Atención M12");
+    attentionOrder = await confirmPayment(attentionOrder);
   });
 
   test.afterAll(cleanup);
@@ -162,5 +167,19 @@ test.describe("Reversión de pago M12", () => {
     await expect(page.getByText("Pedido recibido", { exact: true }).first()).toBeVisible();
     const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
     await expect(timeline.getByText("Pago revertido", { exact: true })).toBeVisible();
+  });
+
+  test("Atención puede revertir el pago desde la vista rápida sin cambiar la semántica", async ({ page }) => {
+    await login(page, attention);
+    await page.goto("/orders");
+    const panel = await openQuickView(page, attentionOrder);
+    await expect(panel.getByRole("button", { name: "Revertir pago", exact: true })).toBeVisible();
+    await panel.getByRole("button", { name: "Revertir pago", exact: true }).click();
+    const dialog = page.getByRole("alertdialog", { name: "Revertir pago" });
+    await dialog.getByRole("button", { name: "Revertir pago", exact: true }).click();
+    await expect(page.locator('[data-drop-stage="received"]').getByText(attentionOrder.customerName, { exact: true })).toBeVisible();
+    await page.goto(`/orders/${attentionOrder.id}`);
+    await expect(page.getByText("Pedido recibido", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section").getByText("Pago revertido", { exact: true })).toBeVisible();
   });
 });

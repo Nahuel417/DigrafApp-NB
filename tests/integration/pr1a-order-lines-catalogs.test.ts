@@ -10,13 +10,17 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const password = `P1A${randomUUID().replaceAll("-", "")}7`;
 type Identity = { email: string; id: string };
+type Role = Database["public"]["Enums"]["app_role"];
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines, catalogs and options", () => {
   const service = createClient<Database>(url ?? "", serviceRoleKey ?? "", { auth: { persistSession: false } });
   const sectionIds: string[] = [];
   const catalogItemIds: string[] = [];
   const productIds: string[] = [];
   const orderIds: string[] = [];
-  let identity: Identity | undefined;
+  const identities: Array<Identity & { role: Role }> = [];
+  let identity: (Identity & { role: Role }) | undefined;
+  let attentionIdentity: (Identity & { role: Role }) | undefined;
+  let employeeIdentity: (Identity & { role: Role }) | undefined;
   let client: SupabaseClient<Database>;
 
   async function cleanup(label: string, operation: PromiseLike<{ error: { message: string } | null }>, failures: string[]) {
@@ -29,15 +33,23 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
   }
 
   beforeAll(async () => {
-    const email = `pr1a-${randomUUID()}@example.test`;
-    const auth = await service.auth.admin.createUser({ email, password, email_confirm: true });
-    if (auth.error || !auth.data.user) throw auth.error ?? new Error("No se creó la identidad sintética PR1A.");
-    identity = { email, id: auth.data.user.id };
-    const profile = await service.from("profiles").insert({ id: identity.id, display_name: "PR1A Super admin", role: "super_admin", is_active: true, must_change_password: false });
-    if (profile.error) throw profile.error;
+    async function createIdentity(role: Role) {
+      const email = `pr1a-${role}-${randomUUID()}@example.test`;
+      const auth = await service.auth.admin.createUser({ email, password, email_confirm: true });
+      if (auth.error || !auth.data.user) throw auth.error ?? new Error(`No se creó la identidad sintética PR1A ${role}.`);
+      const created = { email, id: auth.data.user.id, role };
+      identities.push(created);
+      const profile = await service.from("profiles").insert({ id: created.id, display_name: `PR1A ${role}`, role, is_active: true, must_change_password: false });
+      if (profile.error) throw profile.error;
+      return created;
+    }
+
+    identity = await createIdentity("super_admin");
+    attentionIdentity = await createIdentity("attention");
+    employeeIdentity = await createIdentity("employee");
 
     client = createClient<Database>(url ?? "", publishableKey ?? "", { auth: { persistSession: false } });
-    const signIn = await client.auth.signInWithPassword({ email, password });
+    const signIn = await client.auth.signInWithPassword({ email: identity.email, password });
     if (signIn.error) throw signIn.error;
 
     const sections = await service.from("catalog_sections").select("id, code").in("code", ["garments", "flags"]);
@@ -76,11 +88,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       await cleanup("orders", service.from("orders").delete().in("id", orderIds), failures);
     }
     if (productIds.length) await cleanup("catalog_products", service.from("catalog_products").delete().in("id", productIds), failures);
-    if (identity) await cleanup("catalog_item_events", service.from("catalog_item_events").delete().eq("actor_id", identity.id), failures);
+    if (identities.length) await cleanup("catalog_item_events", service.from("catalog_item_events").delete().in("actor_id", identities.map(({ id }) => id)), failures);
     if (catalogItemIds.length) await cleanup("catalog_items", service.from("catalog_items").delete().in("id", catalogItemIds), failures);
-    if (identity) {
-      await cleanup("profile", service.from("profiles").delete().eq("id", identity.id), failures);
-      await cleanup("auth user", service.auth.admin.deleteUser(identity.id), failures);
+    for (const created of identities) {
+      await cleanup("profile", service.from("profiles").delete().eq("id", created.id), failures);
+      await cleanup("auth user", service.auth.admin.deleteUser(created.id), failures);
     }
     if (failures.length) throw new Error(`Falló el cleanup PR1A:\n${failures.join("\n")}`);
   });
@@ -112,7 +124,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
 
     const order = await service.from("orders").select("updated_at").eq("id", orderId!).single();
     expect(order.error).toBeNull();
-    const updated = await client.rpc("update_order", {
+    const updateInput = {
       p_order_id: orderId!,
       p_client_name: "Cliente PR1A editado",
       p_team_name: "Equipo PR1A editado",
@@ -127,9 +139,31 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       p_change_note: "Prueba PR1A",
       p_expected_updated_at: order.data!.updated_at,
       p_idempotency_key: `pr1a-update-${randomUUID()}`,
-    });
+    };
+    const attentionClient = createClient<Database>(url ?? "", publishableKey ?? "", { auth: { persistSession: false } });
+    const attentionSignIn = await attentionClient.auth.signInWithPassword({ email: attentionIdentity!.email, password });
+    expect(attentionSignIn.error).toBeNull();
+    const updated = await attentionClient.rpc("update_order", updateInput);
     expect(updated.error).toBeNull();
     expect(updated.data?.[0]?.order_id).toBe(orderId);
+
+    const afterAttention = await service.from("orders").select("updated_at").eq("id", orderId!).single();
+    const employeeClient = createClient<Database>(url ?? "", publishableKey ?? "", { auth: { persistSession: false } });
+    const employeeSignIn = await employeeClient.auth.signInWithPassword({ email: employeeIdentity!.email, password });
+    expect(employeeSignIn.error).toBeNull();
+    const denied = await employeeClient.rpc("update_order", {
+      ...updateInput,
+      p_expected_updated_at: afterAttention.data!.updated_at,
+      p_idempotency_key: `pr1a-employee-${randomUUID()}`,
+    });
+    expect(denied.error?.message).toContain("permiso");
+
+    const bypass = await service.rpc("update_order", {
+      ...updateInput,
+      p_expected_updated_at: afterAttention.data!.updated_at,
+      p_idempotency_key: `pr1a-bypass-${randomUUID()}`,
+    });
+    expect(bypass.error).not.toBeNull();
 
     const persisted = await service.from("orders").select("client_name, team_name, phone, description").eq("id", orderId!).single();
     expect(persisted.data).toMatchObject({ client_name: "Cliente PR1A editado", team_name: "Equipo PR1A editado", phone: "3515550001", description: "Actualizado PR1A" });

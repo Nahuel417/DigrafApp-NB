@@ -4,6 +4,10 @@ export const ORDER_DESIGN_SIGNED_URL_TTL_SECONDS = 5 * 60;
 
 export const ORDER_DESIGN_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
+export const ORDER_DESIGN_IMAGE_ACTIONS = ["add", "replace", "delete", "set_primary", "clear_primary"] as const;
+
+export type OrderDesignImageAction = (typeof ORDER_DESIGN_IMAGE_ACTIONS)[number];
+
 export type OrderDesignContentType = (typeof ORDER_DESIGN_CONTENT_TYPES)[number];
 
 export const ORDER_DESIGN_EXTENSIONS: Record<OrderDesignContentType, "jpg" | "png" | "webp"> = {

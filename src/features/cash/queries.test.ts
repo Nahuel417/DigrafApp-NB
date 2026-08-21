@@ -67,6 +67,10 @@ describe("cash summary mapping", () => {
     expect(summary.movements[0]).toMatchObject({ id: "33333333-3333-4333-8333-333333333333", amount: "15.25" });
   });
 
+  it("accepts a negative derived closing balance", () => {
+    expect(mapCashSummary({ ...base, ...closed, closing_balance: "-215.00", categories: [], current_balance: "-215.00", opening_balance: 0, movements: [] }).closingBalance).toBe("-215.00");
+  });
+
   it("maps read-only history events and rejects malformed audit entries", () => {
     const history = mapCashDaySummary({ ...base, ...closed, opening_balance: 100, movements: [{ id: "33333333-3333-4333-8333-333333333333", direction: "income", amount: 15.25, description: "Corregido", expense_category_id: null, expense_category_code: null, expense_category_name: null, actor_id: "44444444-4444-4444-8444-444444444444", actor_display_name: "Operador", created_at: "2026-08-06T03:10:00.000Z" }], events: [{ id: "66666666-6666-4666-8666-666666666666", movement_id: "33333333-3333-4333-8333-333333333333", event_type: "correction", previous_state: { amount: "10.00" }, new_state: { amount: "15.25" }, reason: null, actor_id: "44444444-4444-4444-8444-444444444444", actor_display_name: "Operador", created_at: "2026-08-06T03:11:00.000Z" }], lifecycle_events: [{ id: "77777777-7777-4777-8777-777777777777", sequence_no: 2, event_type: "reopen", closure_kind: null, closing_balance: null, actor_id: "44444444-4444-4444-8444-444444444444", actor_display_name: "Operador", created_at: "2026-08-06T03:12:00.000Z", reason: "Corrección" }] });
     expect(history.events[0]).toMatchObject({ eventType: "correction", movementId: "33333333-3333-4333-8333-333333333333", reason: null });

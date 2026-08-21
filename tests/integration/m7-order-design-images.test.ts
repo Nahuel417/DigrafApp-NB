@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { buildOrderDesignReconciliationPlan } from "../../src/features/orders/image-reconciliation-plan";
 import { verifyUploadedOrderDesignImage } from "../../src/features/orders/image-validation";
 
 const url = process.env.SUPABASE_URL;
@@ -17,6 +18,21 @@ const maximumBytes = 10 * 1024 * 1024;
 type Role = Database["public"]["Enums"]["app_role"];
 type Identity = { email: string; id: string; role: Role };
 type OrderSeed = { id: string };
+type ImageMutationAction = "add" | "replace" | "delete" | "set_primary" | "clear_primary";
+type ImageMutation = {
+  id?: string;
+  byte_size: number | null;
+  content_type: string | null;
+  created_at: string | null;
+  event_id: string;
+  image_id: string | null;
+  is_primary: boolean | null;
+  object_path: string | null;
+  order_id: string;
+  previous_object_path: string | null;
+  updated_at: string | null;
+  uploaded_by: string | null;
+};
 
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente protegida M7", () => {
   const service = createClient<Database>(localUrl, serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
@@ -103,6 +119,47 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     return expectedImageUpdatedAt === null
       ? service.rpc("finalize_order_design_image", input)
       : service.rpc("finalize_order_design_image", { ...input, p_expected_image_updated_at: expectedImageUpdatedAt });
+  }
+
+  async function mutate(
+    actor: Identity,
+    order: OrderSeed,
+    action: ImageMutationAction,
+    options: {
+      imageId?: string | null;
+      objectPath?: string | null;
+      expectedImageUpdatedAt?: string | null;
+      idempotencyKey?: string;
+    } = {},
+  ) {
+    return service.rpc("mutate_order_design_image" as never, {
+      p_actor_id: actor.id,
+      p_order_id: order.id,
+      p_action: action,
+      p_image_id: options.imageId ?? null,
+      p_object_path: options.objectPath ?? null,
+      p_expected_image_updated_at: options.expectedImageUpdatedAt ?? null,
+      p_idempotency_key: options.idempotencyKey ?? randomUUID(),
+    } as never) as unknown as Promise<{ data: ImageMutation[] | null; error: { message: string } | null }>;
+  }
+
+  async function images(order: OrderSeed) {
+    const result = await service
+      .from("order_design_images")
+      .select("id, order_id, object_path, content_type, byte_size, uploaded_by, created_at, updated_at, is_primary")
+      .eq("order_id", order.id)
+      .order("created_at")
+      .order("id");
+    return result as unknown as { data: ImageMutation[] | null; error: { message: string } | null };
+  }
+
+  async function addImage(actor: Identity, order: OrderSeed, extension: "jpg" | "png" | "webp" = "png") {
+    const contentType = extension === "jpg" ? "image/jpeg" : `image/${extension}`;
+    const path = objectPath(order.id, extension);
+    const uploadResult = await upload(await signedClient(actor), path, contentType);
+    expect(uploadResult.error).toBeNull();
+    const mutation = await mutate(actor, order, "add", { objectPath: path });
+    return { mutation, path };
   }
 
   beforeAll(async () => {
@@ -317,5 +374,161 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
 
     expect(validVerification.ok).toBe(true);
     expect(invalidVerification.ok).toBe(false);
+  });
+
+  it("preserva path y metadata del singleton histórico como primary", async () => {
+    const actor = identities.find((identity) => identity.role === "attention")!;
+    const order = await createOrder();
+    const path = objectPath(order.id, "webp");
+    expect((await upload(await signedClient(actor), path, "image/webp", 2048)).error).toBeNull();
+
+    const result = await finalize(actor, order, path, null);
+    expect(result.error).toBeNull();
+    const current = await images(order);
+
+    expect(current.error).toBeNull();
+    expect(current.data).toHaveLength(1);
+    expect(current.data?.[0]).toMatchObject({
+      object_path: path,
+      content_type: "image/webp",
+      byte_size: 2048,
+      uploaded_by: actor.id,
+      is_primary: true,
+    });
+  });
+
+  it("mantiene entre cero y tres imágenes y rechaza el cuarto upload, incluso en carrera", async () => {
+    const actor = identities.find((identity) => identity.role === "admin")!;
+    const order = await createOrder();
+    expect((await images(order)).data).toHaveLength(0);
+
+    const firstThree = await Promise.all([
+      addImage(actor, order),
+      addImage(actor, order, "jpg"),
+      addImage(actor, order, "webp"),
+    ]);
+    expect(firstThree.every(({ mutation }) => mutation.error === null)).toBe(true);
+    expect((await images(order)).data).toHaveLength(3);
+
+    const fourth = await addImage(actor, order);
+    expect(fourth.mutation.error?.message).toContain("tres");
+
+    const racePaths = [objectPath(order.id), objectPath(order.id)];
+    for (const path of racePaths) {
+      expect((await upload(await signedClient(actor), path)).error).toBeNull();
+    }
+    const race = await Promise.all(racePaths.map((path) => mutate(actor, order, "add", { objectPath: path })));
+    expect(race.filter((result) => result.error === null)).toHaveLength(0);
+    expect(race.filter((result) => result.error?.message.includes("tres"))).toHaveLength(2);
+    expect((await images(order)).data).toHaveLength(3);
+  }, 20000);
+
+  it("aplica primary explícito, clear explícito y deja una sola primary", async () => {
+    const actor = identities.find((identity) => identity.role === "admin")!;
+    const order = await createOrder();
+    const first = await addImage(actor, order);
+    const second = await addImage(actor, order, "jpg");
+    const firstId = first.mutation.data?.[0]?.image_id;
+    const secondId = second.mutation.data?.[0]?.image_id;
+    if (!firstId || !secondId) throw new Error("La carga no devolvió identificadores de imagen.");
+
+    expect((await mutate(actor, order, "set_primary", { imageId: firstId })).error).toBeNull();
+    expect((await mutate(actor, order, "set_primary", { imageId: secondId })).error).toBeNull();
+    let current = await images(order);
+    expect(current.data?.filter((image) => image.is_primary)).toHaveLength(1);
+    expect(current.data?.find((image) => image.is_primary)?.id).toBe(secondId);
+
+    expect((await mutate(actor, order, "clear_primary")).error).toBeNull();
+    current = await images(order);
+    expect(current.data?.filter((image) => image.is_primary)).toHaveLength(0);
+  }, 20000);
+
+  it("preserva primary al reemplazar y no promociona otra al borrar la primary", async () => {
+    const actor = identities.find((identity) => identity.role === "attention")!;
+    const order = await createOrder();
+    const first = await addImage(actor, order);
+    const second = await addImage(actor, order, "jpg");
+    const firstImage = first.mutation.data?.[0];
+    const secondImageId = second.mutation.data?.[0]?.image_id;
+    if (!firstImage?.image_id || !secondImageId || !firstImage.updated_at) throw new Error("La carga no devolvió metadata completa.");
+
+    expect((await mutate(actor, order, "set_primary", { imageId: firstImage.image_id })).error).toBeNull();
+    const replacementPath = objectPath(order.id, "webp");
+    expect((await upload(await signedClient(actor), replacementPath, "image/webp", 4096)).error).toBeNull();
+    const replacement = await mutate(actor, order, "replace", {
+      imageId: firstImage.image_id,
+      objectPath: replacementPath,
+      expectedImageUpdatedAt: firstImage.updated_at,
+    });
+    expect(replacement.error).toBeNull();
+    expect(replacement.data?.[0]).toMatchObject({ image_id: firstImage.image_id, object_path: replacementPath, is_primary: true, byte_size: 4096 });
+
+    expect((await mutate(actor, order, "delete", { imageId: firstImage.image_id })).error).toBeNull();
+    const current = await images(order);
+    expect(current.data).toHaveLength(1);
+    expect(current.data?.[0]).toMatchObject({ id: secondImageId, is_primary: false });
+  }, 20000);
+
+  it("reproduce la operación con la misma clave y rechaza el conflicto de fingerprint", async () => {
+    const actor = identities.find((identity) => identity.role === "admin")!;
+    const order = await createOrder();
+    const firstPath = objectPath(order.id);
+    expect((await upload(await signedClient(actor), firstPath)).error).toBeNull();
+    const idempotencyKey = randomUUID();
+    const first = await mutate(actor, order, "add", { objectPath: firstPath, idempotencyKey });
+    const replay = await mutate(actor, order, "add", { objectPath: firstPath, idempotencyKey });
+    expect(first.error).toBeNull();
+    expect(replay.error).toBeNull();
+    expect(replay.data?.[0]?.event_id).toBe(first.data?.[0]?.event_id);
+
+    const secondPath = objectPath(order.id, "jpg");
+    expect((await upload(await signedClient(actor), secondPath, "image/jpeg")).error).toBeNull();
+    const conflict = await mutate(actor, order, "add", { objectPath: secondPath, idempotencyKey });
+    expect(conflict.error?.message).toContain("idempotencia");
+  });
+
+  it("reconcilia todos los paths vivos de la colección, no solo uno", async () => {
+    const actor = identities.find((identity) => identity.role === "attention")!;
+    const order = await createOrder();
+    const seeded = await Promise.all([addImage(actor, order), addImage(actor, order, "jpg"), addImage(actor, order, "webp")]);
+    const livePaths = seeded.map(({ path }) => path);
+    const now = new Date("2026-08-18T12:00:00.000Z");
+    const plan = buildOrderDesignReconciliationPlan(
+      [...livePaths.map((path) => ({ path, createdAt: "2026-08-17T00:00:00.000Z", updatedAt: "2026-08-17T00:00:00.000Z" })), { path: objectPath(order.id), createdAt: "2026-08-17T00:00:00.000Z", updatedAt: "2026-08-17T00:00:00.000Z" }],
+      new Set(livePaths),
+      now,
+      0,
+    );
+
+    expect(plan.protectedObjectPaths).toEqual(livePaths);
+    expect(plan.deletableObjectPaths).toHaveLength(1);
+  }, 20000);
+
+  it("deniega escrituras directas, preserva lectura operativa y limita la gestión por rol", async () => {
+    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
+    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    const order = await createOrder();
+    const path = objectPath(order.id);
+
+    expect((await employee.storage.from(bucketId).upload(path, new Blob([new Uint8Array(1024)], { type: "image/png" }), { contentType: "image/png", upsert: false })).error).not.toBeNull();
+    expect((await admin.from("order_design_images").insert({
+      order_id: order.id,
+      object_path: path,
+      content_type: "image/png",
+      byte_size: 1024,
+      uploaded_by: identities[0]!.id,
+    })).error).not.toBeNull();
+    expect((await employee.from("order_design_images").select("order_id").eq("order_id", order.id)).error).toBeNull();
+    const directRpc = await employee.rpc("mutate_order_design_image" as never, {
+      p_actor_id: identities.find((identity) => identity.role === "employee")!.id,
+      p_order_id: order.id,
+      p_action: "add",
+      p_image_id: null,
+      p_object_path: path,
+      p_expected_image_updated_at: null,
+      p_idempotency_key: randomUUID(),
+    } as never) as unknown as { error: { message: string } | null };
+    expect(directRpc.error?.message).toContain("permission denied");
+    expect((await mutate(identities.find((identity) => identity.role === "employee")!, order, "add", { objectPath: path })).error?.message).toContain("permiso");
   });
 });

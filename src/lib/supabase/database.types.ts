@@ -958,10 +958,12 @@ export type Database = {
           id: string
           idempotency_fingerprint: string
           idempotency_key: string
+          image_id: string | null
           image_updated_at: string
           object_path: string
           order_id: string
           previous_object_path: string | null
+          result: Json
         }
         Insert: {
           action: string
@@ -970,10 +972,12 @@ export type Database = {
           id?: string
           idempotency_fingerprint: string
           idempotency_key: string
+          image_id?: string | null
           image_updated_at: string
           object_path: string
           order_id: string
           previous_object_path?: string | null
+          result?: Json
         }
         Update: {
           action?: string
@@ -982,10 +986,12 @@ export type Database = {
           id?: string
           idempotency_fingerprint?: string
           idempotency_key?: string
+          image_id?: string | null
           image_updated_at?: string
           object_path?: string
           order_id?: string
           previous_object_path?: string | null
+          result?: Json
         }
         Relationships: [
           {
@@ -1009,6 +1015,8 @@ export type Database = {
           byte_size: number
           content_type: string
           created_at: string
+          id: string
+          is_primary: boolean
           object_path: string
           order_id: string
           updated_at: string
@@ -1018,6 +1026,8 @@ export type Database = {
           byte_size: number
           content_type: string
           created_at?: string
+          id?: string
+          is_primary?: boolean
           object_path: string
           order_id: string
           updated_at?: string
@@ -1027,6 +1037,8 @@ export type Database = {
           byte_size?: number
           content_type?: string
           created_at?: string
+          id?: string
+          is_primary?: boolean
           object_path?: string
           order_id?: string
           updated_at?: string
@@ -1036,7 +1048,7 @@ export type Database = {
           {
             foreignKeyName: "order_design_images_order_id_fkey"
             columns: ["order_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1891,6 +1903,34 @@ export type Database = {
         }
         Returns: string
       }
+      m7_assert_image_actor: {
+        Args: { p_actor_id: string }
+        Returns: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          must_change_password: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      m7_image_fingerprint: {
+        Args: {
+          p_action: string
+          p_expected_image_updated_at: string
+          p_image_id: string
+          p_object_path: string
+          p_order_id: string
+        }
+        Returns: string
+      }
       move_order: {
         Args: {
           p_expected_updated_at: string
@@ -1907,6 +1947,31 @@ export type Database = {
           stage_code: string
           to_stage_id: string
           updated_at: string
+        }[]
+      }
+      mutate_order_design_image: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_expected_image_updated_at?: string
+          p_idempotency_key?: string
+          p_image_id?: string
+          p_make_primary?: boolean
+          p_object_path?: string
+          p_order_id: string
+        }
+        Returns: {
+          byte_size: number
+          content_type: string
+          created_at: string
+          event_id: string
+          image_id: string
+          is_primary: boolean
+          object_path: string
+          order_id: string
+          previous_object_path: string
+          updated_at: string
+          uploaded_by: string
         }[]
       }
       pr1_snapshot_legacy_options: { Args: { options: Json }; Returns: Json }

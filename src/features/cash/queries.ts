@@ -103,9 +103,7 @@ function actorDisplayName(value: unknown) {
     return typeof value === 'string' && value.length > 0 ? value : 'Sistema';
 }
 
-function nullableDecimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) {
-    return value === null || value === undefined ? null : decimal(value, label, normalize);
-}
+function nullableDecimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) { return value === null || value === undefined ? null : decimal(value, label, normalize); }
 
 function decimal(value: unknown, label: string, normalize: (value: string) => string = normalizeMoney) {
     if (typeof value !== 'string' && typeof value !== 'number') throw new Error(`La respuesta de caja no contiene ${label} válido.`);
@@ -183,15 +181,7 @@ function mapLifecycleEvent(value: unknown): CashLifecycleEvent {
     };
 }
 
-function closureFields(row: JsonRecord) {
-    return {
-        closedAt: nullableText(row.closed_at),
-        closedBy: nullableText(row.closed_by),
-        closedByDisplayName: nullableText(row.closed_by_display_name),
-        closureKind: nullableText(row.closure_kind),
-        closingBalance: nullableDecimal(row.closing_balance, 'el saldo de cierre', normalizeAggregateMoney),
-    };
-}
+function closureFields(row: JsonRecord) { return { closedAt: nullableText(row.closed_at), closedBy: nullableText(row.closed_by), closedByDisplayName: nullableText(row.closed_by_display_name), closureKind: nullableText(row.closure_kind), closingBalance: nullableDecimal(row.closing_balance, "el saldo de cierre", normalizeAggregateMoney) }; }
 
 export function mapCashSummary(row: unknown): CashSummary {
     const value = record(row, 'el resumen');
