@@ -259,7 +259,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     }
   });
 
-  it("limita la edición sensible a Super admin y Admin, audita la fecha y preserva snapshots eliminados", async () => {
+  it("permite la edición sensible aprobada, rechaza a Empleado, audita la fecha y preserva snapshots eliminados", async () => {
     const order = await createOrder();
     const superAdmin = identities.find((identity) => identity.role === "super_admin")!;
     const adminIdentity = identities.find((identity) => identity.role === "admin")!;
@@ -320,16 +320,22 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Colaboración de pe
     expect(preserved).toEqual({ catalog_item_id: null, item_name: "Microfibra eliminada M5 M6" });
 
     const current = { ...order, updatedAt: first.data?.[0]?.updated_at ?? "" };
-    for (const identity of [attention, employee]) {
-      const denied = await request<unknown[]>("/rest/v1/rpc/update_order", {
-        body: sensitiveInput(current, { p_idempotency_key: randomUUID() }),
-        token: await tokenFor(identity),
-      });
-      expect(denied.error?.message).toContain("No tenés permiso");
-    }
+    const attentionUpdate = await request<Array<{ order_id: string; updated_at: string }>>("/rest/v1/rpc/update_order", {
+      body: sensitiveInput(current, { p_idempotency_key: randomUUID() }),
+      token: await tokenFor(attention),
+    });
+    expect(attentionUpdate.error).toBeNull();
+    expect(attentionUpdate.data?.[0]?.order_id).toBe(order.id);
+
+    const afterAttention = { ...current, updatedAt: attentionUpdate.data?.[0]?.updated_at ?? "" };
+    const denied = await request<unknown[]>("/rest/v1/rpc/update_order", {
+      body: sensitiveInput(afterAttention, { p_idempotency_key: randomUUID() }),
+      token: await tokenFor(employee),
+    });
+    expect(denied.error?.message).toContain("No tenés permiso");
 
     const adminUpdate = await request<Array<{ order_id: string }>>("/rest/v1/rpc/update_order", {
-      body: sensitiveInput(current, { p_lines: [{ ...sensitiveInput(current).p_lines[0], quantity: 9 }], p_idempotency_key: randomUUID() }),
+      body: sensitiveInput(afterAttention, { p_lines: [{ ...sensitiveInput(afterAttention).p_lines[0], quantity: 9 }], p_idempotency_key: randomUUID() }),
       token: await tokenFor(adminIdentity),
     });
     expect(adminUpdate.error).toBeNull();

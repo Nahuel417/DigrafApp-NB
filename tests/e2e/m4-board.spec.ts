@@ -77,10 +77,23 @@ test.describe("Tablero M4", () => {
   }
 
   async function dropOn(page: Page, target: ReturnType<Page["locator"]>) {
-    await target.scrollIntoViewIfNeeded();
-    const box = await target.boundingBox();
+    const header = target.locator("header");
+    const dropTarget = await header.count() ? header.first() : target;
+    await dropTarget.evaluate((element) => {
+      const board = element.closest<HTMLElement>('[data-testid="board-scroll-container"]');
+      if (!board) return;
+      const boardBox = board.getBoundingClientRect();
+      const targetBox = element.getBoundingClientRect();
+      board.scrollTop += targetBox.top - boardBox.top - (board.clientHeight - targetBox.height) / 2;
+      board.scrollLeft += targetBox.left - boardBox.left - (board.clientWidth - targetBox.width) / 2;
+    });
+    await dropTarget.scrollIntoViewIfNeeded();
+    const box = await dropTarget.boundingBox();
     if (!box) throw new Error("No se encontró el destino DnD.");
-    await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120), { steps: 8 });
+    const targetX = box.x + box.width / 2;
+    const targetY = box.y + Math.min(box.height / 2, 120);
+    await page.mouse.move(targetX, targetY, { steps: 8 });
+    await page.mouse.move(targetX, targetY);
     await page.mouse.up();
   }
 
@@ -351,5 +364,35 @@ test.describe("Tablero M4", () => {
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
     expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(page.getByRole("button", { name: /Arrastrar PED-/ }).first()).toBeVisible();
+  });
+
+  test("limita el scroll vertical del tablero en desktop y conserva flujo natural en mobile", async ({ page }) => {
+    for (let index = 0; index < 12; index += 1) await createOrder(`Overflow ${runId} ${index}`);
+    await login(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/orders");
+    await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+    const boardScroll = page.getByTestId("board-scroll-container");
+    await expect(boardScroll).toBeVisible();
+    const desktopMetrics = await boardScroll.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(desktopMetrics.overflowY).toBe("auto");
+    expect(desktopMetrics.scrollHeight).toBeGreaterThan(desktopMetrics.clientHeight);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/orders");
+    await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+    await expect(boardScroll).toBeVisible();
+    const mobileMetrics = await boardScroll.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    }));
+    expect(await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)).toBe(true);
+    expect(mobileMetrics.scrollHeight).toBeLessThanOrEqual(mobileMetrics.clientHeight);
   });
 });

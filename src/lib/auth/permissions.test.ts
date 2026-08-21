@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canConfirmPayment, canCreateManualOrder, canManageCatalogs, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderSensitive, canManageCatalogs, canManageOrderDesignImages, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
 
 describe("M3 permissions", () => {
   it("allows Attention to create manual orders without catalog administration", () => {
@@ -74,7 +74,18 @@ describe("payment permissions", () => {
   it("allows only managers to reverse payment", () => {
     expect(canReversePayment("super_admin")).toBe(true);
     expect(canReversePayment("admin")).toBe(true);
-    expect(canReversePayment("attention")).toBe(false);
+    expect(canReversePayment("attention")).toBe(true);
     expect(canReversePayment("employee")).toBe(false);
+  });
+});
+
+describe("PR2 approved order authority", () => {
+  it("grants Attention approved order and image management without unrelated administration", () => {
+    expect(canEditOrderSensitive("attention")).toBe(true);
+    expect(canManageOrderDesignImages("attention")).toBe(true);
+    expect(canManageCatalogs("attention")).toBe(false);
+    expect(canManageStages("attention")).toBe(false);
+    expect(canManageOrderDesignImages("employee")).toBe(false);
+    expect(canEditOrderSensitive("employee")).toBe(false);
   });
 });

@@ -1,13 +1,13 @@
 # Contratos de imágenes de pedidos
 
-M7 Fase 2 mantiene el bucket `order-designs` privado y no persiste URLs firmadas.
+M7/PR2 mantiene el bucket `order-designs` privado, una colección de 0 a 3 imágenes por pedido y no persiste URLs firmadas.
 
 ## Flujo
 
-1. `startOrderDesignImageUploadAction` valida sesión, perfil activo, cambio obligatorio de contraseña, rol, pedido, MIME, tamaño y versión. Devuelve un path candidato UUID limitado al pedido.
+1. `startOrderDesignImageUploadAction` valida sesión, perfil activo, cambio obligatorio de contraseña, rol, pedido, intención explícita (`add` o `replace`), imagen objetivo, MIME, tamaño y versión. Devuelve un path candidato UUID limitado al pedido.
 2. El cliente carga directamente ese path con el cliente Supabase autenticado.
-3. `finalizeOrderDesignImageAction` descarga el objeto, valida su tamaño real y firma JPEG, PNG o WebP, y recién después llama con `service_role` a `finalize_order_design_image`. La RPC no es ejecutable por clientes autenticados y vuelve a validar actor, versión, metadata y antigüedad. Un replay válido vuelve a la RPC sin exigir que el objeto siga disponible.
-4. `getOrderDesignImageReadUrl` o `getOrderDesignImageReadUrlAction` devuelve una URL firmada de 5 minutos. Se renueva bajo demanda y nunca se guarda en PostgreSQL.
+3. `mutateOrderDesignImageAction` acepta únicamente `add`, `replace`, `delete`, `set_primary` o `clear_primary`. Para altas y reemplazos descarga el objeto, valida su tamaño real y firma JPEG, PNG o WebP, y recién después llama con `service_role` a `mutate_order_design_image`. Para eliminaciones y primaria usa la misma RPC sin tocar Storage. La RPC no es ejecutable por clientes autenticados y vuelve a validar actor, versión, metadata y antigüedad. Un replay válido vuelve a la RPC sin exigir que el objeto siga disponible.
+4. `getOrderDesignImageReadUrl` o `getOrderDesignImageReadUrlAction` devuelve únicamente la primaria seleccionada como URL firmada de 5 minutos; `getOrderDesignImagesReadUrls` expone la colección acotada para el detalle. Se renueva bajo demanda y nunca se guarda en PostgreSQL.
 
 ## Reconciliación
 

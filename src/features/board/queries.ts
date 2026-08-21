@@ -20,8 +20,7 @@ export type BoardOrder = {
   promisedDeliveryDate: string;
   currentStageId: string;
   updatedAt: string;
-  hasDesignImage: boolean;
-  imageUpdatedAt: string | null;
+  primaryDesignImage: { id: string; updatedAt: string } | null;
   totalAmount: number | null;
   paymentConfirmedAt: string | null;
 };
@@ -74,7 +73,16 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
   if (stagesResult.error || ordersResult.error) throw new Error("No se pudo cargar el tablero de pedidos.");
 
   const stages = stagesResult.data as BoardStage[];
-  const orders = (ordersResult.data as unknown as BoardRpcRow[]).map((order) => ({
+  const boardRows = ordersResult.data as unknown as BoardRpcRow[];
+  const primaryImages = boardRows.length
+    ? await supabase.from("order_design_images").select("order_id, id, updated_at").eq("is_primary", true).in("order_id", boardRows.map((order) => order.id))
+    : { data: [], error: null };
+  if (primaryImages.error) throw new Error("No se pudo cargar la imagen primaria de los pedidos.");
+  const primaryByOrderId = new Map((primaryImages.data ?? []).map((image) => [image.order_id, { id: image.id, updatedAt: image.updated_at }]));
+
+  const orders = boardRows.map((order) => {
+    const primaryDesignImage = primaryByOrderId.get(order.id) ?? null;
+    return {
     id: order.id,
     publicNumber: order.public_number,
     customerName: order.customer_name,
@@ -84,11 +92,11 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
     promisedDeliveryDate: order.promised_delivery_date,
     currentStageId: order.current_stage_id,
     updatedAt: order.updated_at,
-    hasDesignImage: order.has_design_image,
-    imageUpdatedAt: order.image_updated_at,
+    primaryDesignImage,
     totalAmount: order.total_amount,
     paymentConfirmedAt: order.payment_confirmed_at,
-  }));
+    };
+  });
 
   return { columns: buildBoardColumns(stages, orders), role };
 }

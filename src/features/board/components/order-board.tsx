@@ -6,6 +6,7 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -15,6 +16,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { AlertCircle, ArrowRight, CircleCheck, Eye, GripVertical, PackageOpen } from "lucide-react";
 import Link from "next/link";
@@ -36,8 +38,13 @@ import { OrderQuickView as OrderQuickViewPanel } from "./order-quick-view";
 
 type MoveSource = Pick<BoardOrder, "id" | "currentStageId" | "updatedAt">;
 type MovementMethod = "selector" | "dnd";
-type QuickViewData = OrderQuickView & Pick<BoardOrder, "hasDesignImage" | "imageUpdatedAt">;
+type QuickViewData = OrderQuickView & Pick<BoardOrder, "primaryDesignImage">;
 type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
+
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+};
 
 function orderId(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -55,11 +62,12 @@ function orderTypeLabel(orderType: BoardOrder["orderType"]) {
 function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbnail?: boolean }) {
   return (
     <>
-      {showThumbnail && order.hasDesignImage ? (
+      {showThumbnail ? (
         <OrderDesignThumbnail
           alt={`Diseño de ${order.customerName}`}
           className="mb-3 aspect-[3/2] w-full"
-          imageUpdatedAt={order.imageUpdatedAt}
+          imageUpdatedAt={order.primaryDesignImage?.updatedAt ?? null}
+          key={order.primaryDesignImage?.updatedAt ?? "empty"}
           orderId={order.id}
         />
       ) : null}
@@ -223,7 +231,7 @@ function BoardColumnView({
   return (
     <section
       aria-labelledby={`stage-${column.id}`}
-      className={`min-w-0 rounded-xl border bg-muted/35 transition-[border-color,box-shadow] duration-150 motion-reduce:transition-none forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent ${
+      className={`min-w-0 rounded-xl border bg-muted/35 transition-[border-color,box-shadow] duration-150 motion-reduce:transition-none forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent lg:min-h-0 ${
         isOver && isValidTarget
           ? "border-primary shadow-sm outline outline-2 outline-primary outline-offset-2"
           : isOver && !isValidTarget
@@ -302,8 +310,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
       if (result.data) {
         setQuickView({
           ...result.data,
-          hasDesignImage: boardOrder?.hasDesignImage ?? false,
-          imageUpdatedAt: boardOrder?.imageUpdatedAt ?? null,
+          primaryDesignImage: boardOrder?.primaryDesignImage ?? null,
         });
       }
       else setQuickViewError(result.message ?? "No se pudo cargar la vista rápida.");
@@ -555,7 +562,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
           draggable: "Para tomar un pedido, presioná Espacio. Usá las flechas para buscar una etapa, Espacio para soltar o Escape para cancelar. También podés usar el selector Mover pedido.",
         },
       }}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetectionStrategy}
       id="order-board-dnd"
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
@@ -563,7 +570,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
       onDragStart={handleDragStart}
       sensors={sensors}
     >
-      <section aria-label="Tablero de pedidos" className="flex min-w-0 flex-col gap-5">
+      <section aria-label="Tablero de pedidos" className="flex min-w-0 flex-col gap-5 lg:min-h-0 lg:flex-1">
         <p aria-atomic="true" aria-live="assertive" className="sr-only" data-testid="board-announcement">{announcement}</p>
         <div className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground" data-board-count>{orderCount === 1 ? "1 pedido en seguimiento" : `${orderCount} pedidos en seguimiento`}</p>
@@ -581,8 +588,8 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
          {quickViewError ? <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>No pudimos abrir la vista rápida</AlertTitle><AlertDescription>{quickViewError}</AlertDescription></Alert> : null}
          {isQuickViewPending ? <p aria-live="polite" className="text-sm text-muted-foreground">Cargando vista rápida...</p> : null}
           {quickView ? <OrderQuickViewPanel data={quickView} onClose={() => setQuickView(null)} onReconciled={(reconciledOrder) => { if (reconciledOrder) setColumns((current) => replaceBoardOrder(current, reconciledOrder)); setQuickView(null); }} stageNames={Object.fromEntries(columns.map((column) => [column.id, column.name]))} /> : null}
-        <div className="w-full min-w-0 overflow-x-hidden">
-          <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overflow-x-auto lg:overscroll-x-contain lg:pb-3">
+          <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
+            <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-full lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overscroll-x-contain lg:pb-3">
             {columns.map((column) => (
               <BoardColumnView activeOrder={activeOrder} canConfirmPayment={canConfirmPayment} column={column} key={column.id} paidStageId={paidStageId}>
                 {column.orders.map((order) => (

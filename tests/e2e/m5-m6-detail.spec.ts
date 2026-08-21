@@ -245,10 +245,10 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
   });
 
-  test("Atención y Empleado no ven el formulario de edición sensible", async ({ page }) => {
+  test("Atención puede editar y Empleado no recibe ese permiso", async ({ page }) => {
     await login(page, identities[2]!);
     await navigateToDetail(page, attentionOrder);
-    await expect(page.getByRole("heading", { name: "Editar pedido" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
 
     await page.getByRole("button", { name: "Salir" }).click();
@@ -447,15 +447,15 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(specs.getByText("Microfibra").first()).toBeVisible();
   });
 
-  test("Atención puede ver importes pero no editar campos sensibles", async ({ page }) => {
+  test("Atención puede ver importes y editar campos sensibles", async ({ page }) => {
     await login(page, identities[2]!);
     await navigateToDetail(page, attentionOrder);
 
-    await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
-    await expect(page.getByText("Total")).toBeVisible();
-    await expect(page.getByText("Seña")).toBeVisible();
-    await expect(page.getByText("Saldo visible")).toBeVisible();
-
-    await expect(page.getByRole("heading", { name: "Editar pedido" })).toHaveCount(0);
+    const financials = page.getByRole("heading", { name: "Importes" }).locator("xpath=ancestor::section");
+    await expect(financials).toBeVisible();
+    await expect(financials.getByText("Total", { exact: true })).toBeVisible();
+    await expect(financials.getByText("Seña", { exact: true })).toBeVisible();
+    await expect(financials.getByText("Saldo visible", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
   });
 });

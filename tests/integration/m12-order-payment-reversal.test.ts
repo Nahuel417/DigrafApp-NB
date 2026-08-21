@@ -139,13 +139,20 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Reversión de pago 
     expect(privateTimeline?.find((event) => event.event_type === "payment_reversed")?.details).toEqual({ version: 1, payment_reversed: true });
   });
 
-  it("rechaza Atención y Empleado sin efectos", async () => {
+  it("autoriza Atención, rechaza Empleado y rechaza el bypass sin efectos adicionales", async () => {
     await ensureOpen();
     const order = await confirm(await createOrder(20));
-    for (const role of ["attention", "employee"] as const) {
-      const client = await signedClient(identities.find((identity) => identity.role === role)!);
-      await expect(invoke(client, { p_order_id: order.id, p_payment_id: order.paymentId, p_expected_updated_at: order.updated_at, p_idempotency_key: `m12-denied-${role}-${randomUUID()}` })).rejects.toThrow("permiso");
-    }
+    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    const reversed = await invoke(attention, { p_order_id: order.id, p_payment_id: order.paymentId, p_expected_updated_at: order.updated_at, p_idempotency_key: `m12-attention-${randomUUID()}` });
+    expect(reversed).toMatchObject({ order_id: order.id, payment_id: order.paymentId, amount: 20, stage_code: "received" });
+
+    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    await expect(invoke(employee, { p_order_id: order.id, p_payment_id: order.paymentId, p_expected_updated_at: order.updated_at, p_idempotency_key: `m12-denied-employee-${randomUUID()}` })).rejects.toThrow("permiso");
+    await expect(invoke(service, { p_order_id: order.id, p_payment_id: order.paymentId, p_expected_updated_at: order.updated_at, p_idempotency_key: `m12-bypass-${randomUUID()}` })).rejects.toThrow(/permiso|permission denied/);
+
+    const { data: payment, error } = await service.from("order_payments").select("reversal_cash_movement_id, reversed_at").eq("id", order.paymentId).single();
+    expect(error).toBeNull();
+    expect(payment).toMatchObject({ reversal_cash_movement_id: expect.any(String), reversed_at: expect.any(String) });
   });
 
   it("rechaza pago positivo con caja cerrada sin reabrir ni mutar", async () => {

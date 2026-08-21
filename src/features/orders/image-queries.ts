@@ -9,6 +9,7 @@ import {
 import { orderDesignImageReadUrlSchema } from "./image-schemas";
 
 export type OrderDesignImage = {
+  id: string;
   orderId: string;
   objectPath: string;
   contentType: OrderDesignContentType;
@@ -16,7 +17,10 @@ export type OrderDesignImage = {
   uploadedBy: string;
   createdAt: string;
   updatedAt: string;
+  isPrimary: boolean;
 };
+
+export type OrderDesignPrimaryImage = Pick<OrderDesignImage, "id" | "updatedAt">;
 
 export type OrderDesignImageReadUrl = OrderDesignImage & {
   signedUrl: string;
@@ -24,6 +28,7 @@ export type OrderDesignImageReadUrl = OrderDesignImage & {
 };
 
 function toOrderDesignImage(image: {
+  id: string;
   order_id: string;
   object_path: string;
   content_type: string;
@@ -31,8 +36,10 @@ function toOrderDesignImage(image: {
   uploaded_by: string;
   created_at: string;
   updated_at: string;
+  is_primary: boolean;
 }): OrderDesignImage {
   return {
+    id: image.id,
     orderId: image.order_id,
     objectPath: image.object_path,
     contentType: image.content_type as OrderDesignContentType,
@@ -40,7 +47,12 @@ function toOrderDesignImage(image: {
     uploadedBy: image.uploaded_by,
     createdAt: image.created_at,
     updatedAt: image.updated_at,
+    isPrimary: image.is_primary,
   };
+}
+
+export function toPrimaryDesignImage(image: OrderDesignImage | null): OrderDesignPrimaryImage | null {
+  return image?.isPrimary ? { id: image.id, updatedAt: image.updatedAt } : null;
 }
 
 async function getReadableImageQuery(orderId: string) {
@@ -50,12 +62,15 @@ async function getReadableImageQuery(orderId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("order_design_images")
-    .select("order_id, object_path, content_type, byte_size, uploaded_by, created_at, updated_at")
+    .select("id, order_id, object_path, content_type, byte_size, uploaded_by, created_at, updated_at, is_primary")
     .eq("order_id", orderId)
-    .maybeSingle();
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(3);
 
   if (error) throw new Error("No se pudo cargar la imagen del pedido.");
-  return { image: data ? toOrderDesignImage(data) : null, supabase };
+  const images = (data ?? []).map(toOrderDesignImage);
+  return { images, primaryImage: images.find((image) => image.isPrimary) ?? null, supabase };
 }
 
 export async function getOrderDesignImage(orderId: string): Promise<OrderDesignImage | null> {
@@ -63,7 +78,20 @@ export async function getOrderDesignImage(orderId: string): Promise<OrderDesignI
   if (!parsed.success) return null;
 
   const result = await getReadableImageQuery(parsed.data);
-  return result?.image ?? null;
+  return result?.primaryImage ?? null;
+}
+
+export async function getOrderDesignImages(orderId: string): Promise<OrderDesignImage[]> {
+  const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
+  if (!parsed.success) return [];
+
+  const result = await getReadableImageQuery(parsed.data);
+  return result?.images ?? [];
+}
+
+export async function getOrderDesignPrimaryImage(orderId: string): Promise<OrderDesignPrimaryImage | null> {
+  const image = await getOrderDesignImage(orderId);
+  return toPrimaryDesignImage(image);
 }
 
 export async function getOrderDesignImageReadUrl(orderId: string): Promise<OrderDesignImageReadUrl | null> {
@@ -71,16 +99,37 @@ export async function getOrderDesignImageReadUrl(orderId: string): Promise<Order
   if (!parsed.success) return null;
 
   const result = await getReadableImageQuery(parsed.data);
-  if (!result?.image) return null;
+  if (!result?.primaryImage) return null;
 
   const { data, error } = await result.supabase.storage
     .from(ORDER_DESIGN_BUCKET)
-    .createSignedUrl(result.image.objectPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
+    .createSignedUrl(result.primaryImage.objectPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
   if (error || !data?.signedUrl) throw new Error("No se pudo generar el acceso temporal a la imagen.");
 
   return {
-    ...result.image,
+    ...result.primaryImage,
     signedUrl: data.signedUrl,
     expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
   };
+}
+
+export async function getOrderDesignImagesReadUrls(orderId: string): Promise<OrderDesignImageReadUrl[]> {
+  const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
+  if (!parsed.success) return [];
+
+  const result = await getReadableImageQuery(parsed.data);
+  if (!result?.images.length) return [];
+
+  return Promise.all(result.images.map(async (image) => {
+    const { data, error } = await result.supabase.storage
+      .from(ORDER_DESIGN_BUCKET)
+      .createSignedUrl(image.objectPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
+    if (error || !data?.signedUrl) throw new Error("No se pudo generar el acceso temporal a la imagen.");
+
+    return {
+      ...image,
+      signedUrl: data.signedUrl,
+      expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
+    };
+  }));
 }
