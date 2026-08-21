@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { CreateCommentForm, CommentList, Timeline, EditableDescription } from "@/features/orders/components/order-detail-panels";
 import { OrderEditForm } from "@/features/orders/components/order-edit-form";
 import { OrderDesignImagePanel } from "@/features/orders/components/order-design-image-panel";
+import { OrderSpecifications } from "@/features/orders/components/order-specifications";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const profile = await requireActiveProfile();
@@ -68,8 +69,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-2">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Datos del pedido</h2>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -95,7 +96,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
             <h2 className="text-base font-semibold">Especificaciones</h2>
             <dl className="mt-4 flex flex-col gap-3">
               {order.lines.map((line) => (
-                <div className="rounded-lg border border-border bg-muted/40 p-3" key={line.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{line.lineType}</p><p className="mt-1 font-medium">{line.productName}</p></div><span className="font-mono text-sm">{line.quantity} unidades</span></div>{line.color ? <p className="mt-2 text-sm text-muted-foreground">Color: {line.color}</p> : null}{line.shieldNames.length ? <p className="mt-2 text-sm text-muted-foreground">Escudos: {line.shieldNames.join(", ")}</p> : null}<pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs text-muted-foreground">{JSON.stringify(line.configurationSnapshot, null, 2)}</pre></div>
+                <div className="min-w-0 rounded-lg border border-border bg-muted/40 p-3" key={line.id}>
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Renglón {line.position + 1}</p>
+                      <p className="mt-1 break-words font-medium">{line.productName}</p>
+                    </div>
+                    <span className="shrink-0 font-mono text-sm">{line.quantity} unidades</span>
+                  </div>
+                  <OrderSpecifications catalogs={catalogs} line={line} selections={selections} />
+                </div>
               ))}
               {order.lines.length === 0 ? selections.map((selection) => (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3" key={selection.id}>
@@ -133,7 +143,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <OrderDesignImagePanel
             canManage={canManageDesignImage}
             initialError={designImagesResult.error}

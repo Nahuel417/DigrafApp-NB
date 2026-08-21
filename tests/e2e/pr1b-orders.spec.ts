@@ -91,7 +91,8 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByText(`Equipo PR1B ${runId}`, { exact: true })).toBeVisible();
     await expect(page.locator('dt:has-text("Teléfono") + dd')).toHaveText("+54 351 5550199");
-    await expect(page.getByText("Renglón 1", { exact: true })).toBeVisible();
+    const specifications = page.getByRole("heading", { name: "Especificaciones", exact: true }).locator("xpath=ancestor::section[1]");
+    await expect(specifications.getByText("Renglón 1", { exact: true })).toBeVisible();
     await page.getByLabel("Equipo").last().fill(`Equipo editado PR1B ${runId}`);
      await page.getByRole("button", { name: "Guardar cambios" }).click();
      await page.getByRole("button", { name: "Confirmar cambios" }).click();
