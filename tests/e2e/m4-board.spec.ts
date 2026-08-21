@@ -87,6 +87,7 @@ test.describe("Tablero M4", () => {
       board.scrollTop += targetBox.top - boardBox.top - (board.clientHeight - targetBox.height) / 2;
       board.scrollLeft += targetBox.left - boardBox.left - (board.clientWidth - targetBox.width) / 2;
     });
+    await dropTarget.scrollIntoViewIfNeeded();
     const box = await dropTarget.boundingBox();
     if (!box) throw new Error("No se encontró el destino DnD.");
     const targetX = box.x + box.width / 2;

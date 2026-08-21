@@ -115,7 +115,7 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
   }
 
   return (
-    <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs">
+    <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs lg:max-h-full lg:overflow-y-auto">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{formatOrderNumber(data.publicNumber)}</p>

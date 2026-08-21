@@ -5,7 +5,8 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  rectIntersection,
+  closestCenter,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -15,6 +16,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { AlertCircle, ArrowRight, CircleCheck, Eye, GripVertical, PackageOpen } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +40,11 @@ type MoveSource = Pick<BoardOrder, "id" | "currentStageId" | "updatedAt">;
 type MovementMethod = "selector" | "dnd";
 type QuickViewData = OrderQuickView & Pick<BoardOrder, "primaryDesignImage">;
 type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
+
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+};
 
 function orderId(publicNumber: number) {
   return `PED-${String(publicNumber).padStart(6, "0")}`;
@@ -555,7 +562,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
           draggable: "Para tomar un pedido, presioná Espacio. Usá las flechas para buscar una etapa, Espacio para soltar o Escape para cancelar. También podés usar el selector Mover pedido.",
         },
       }}
-      collisionDetection={rectIntersection}
+      collisionDetection={collisionDetectionStrategy}
       id="order-board-dnd"
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
