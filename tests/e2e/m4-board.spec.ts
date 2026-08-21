@@ -73,7 +73,16 @@ test.describe("Tablero M4", () => {
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 16, box.y + box.height / 2 + 16, { steps: 4 });
-    await expect(page.getByTestId("drag-overlay")).toBeVisible();
+    const dragOverlay = page.getByTestId("drag-overlay");
+    await expect(dragOverlay).toBeVisible();
+    const overlayBox = await dragOverlay.boundingBox();
+    if (!overlayBox) throw new Error("No se encontró el overlay DnD.");
+    const pointerX = box.x + box.width / 2 + 16;
+    const pointerY = box.y + box.height / 2 + 16;
+    expect(pointerX).toBeGreaterThanOrEqual(overlayBox.x);
+    expect(pointerX).toBeLessThanOrEqual(overlayBox.x + overlayBox.width);
+    expect(pointerY).toBeGreaterThanOrEqual(overlayBox.y);
+    expect(pointerY).toBeLessThanOrEqual(overlayBox.y + overlayBox.height);
   }
 
   async function dropOn(page: Page, target: ReturnType<Page["locator"]>) {

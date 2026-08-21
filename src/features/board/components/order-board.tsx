@@ -20,6 +20,7 @@ import {
 } from "@dnd-kit/core";
 import { AlertCircle, ArrowRight, CircleCheck, Eye, GripVertical, PackageOpen } from "lucide-react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { startTransition, useState, useTransition } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -261,6 +262,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
   const [columns, setColumns] = useState(initialColumns);
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [dragPreviewAnchor, setDragPreviewAnchor] = useState<{ x: number; y: number } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("Tablero listo para mover pedidos.");
   const [mutationState, setMutationState] = useState<MoveOrderActionState | ConfirmOrderPaymentActionState>({});
@@ -479,6 +481,11 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
   function handleDragStart(event: DragStartEvent) {
     const order = findOrder(String(event.active.id));
     if (!order) return;
+    const activeNode = Array.from(document.querySelectorAll<HTMLElement>("[data-order-id]")).find((node) => node.dataset.orderId === String(event.active.id));
+    const initialRect = event.active.rect.current.initial ?? activeNode?.getBoundingClientRect() ?? null;
+    const clientX = "clientX" in event.activatorEvent ? event.activatorEvent.clientX : null;
+    const clientY = "clientY" in event.activatorEvent ? event.activatorEvent.clientY : null;
+    setDragPreviewAnchor(initialRect && typeof clientX === "number" && typeof clientY === "number" ? { x: clientX - initialRect.left, y: clientY - initialRect.top } : null);
     setActiveDragId(order.id);
     setAnnouncement(`Tomaste ${orderId(order.publicNumber)} desde ${stageName(order.currentStageId)}. Elegí una etapa y soltá para moverlo, o presioná Escape para cancelar.`);
   }
@@ -508,6 +515,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
   function handleDragCancel(event: DragCancelEvent) {
     const order = findOrder(String(event.active.id));
     setActiveDragId(null);
+    setDragPreviewAnchor(null);
     if (!order) return;
     setAnnouncement(`Cancelaste el movimiento de ${orderId(order.publicNumber)}. Permanece en ${stageName(order.currentStageId)}.`);
     focusOrderControl(order.id, "dnd");
@@ -516,6 +524,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
   function handleDragEnd(event: DragEndEvent) {
     const order = findOrder(String(event.active.id));
     setActiveDragId(null);
+    setDragPreviewAnchor(null);
     if (!order) return;
     if (!event.over) {
       setAnnouncement(`Cancelaste el movimiento de ${orderId(order.publicNumber)}. No se seleccionó una etapa.`);
@@ -553,6 +562,15 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
 
   const orderCount = columns.reduce((count, column) => count + column.orders.length, 0);
   const paymentAmount = canConfirmPayment ? paymentRequest?.order.totalAmount ?? null : null;
+  const dragOverlay = (
+    <DragOverlay dropAnimation={null}>
+      {activeOrder ? (
+        <div className="absolute w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-primary bg-card p-4 shadow-lg forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight]" data-testid="drag-overlay" style={{ left: dragPreviewAnchor?.x ?? "50%", top: dragPreviewAnchor?.y ?? "50%" }}>
+          <OrderSummary order={activeOrder} />
+        </div>
+      ) : null}
+    </DragOverlay>
+  );
 
   return (
     <DndContext
@@ -620,13 +638,7 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
           </AlertDialogContent>
         ) : null}
       </AlertDialog>
-      <DragOverlay dropAnimation={null}>
-        {activeOrder ? (
-          <div className="w-72 rounded-lg border border-primary bg-card p-4 shadow-lg forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight]" data-testid="drag-overlay">
-            <OrderSummary order={activeOrder} />
-          </div>
-        ) : null}
-      </DragOverlay>
+      {typeof document === "undefined" ? dragOverlay : createPortal(dragOverlay, document.body)}
     </DndContext>
   );
 }
