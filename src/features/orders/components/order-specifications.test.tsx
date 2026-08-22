@@ -75,4 +75,12 @@ describe("OrderSpecifications", () => {
     expect(screen.queryByText("config-v2")).toBeNull();
     expect(screen.queryByText(/\[object Object\]/)).toBeNull();
   });
+
+  it("does not expose internal identifiers when a catalog label is unavailable", () => {
+    render(<OrderSpecifications catalogs={{ ...catalogs, fabrics: [], garments: [], necklines: [] }} line={line({ configuration: { legacy_options: { fabric: { id: fabricId }, neckline_id: necklineId } } })} />);
+
+    expect(screen.queryByText(fabricId)).toBeNull();
+    expect(screen.queryByText(necklineId)).toBeNull();
+    expect(screen.queryByText(/ID técnico/)).toBeNull();
+  });
 });

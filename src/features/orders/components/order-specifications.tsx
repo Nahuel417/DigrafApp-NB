@@ -75,7 +75,7 @@ function findLegacyName(id: string | null, options: LegacyCatalogOption[], selec
 function displayId(value: unknown, name: string | null | undefined, fallback = "Sin configurar") {
   if (name) return name;
   const id = idValue(value);
-  return id ? `ID técnico: ${id}` : fallback;
+  return id ? "No disponible" : fallback;
 }
 
 function findOption(optionId: string | null, productId: string | null, catalogs: OrderDetailCatalogs): OrderCatalogOption | null {
@@ -99,7 +99,7 @@ function formatOptionItems(value: unknown, productId: string | null, catalogs: O
     if (!isRecord(entry)) return [{ label: `Opción ${index + 1}`, value: primitiveValue(entry) }];
     const optionId = idValue(entry.option_id) ?? idValue(entry.id);
     const option = findOption(optionId, productId, catalogs);
-    const optionLabel = embeddedName(entry) ?? option?.name ?? (optionId ? `Opción (ID técnico: ${optionId})` : `Opción ${index + 1}`);
+    const optionLabel = embeddedName(entry) ?? option?.name ?? (optionId ? "Opción no disponible" : `Opción ${index + 1}`);
     const values = optionValueEntries(entry).map((item) => {
       const valueId = idValue(item);
       const optionValue = option?.values.find((candidate) => candidate.id === valueId)?.value;
@@ -136,7 +136,7 @@ function unknownItems(label: string, value: unknown): SpecificationItem[] {
   const name = embeddedName(value);
   if (name) return [{ label, value: name }];
   const id = idValue(value);
-  if (id) return [{ label, value: `ID técnico: ${id}` }];
+  if (id) return [{ label, value: "No disponible" }];
   if (Array.isArray(value)) {
     if (!value.length) return [{ label, value: "Sin configurar" }];
     return value.flatMap((entry, index) => unknownItems(`${label} ${index + 1}`, entry));
@@ -164,7 +164,6 @@ export function buildOrderSpecificationSections(line: OrderDetailLine, catalogs:
   if (line.lineType !== "set") baseItems.push({ label: "Producto", value: line.productName });
   if (line.color?.trim()) baseItems.push({ label: "Color", value: line.color.trim() });
   if (line.shieldNames.length) baseItems.push({ label: "Escudos", value: line.shieldNames.join(", ") });
-  else if (line.shieldProductIds.length) baseItems.push({ label: "Escudos", value: line.shieldProductIds.map((id) => `ID técnico: ${id}`).join(", ") });
 
   const sections: SpecificationSection[] = [{ items: baseItems, title: "Datos del renglón" }];
   if (line.lineType === "set") {
