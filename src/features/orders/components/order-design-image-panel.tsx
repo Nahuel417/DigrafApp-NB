@@ -227,10 +227,10 @@ export function OrderDesignImagePanel({
 
       <div className="mt-4 flex flex-col gap-4">
         {images.length ? (
-          <div aria-label="Galería de diseños del pedido" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4" role="list">
+          <div aria-label="Galería de diseños del pedido" className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4" role="list">
             {images.map((image, index) => (
               <figure className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30" data-design-image="true" key={image.id} role="listitem">
-                <div className="relative aspect-[4/3] bg-muted">
+                <div className="relative min-w-0 overflow-hidden aspect-[4/3] bg-muted">
                   {/* Signed URLs are short-lived and must bypass image optimization caches. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -250,18 +250,18 @@ export function OrderDesignImagePanel({
                   {canManage ? (
                     <div className="grid min-w-0 gap-2">
                       {image.isPrimary ? (
-                        <Button className="w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
+                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
                           <StarOff data-icon="inline-start" />Quitar como principal
                         </Button>
                       ) : (
-                        <Button className="w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
+                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
                           <Star data-icon="inline-start" />Seleccionar como principal
                         </Button>
                       )}
-                      <Button className="w-full whitespace-normal text-center" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
+                      <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
                         <RefreshCw data-icon="inline-start" />{image.isPrimary ? "Reemplazar diseño" : `Reemplazar diseño ${index + 1}`}
                       </Button>
-                      <Button aria-label="Eliminar diseño" className="w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="ghost">
+                      <Button aria-label="Eliminar diseño" className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="ghost">
                         <Trash2 data-icon="inline-start" />Eliminar diseño
                       </Button>
                     </div>
@@ -289,7 +289,7 @@ export function OrderDesignImagePanel({
         ) : null}
 
         {feedback ? (
-          <Alert className="min-w-0 items-start focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" ref={feedbackRef} tabIndex={-1} variant={feedback.kind === "error" ? "destructive" : "success"}>
+          <Alert className="w-full min-w-0 items-start focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" ref={feedbackRef} tabIndex={-1} variant={feedback.kind === "error" ? "destructive" : "success"}>
             {feedback.kind === "error" ? <AlertCircle aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
             <div className="min-w-0 flex-1">
               <AlertTitle>{feedback.title}</AlertTitle>
