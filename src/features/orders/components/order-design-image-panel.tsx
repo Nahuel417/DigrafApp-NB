@@ -216,7 +216,7 @@ export function OrderDesignImagePanel({
   const imageCountLabel = images.length === 1 ? "1 imagen" : `${images.length} imágenes`;
 
   return (
-    <section aria-busy={pending} aria-labelledby="order-design-heading" className="rounded-xl border border-border bg-card p-5 shadow-xs">
+    <section aria-busy={pending} aria-labelledby="order-design-heading" className="min-w-0 rounded-xl border border-border bg-card p-5 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono text-xs tracking-label text-muted-foreground">ARCHIVO VISUAL</p>
@@ -227,41 +227,41 @@ export function OrderDesignImagePanel({
 
       <div className="mt-4 flex flex-col gap-4">
         {images.length ? (
-          <div aria-label="Galería de diseños del pedido" className="grid gap-4 sm:grid-cols-2" role="list">
+          <div aria-label="Galería de diseños del pedido" className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4" role="list">
             {images.map((image, index) => (
-              <figure className="overflow-hidden rounded-lg border border-border bg-muted/30" data-design-image="true" key={image.id} role="listitem">
-                <div className="relative aspect-[4/3] bg-muted">
+              <figure className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30" data-design-image="true" key={image.id} role="listitem">
+                <div className="relative min-w-0 overflow-hidden aspect-[4/3] bg-muted">
                   {/* Signed URLs are short-lived and must bypass image optimization caches. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     alt={image.isPrimary ? "Diseño vigente del pedido" : `Diseño adicional del pedido ${index + 1}`}
-                    className="size-full object-contain"
+                    className="block size-full object-contain"
                     key={image.expiresAt}
                     onError={() => renewPreview(true)}
                     referrerPolicy="no-referrer"
                     src={image.signedUrl}
                   />
                 </div>
-                <figcaption className="flex flex-col gap-3 border-t border-border px-3 py-3">
+                <figcaption className="flex min-w-0 flex-col gap-3 border-t border-border px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-medium text-muted-foreground">{image.isPrimary ? "Principal" : `Diseño ${index + 1}`}</span>
                     {image.isPrimary ? <Star aria-label="Imagen principal" className="text-primary" /> : null}
                   </div>
                   {canManage ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid min-w-0 gap-2">
                       {image.isPrimary ? (
-                        <Button disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
+                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
                           <StarOff data-icon="inline-start" />Quitar como principal
                         </Button>
                       ) : (
-                        <Button disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
+                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
                           <Star data-icon="inline-start" />Seleccionar como principal
                         </Button>
                       )}
-                      <Button disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
+                      <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
                         <RefreshCw data-icon="inline-start" />{image.isPrimary ? "Reemplazar diseño" : `Reemplazar diseño ${index + 1}`}
                       </Button>
-                      <Button aria-label="Eliminar diseño" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="ghost">
+                      <Button aria-label="Eliminar diseño" className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="ghost">
                         <Trash2 data-icon="inline-start" />Eliminar diseño
                       </Button>
                     </div>
@@ -289,15 +289,17 @@ export function OrderDesignImagePanel({
         ) : null}
 
         {feedback ? (
-          <Alert ref={feedbackRef} tabIndex={-1} variant={feedback.kind === "error" ? "destructive" : "success"}>
+          <Alert className="w-full min-w-0 items-start focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" ref={feedbackRef} tabIndex={-1} variant={feedback.kind === "error" ? "destructive" : "success"}>
             {feedback.kind === "error" ? <AlertCircle aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
-            <AlertTitle>{feedback.title}</AlertTitle>
-            <AlertDescription>{feedback.description}</AlertDescription>
+            <div className="min-w-0 flex-1">
+              <AlertTitle>{feedback.title}</AlertTitle>
+              <AlertDescription className="break-words">{feedback.description}</AlertDescription>
+            </div>
           </Alert>
         ) : null}
 
         {primaryImage ? (
-          <Button disabled={pending} onClick={() => renewPreview()} type="button" variant="outline">
+          <Button className="w-full" disabled={pending} onClick={() => renewPreview()} type="button" variant="outline">
             {operation === "renewing" ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : <RefreshCw aria-hidden="true" data-icon="inline-start" />}
             {operation === "renewing" ? "Renovando vista..." : "Renovar vista"}
           </Button>
