@@ -163,11 +163,12 @@ Toda operación sensible registra el actor autenticado y la hora del servidor. N
 
 ## Pedidos anulados
 
-- Admin puede anular un pedido indicando motivo.
-- Los anulados se ven en un archivo solo para Admin/Super admin.
-- Se pueden restaurar o eliminar definitivamente antes de 30 días.
-- Al cumplir 30 días se eliminan automáticamente.
-- Antes de implementar la eliminación programada, definir retención de datos relacionados y probar restauración, autorización y vencimiento.
+- M15 permite a Admin/Super admin anular un pedido indicando un motivo normalizado de 2 a 500 caracteres; un pago activo debe revertirse primero mediante M12.
+- La anulación conserva el pedido en `orders` con `lifecycle_state = cancelled`, excluye el pedido del tablero y congela las operaciones normales. Archivo deriva de ese estado y no es una transición adicional.
+- Los anulados se ven en un Archivo histórico solo para Admin/Super admin. El acceso directo no autorizado responde como recurso no accesible.
+- La restauración devuelve el pedido a su etapa operativa previa antes de `cancelled_at + 30×24 horas` en UTC. La fecha exacta de vencimiento ya no admite restauración.
+- M15 conserva relaciones, eventos append-only, finanzas, imágenes y Storage; no elimina ni purga datos y nunca escribe caja.
+- La eliminación irreversible, la retención posterior a la ventana y cualquier scheduler corresponden a M16.
 
 ## Fuera del MVP
 

@@ -1096,6 +1096,66 @@ export type Database = {
           },
         ]
       }
+      order_lifecycle_events: {
+        Row: {
+          actor_id: string
+          event_type: string
+          fingerprint: string
+          from_state: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          order_id: string
+          reason: string
+          result_snapshot: Json
+          to_state: string
+          version: number
+        }
+        Insert: {
+          actor_id: string
+          event_type: string
+          fingerprint: string
+          from_state: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          order_id: string
+          reason: string
+          result_snapshot: Json
+          to_state: string
+          version?: number
+        }
+        Update: {
+          actor_id?: string
+          event_type?: string
+          fingerprint?: string
+          from_state?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          order_id?: string
+          reason?: string
+          result_snapshot?: Json
+          to_state?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lifecycle_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lifecycle_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_line_shields: {
         Row: {
           created_at: string
@@ -1387,6 +1447,9 @@ export type Database = {
       }
       orders: {
         Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           client_name: string | null
           created_at: string
           created_by: string
@@ -1396,6 +1459,7 @@ export type Database = {
           id: string
           idempotency_fingerprint: string
           idempotency_key: string
+          lifecycle_state: string
           order_date: string
           order_type: Database["public"]["Enums"]["order_type"] | null
           phone: string | null
@@ -1406,6 +1470,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_name?: string | null
           created_at?: string
           created_by: string
@@ -1415,6 +1482,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint: string
           idempotency_key: string
+          lifecycle_state?: string
           order_date: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
           phone?: string | null
@@ -1425,6 +1493,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_name?: string | null
           created_at?: string
           created_by?: string
@@ -1434,6 +1505,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint?: string
           idempotency_key?: string
+          lifecycle_state?: string
           order_date?: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
           phone?: string | null
@@ -1444,6 +1516,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_created_by_fkey"
             columns: ["created_by"]
@@ -1573,6 +1652,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_order: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+          p_reason: string
+        }
+        Returns: {
+          cancelled_at: string
+          current_stage_id: string
+          event_id: string
+          lifecycle_state: string
+          order_id: string
+          public_number: number
+          updated_at: string
+        }[]
+      }
       cash_current_actor_is_operational: { Args: never; Returns: boolean }
       cash_m10_effective_movements: {
         Args: { p_day_id: string }
@@ -1903,6 +1999,18 @@ export type Database = {
         }
         Returns: string
       }
+      m15_cancel_fingerprint: {
+        Args: {
+          p_expected_updated_at: string
+          p_order_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
+      m15_restore_fingerprint: {
+        Args: { p_expected_updated_at: string; p_order_id: string }
+        Returns: string
+      }
       m7_assert_image_actor: {
         Args: { p_actor_id: string }
         Returns: {
@@ -2066,6 +2174,22 @@ export type Database = {
         }
         Returns: {
           event_id: string
+        }[]
+      }
+      restore_order: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+        }
+        Returns: {
+          cancelled_at: string
+          current_stage_id: string
+          event_id: string
+          lifecycle_state: string
+          order_id: string
+          public_number: number
+          updated_at: string
         }[]
       }
       retire_workflow_stage: {

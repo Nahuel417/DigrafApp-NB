@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPlus, Kanban, LayoutDashboard, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
+import { Archive, ClipboardPlus, Kanban, LayoutDashboard, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,7 @@ type AppNavigationProps = {
     canManageCatalogs: boolean;
     canManageStages: boolean;
     canManageUsers: boolean;
+    canManageOrderLifecycle: boolean;
     canOperateCash: boolean;
   };
   compact?: boolean;
@@ -27,6 +28,7 @@ const navigationItems: Array<{
 }> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Panel" },
   { href: "/orders", icon: Kanban, label: "Pedidos" },
+  { href: "/orders/archive", icon: Archive, label: "Archivo", capability: "canManageOrderLifecycle" },
   { href: "/cash", icon: WalletCards, label: "Caja", capability: "canOperateCash" },
   { href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido", capability: "canCreateOrders" },
   { href: "/catalogs", icon: ListTree, label: "Catálogos", capability: "canManageCatalogs" },
