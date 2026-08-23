@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
 
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
@@ -13,11 +14,28 @@ import {
 } from "./archive-queries";
 import OrderArchivePage from "@/app/(app)/orders/archive/page";
 import DeliveredArchivePage from "@/app/(app)/orders/archive/delivered/page";
+import OrdersArchivesPage from "@/app/(app)/orders/archives/page";
+import { OrderArchiveList } from "@/features/orders/components/order-archive-list";
 
 vi.mock("@/lib/auth/current-profile", () => ({ getCurrentProfile: vi.fn() }));
 vi.mock("@/lib/auth/guards", () => ({ requireActiveProfile: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => {
+  const nextRedirect = (url: string) => {
+    const error = new Error(`NEXT_REDIRECT:${url}`) as Error & { __isNextRedirect?: boolean; digest?: string };
+    error.__isNextRedirect = true;
+    error.digest = `NEXT_REDIRECT;replace;${url};307`;
+    throw error;
+  };
+  const nextPermanentRedirect = (url: string) => {
+    const error = new Error(`NEXT_REDIRECT:${url}`) as Error & { __isNextRedirect?: boolean; digest?: string };
+    error.__isNextRedirect = true;
+    error.digest = `NEXT_REDIRECT;replace;${url};308`;
+    throw error;
+  };
+  return { permanentRedirect: vi.fn(nextPermanentRedirect), redirect: vi.fn(nextRedirect) };
+});
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/features/orders/components/order-archive-list", () => ({ OrderArchiveList: vi.fn(), DeliveredArchiveList: vi.fn() }));
 
 const activeAdmin = { id: "admin-id", displayName: "Admin", isActive: true, mustChangePassword: false, role: "admin" as const };
 
@@ -60,6 +78,18 @@ function buildArchiveMock(rangeResponses: Array<{ data: unknown[] | null; count:
   const fromResult = { select };
   const from = vi.fn(() => fromResult);
   return { from, range, order, eq, select };
+}
+
+function isNextRedirectError(error: unknown): boolean {
+  return Boolean((error as { __isNextRedirect?: boolean } | null)?.__isNextRedirect);
+}
+
+async function invokeRoute(fn: () => Promise<unknown>) {
+  try {
+    await fn();
+  } catch (error) {
+    if (!isNextRedirectError(error)) throw error;
+  }
 }
 
 describe("order archive query mapping", () => {
@@ -279,81 +309,216 @@ describe("getArchivedDeliveredOrders pagination", () => {
   });
 });
 
-describe("OrderArchivePage canonicalization", () => {
+describe("OrderArchivePage 308 shim", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireActiveProfile).mockResolvedValue(activeAdmin);
-    vi.mocked(createClient).mockResolvedValue(buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]) as never);
   });
 
-  it.each([
-    ["non-numeric", "abc"],
-    ["zero", "0"],
-    ["negative", "-2"],
-    ["non-integer", "1.5"],
-  ])("redirects an invalid %s ?page to ?page=1", async (_label, raw) => {
-    await OrderArchivePage({ searchParams: Promise.resolve({ page: raw }) });
+  it("issues a 308 permanent redirect to cancelled tab with mapped page", async () => {
+    await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({ page: "3" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders/archive?page=1");
+    expect(permanentRedirect).toHaveBeenCalledTimes(1);
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=cancelled&cancelledPage=3");
   });
 
-  it("redirects a positive out-of-range page to the last page", async () => {
-    vi.mocked(createClient).mockResolvedValue(buildArchiveMock([
-      { data: [], count: 25, error: null },
-      { data: [baseArchiveRow], count: 25, error: null },
-    ]) as never);
+  it("omits the cancelledPage key when legacy page is omitted", async () => {
+    await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({}) }));
 
-    await OrderArchivePage({ searchParams: Promise.resolve({ page: "100" }) });
-
-    expect(redirect).toHaveBeenCalledWith("/orders/archive?page=3");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=cancelled");
   });
 
-  it("does not redirect a canonical ?page=1 request", async () => {
-    await OrderArchivePage({ searchParams: Promise.resolve({ page: "1" }) });
+  it("does not query the database", async () => {
+    await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({ page: "5" }) }));
 
+    expect(createClient).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("does not redirect an omitted ?page request", async () => {
-    await OrderArchivePage({ searchParams: Promise.resolve({}) });
+  it("checks the cancelled authorization before reading searchParams", async () => {
+    vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
-    expect(redirect).not.toHaveBeenCalled();
+    await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({ page: "5" }) }));
+
+    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(createClient).not.toHaveBeenCalled();
+    expect(permanentRedirect).not.toHaveBeenCalled();
   });
 });
 
-describe("DeliveredArchivePage canonicalization", () => {
+describe("DeliveredArchivePage 308 shim", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireActiveProfile).mockResolvedValue(activeAdmin);
-    vi.mocked(createClient).mockResolvedValue(buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]) as never);
   });
 
-  it("redirects an invalid ?page value to ?page=1", async () => {
-    await DeliveredArchivePage({ searchParams: Promise.resolve({ page: "abc" }) });
+  it("issues a 308 permanent redirect to delivered tab with mapped page", async () => {
+    await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({ page: "4" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders/archive/delivered?page=1");
+    expect(permanentRedirect).toHaveBeenCalledTimes(1);
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=delivered&deliveredPage=4");
   });
 
-  it("redirects a positive out-of-range page to the last page", async () => {
-    vi.mocked(createClient).mockResolvedValue(buildArchiveMock([
-      { data: [], count: 12, error: null },
-      { data: [baseDeliveredRow], count: 12, error: null },
-    ]) as never);
+  it("omits the deliveredPage key when legacy page is omitted", async () => {
+    await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({}) }));
 
-    await DeliveredArchivePage({ searchParams: Promise.resolve({ page: "99" }) });
-
-    expect(redirect).toHaveBeenCalledWith("/orders/archive/delivered?page=2");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=delivered");
   });
 
-  it("does not redirect a canonical ?page=1 request", async () => {
-    await DeliveredArchivePage({ searchParams: Promise.resolve({ page: "1" }) });
+  it("does not query the database", async () => {
+    await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("checks the delivered authorization before reading searchParams", async () => {
+    vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+
+    await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(createClient).not.toHaveBeenCalled();
+    expect(permanentRedirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("OrdersArchivesPage (unified tabs) canonicalization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireActiveProfile).mockResolvedValue(activeAdmin);
+  });
+
+  it("resolves the default delivered tab when tab is omitted", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({}) }));
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("archived_delivered_orders");
+    expect(mock.from).not.toHaveBeenCalledWith("orders");
+  });
+
+  it("resolves the delivered tab explicitly", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered" }) }));
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("archived_delivered_orders");
+  });
+
+  it("resolves the cancelled tab explicitly", async () => {
+    const superAdmin = { ...activeAdmin, role: "super_admin" as const };
+    vi.mocked(requireActiveProfile).mockResolvedValue(superAdmin);
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    vi.mocked(getCurrentProfile).mockResolvedValue(superAdmin);
+
+    await invokeRoute(() =>
+      OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "cancelled" }) }).then((jsx) => renderToString(jsx as never)),
+    );
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("orders");
+    expect(mock.from).not.toHaveBeenCalledWith("archived_delivered_orders");
+    expect(OrderArchiveList).toHaveBeenCalledWith(expect.objectContaining({ canPurge: true }), undefined);
+  });
+
+  it.each([
+    ["unsupported", "archived"],
+    ["garbage", "???"],
+    ["empty-after-trim", "  "],
+  ])("canonicalizes an invalid %s tab to delivered without looping", async (_label, raw) => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: raw }) }));
+
+    expect(redirect).toHaveBeenCalledTimes(1);
+    expect(redirect).toHaveBeenCalledWith(expect.stringContaining("tab=delivered"));
+    expect(redirect).toHaveBeenCalledWith(expect.not.stringContaining(`tab=${raw}`));
+  });
+
+  it("does not redirect the canonical delivered tab without page params", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered", deliveredPage: "1" }) }));
 
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("does not redirect an omitted ?page request", async () => {
-    await DeliveredArchivePage({ searchParams: Promise.resolve({}) });
+  it("redirects an invalid deliveredPage to deliveredPage=1 without dropping cancelledPage", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
 
-    expect(redirect).not.toHaveBeenCalled();
+    await invokeRoute(() => OrdersArchivesPage({
+      searchParams: Promise.resolve({ tab: "delivered", deliveredPage: "0", cancelledPage: "7" }),
+    }));
+
+    expect(redirect).toHaveBeenCalledTimes(1);
+    const target = vi.mocked(redirect).mock.calls[0]?.[0] as string;
+    expect(target).toContain("tab=delivered");
+    expect(target).toContain("deliveredPage=1");
+    expect(target).toContain("cancelledPage=7");
+    expect(target).not.toContain("deliveredPage=0");
+  });
+
+  it("preserves the inactive cancelledPage verbatim while active deliveredPage is canonicalized", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({
+      searchParams: Promise.resolve({ tab: "delivered", deliveredPage: "abc", cancelledPage: "7" }),
+    }));
+
+    const target = vi.mocked(redirect).mock.calls[0]?.[0] as string;
+    expect(target).toContain("cancelledPage=7");
+  });
+
+  it("redirects an invalid cancelledPage to cancelledPage=1 in a single combined redirect", async () => {
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({
+      searchParams: Promise.resolve({ tab: "cancelled", cancelledPage: "-2" }),
+    }));
+
+    expect(redirect).toHaveBeenCalledTimes(1);
+    expect(redirect).toHaveBeenCalledWith("/orders/archives?tab=cancelled&cancelledPage=1");
+  });
+
+  it("does not invoke the inactive tab's query when only the active tab renders", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() => OrdersArchivesPage({
+      searchParams: Promise.resolve({ tab: "delivered", deliveredPage: "1", cancelledPage: "3" }),
+    }));
+
+    expect(mock.from).toHaveBeenCalledWith("archived_delivered_orders");
+    expect(mock.from).not.toHaveBeenCalledWith("orders");
+    expect(mock.range).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks branch-specific authorization: redirected on attention for delivered tab", async () => {
+    vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered" }) }));
+
+    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("checks branch-specific authorization: redirected on attention for cancelled tab", async () => {
+    vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+
+    await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "cancelled" }) }));
+
+    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(createClient).not.toHaveBeenCalled();
   });
 });

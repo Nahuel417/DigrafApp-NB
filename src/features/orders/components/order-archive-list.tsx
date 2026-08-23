@@ -17,18 +17,31 @@ function formatDateTime(value: string) {
 
 type ArchivePaginationProps = {
   basePath: string;
+  pageParam?: string;
+  extraParams?: Record<string, string | undefined>;
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
 };
 
-function ArchivePagination({ basePath, page, pageSize, total, totalPages }: ArchivePaginationProps) {
+function buildArchiveHref(basePath: string, pageParam: string, page: number, extraParams: Record<string, string | undefined>): string {
+  const params = new URLSearchParams();
+  if (extraParams.tab !== undefined) params.set("tab", extraParams.tab);
+  params.set(pageParam, String(page));
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (key === "tab") continue;
+    if (value !== undefined) params.set(key, value);
+  }
+  return `${basePath}?${params.toString()}`;
+}
+
+function ArchivePagination({ basePath, pageParam = "page", extraParams = {}, page, pageSize, total, totalPages }: ArchivePaginationProps) {
   if (total <= pageSize) return null;
   const isFirst = page <= 1;
   const isLast = page >= totalPages;
-  const prevHref = `${basePath}?page=${page - 1}`;
-  const nextHref = `${basePath}?page=${page + 1}`;
+  const prevHref = buildArchiveHref(basePath, pageParam, page - 1, extraParams);
+  const nextHref = buildArchiveHref(basePath, pageParam, page + 1, extraParams);
   return (
     <nav aria-label="Paginación del Archivo" className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">Página {page} de {totalPages} · Total {total} registros</p>
@@ -56,6 +69,8 @@ export function OrderArchiveList({
   total,
   totalPages,
   basePath,
+  pageParam,
+  extraParams,
 }: {
   canPurge?: boolean;
   orders: ArchivedOrder[];
@@ -64,6 +79,8 @@ export function OrderArchiveList({
   total: number;
   totalPages: number;
   basePath: string;
+  pageParam?: string;
+  extraParams?: Record<string, string | undefined>;
 }) {
   return (
     <section aria-labelledby="cancelled-orders-title" className="flex flex-col gap-4">
@@ -104,7 +121,7 @@ export function OrderArchiveList({
           ))}
         </ul>
       )}
-      <ArchivePagination basePath={basePath} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
+      <ArchivePagination basePath={basePath} pageParam={pageParam} extraParams={extraParams} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
     </section>
   );
 }
@@ -116,6 +133,8 @@ export function DeliveredArchiveList({
   total,
   totalPages,
   basePath,
+  pageParam,
+  extraParams,
 }: {
   orders: ArchivedDeliveredOrder[];
   page: number;
@@ -123,6 +142,8 @@ export function DeliveredArchiveList({
   total: number;
   totalPages: number;
   basePath: string;
+  pageParam?: string;
+  extraParams?: Record<string, string | undefined>;
 }) {
   return (
     <section aria-labelledby="archived-delivered-orders-title" className="flex flex-col gap-4">
@@ -161,7 +182,7 @@ export function DeliveredArchiveList({
           ))}
         </ul>
       )}
-      <ArchivePagination basePath={basePath} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
+      <ArchivePagination basePath={basePath} pageParam={pageParam} extraParams={extraParams} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
     </section>
   );
 }

@@ -100,8 +100,7 @@ function mapRestoreError(message: string) {
 
 function lifecyclePaths(orderId: string) {
   revalidatePath("/orders");
-  revalidatePath("/orders/archive");
-  revalidatePath("/orders/archive/delivered");
+  revalidatePath("/orders/archives");
   revalidatePath(`/orders/${orderId}`);
 }
 

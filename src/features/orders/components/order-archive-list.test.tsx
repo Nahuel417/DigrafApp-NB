@@ -169,3 +169,73 @@ describe("delivered archive list", () => {
     expect(screen.getByRole("button", { name: "Siguiente" }).hasAttribute("disabled")).toBe(true);
   });
 });
+
+describe("archive pagination hrefs", () => {
+  it("preserves Change 1 hrefs for cancelled when defaults are used", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive?page=3");
+  });
+
+  it("preserves Change 1 hrefs for delivered when defaults are used", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archive/delivered"
+        orders={[baseDelivered]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive/delivered?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive/delivered?page=3");
+  });
+
+  it("builds delivered-tab pagination hrefs preserving cancelledPage and tab", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archives"
+        pageParam="deliveredPage"
+        extraParams={{ tab: "delivered", cancelledPage: "4" }}
+        orders={[baseDelivered]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archives?tab=delivered&deliveredPage=1&cancelledPage=4");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archives?tab=delivered&deliveredPage=3&cancelledPage=4");
+  });
+
+  it("builds cancelled-tab pagination hrefs preserving deliveredPage and tab", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archives"
+        pageParam="cancelledPage"
+        extraParams={{ tab: "cancelled", deliveredPage: "2" }}
+        orders={[baseOrder]}
+        page={4}
+        pageSize={10}
+        total={50}
+        totalPages={5}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archives?tab=cancelled&cancelledPage=3&deliveredPage=2");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archives?tab=cancelled&cancelledPage=5&deliveredPage=2");
+  });
+});

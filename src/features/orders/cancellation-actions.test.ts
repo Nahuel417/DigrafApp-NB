@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { archiveDeliveredOrderAction, cancelOrderAction, purgeCancelledOrderAction, restoreOrderAction } from "./cancellation-actions";
+import { archiveDeliveredOrderAction, cancelOrderAction, purgeCancelledOrderAction, restoreOrderAction, unarchiveDeliveredOrderAction } from "./cancellation-actions";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/current-profile", () => ({ getCurrentProfile: vi.fn() }));
@@ -159,6 +160,70 @@ describe("M16 delivered archive and purge actions", () => {
       p_order_id: "11111111-1111-4111-8111-111111111111",
       p_idempotency_key: "purge-key",
     });
+  });
+});
+
+const ORDER_ID = "11111111-1111-4111-8111-111111111111";
+
+function revalidatedPaths(): string[] {
+  return vi.mocked(revalidatePath).mock.calls.map((call) => call[0]);
+}
+
+function expectCanonicalLifecyclePaths() {
+  const paths = revalidatedPaths();
+  expect(paths).toContain("/orders/archives");
+  expect(paths).toContain("/orders");
+  expect(paths).toContain(`/orders/${ORDER_ID}`);
+  expect(paths).not.toContain("/orders/archive");
+  expect(paths).not.toContain("/orders/archive/delivered");
+}
+
+describe("lifecycle revalidation paths", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentProfile).mockResolvedValue(activeAdmin);
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never);
+  });
+
+  it("cancelOrderAction revalidates /orders/archives and /orders and the order detail, never the legacy archive routes", async () => {
+    rpc.mockResolvedValue({ data: [{ order_id: ORDER_ID, lifecycle_state: "cancelled", updated_at: "2026-08-14T12:01:00.000Z" }], error: null });
+
+    await cancelOrderAction({}, validCancel());
+
+    expectCanonicalLifecyclePaths();
+  });
+
+  it("restoreOrderAction revalidates /orders/archives and /orders and the order detail, never the legacy archive routes", async () => {
+    rpc.mockResolvedValue({ data: [{ order_id: ORDER_ID, lifecycle_state: "active", updated_at: "2026-08-14T12:02:00.000Z" }], error: null });
+
+    await restoreOrderAction({}, validRestore());
+
+    expectCanonicalLifecyclePaths();
+  });
+
+  it("archiveDeliveredOrderAction revalidates /orders/archives and /orders and the order detail, never the legacy archive routes", async () => {
+    rpc.mockResolvedValue({ data: { order_id: ORDER_ID, public_number: 12, lifecycle_state: "archived_delivered", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
+
+    await archiveDeliveredOrderAction({}, validArchive());
+
+    expectCanonicalLifecyclePaths();
+  });
+
+  it("unarchiveDeliveredOrderAction revalidates /orders/archives and /orders and the order detail, never the legacy archive routes", async () => {
+    rpc.mockResolvedValue({ data: { order_id: ORDER_ID, public_number: 12, lifecycle_state: "delivered", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
+
+    await unarchiveDeliveredOrderAction({}, validArchive());
+
+    expectCanonicalLifecyclePaths();
+  });
+
+  it("purgeCancelledOrderAction revalidates /orders/archives and /orders and the order detail, never the legacy archive routes", async () => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "super_admin" });
+    rpc.mockResolvedValue({ data: { order_id: ORDER_ID, public_number: 12, lifecycle_state: "purged_cancelled", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
+
+    await purgeCancelledOrderAction({}, validPurge());
+
+    expectCanonicalLifecyclePaths();
   });
 
 });
