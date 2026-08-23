@@ -15,7 +15,56 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function OrderArchiveList({ canPurge = false, orders }: { canPurge?: boolean; orders: ArchivedOrder[] }) {
+type ArchivePaginationProps = {
+  basePath: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+function ArchivePagination({ basePath, page, pageSize, total, totalPages }: ArchivePaginationProps) {
+  if (total <= pageSize) return null;
+  const isFirst = page <= 1;
+  const isLast = page >= totalPages;
+  const prevHref = `${basePath}?page=${page - 1}`;
+  const nextHref = `${basePath}?page=${page + 1}`;
+  return (
+    <nav aria-label="Paginación del Archivo" className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+      <p className="text-sm text-muted-foreground">Página {page} de {totalPages} · Total {total} registros</p>
+      <div className="flex gap-2">
+        {isFirst ? (
+          <Button aria-label="Anterior" disabled variant="outline">Anterior</Button>
+        ) : (
+          <Button asChild variant="outline"><Link aria-label="Anterior" href={prevHref}>Anterior</Link></Button>
+        )}
+        {isLast ? (
+          <Button aria-label="Siguiente" disabled variant="outline">Siguiente</Button>
+        ) : (
+          <Button asChild variant="outline"><Link aria-label="Siguiente" href={nextHref}>Siguiente</Link></Button>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export function OrderArchiveList({
+  canPurge = false,
+  orders,
+  page,
+  pageSize,
+  total,
+  totalPages,
+  basePath,
+}: {
+  canPurge?: boolean;
+  orders: ArchivedOrder[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  basePath: string;
+}) {
   return (
     <section aria-labelledby="cancelled-orders-title" className="flex flex-col gap-4">
       <div>
@@ -55,11 +104,26 @@ export function OrderArchiveList({ canPurge = false, orders }: { canPurge?: bool
           ))}
         </ul>
       )}
+      <ArchivePagination basePath={basePath} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
     </section>
   );
 }
 
-export function DeliveredArchiveList({ orders }: { orders: ArchivedDeliveredOrder[] }) {
+export function DeliveredArchiveList({
+  orders,
+  page,
+  pageSize,
+  total,
+  totalPages,
+  basePath,
+}: {
+  orders: ArchivedDeliveredOrder[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  basePath: string;
+}) {
   return (
     <section aria-labelledby="archived-delivered-orders-title" className="flex flex-col gap-4">
       <div>
@@ -97,6 +161,7 @@ export function DeliveredArchiveList({ orders }: { orders: ArchivedDeliveredOrde
           ))}
         </ul>
       )}
+      <ArchivePagination basePath={basePath} page={page} pageSize={pageSize} total={total} totalPages={totalPages} />
     </section>
   );
 }

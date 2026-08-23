@@ -25,6 +25,13 @@ export type ArchivedDeliveredOrder = {
   updatedAt: string;
 };
 
+export type ArchivePage<T> = {
+  orders: T[];
+  total: number;
+  page: number;
+  totalPages: number;
+};
+
 type ArchiveRow = {
   id: string;
   public_number: number;
@@ -51,8 +58,28 @@ type ArchivedDeliveredRow = {
   updated_at: string;
 };
 
-type ViewQueryResult = { data: unknown[] | null; error: { message: string } | null };
-type ViewClient = { from(table: string): { select(columns: string): { order(column: string, options: { ascending: boolean }): Promise<ViewQueryResult> } } };
+type RangedResult<T> = {
+  data: T[] | null;
+  count: number | null;
+  error: { message: string } | null;
+};
+
+type QueryError = { message: string } | null;
+
+export const ARCHIVE_PAGE_SIZE = 10;
+
+function normalizeArchivePage(raw: number): number {
+  if (!Number.isFinite(raw) || raw < 1 || !Number.isInteger(raw)) return 1;
+  return raw;
+}
+
+function computeArchiveRange(page: number, total: number, pageSize: number) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const from = (safePage - 1) * pageSize;
+  const to = total === 0 ? -1 : Math.min(from + pageSize - 1, total - 1);
+  return { safePage, totalPages, from, to };
+}
 
 export function mapArchiveRows(rows: ArchiveRow[], stages: LookupRow[], profiles: LookupRow[]): ArchivedOrder[] {
   const stageNames = new Map(stages.map((stage) => [stage.id, stage.name ?? "Etapa no disponible"]));
@@ -84,42 +111,80 @@ export function mapArchivedDeliveredRows(rows: ArchivedDeliveredRow[], stages: L
   }));
 }
 
-export async function getOrderArchive(): Promise<ArchivedOrder[] | null> {
+async function resolveArchivePage<T>(
+  fetch: (from: number, to: number) => Promise<RangedResult<T>>,
+  page: number,
+  pageSize: number,
+  errorMessage: string,
+): Promise<ArchivePage<T>> {
+  const normalized = normalizeArchivePage(page);
+  const initialFrom = (normalized - 1) * pageSize;
+  const initialTo = initialFrom + pageSize - 1;
+  const first = await fetch(initialFrom, initialTo);
+  if (first.error) throw new Error(errorMessage);
+  const total = first.count ?? 0;
+  const { totalPages, safePage, from, to } = computeArchiveRange(normalized, total, pageSize);
+
+  if (safePage !== normalized) {
+    const fallback = await fetch(from, to);
+    if (fallback.error) throw new Error(errorMessage);
+    return { orders: fallback.data ?? [], total, page: safePage, totalPages };
+  }
+
+  return { orders: first.data ?? [], total, page: safePage, totalPages };
+}
+
+export async function getOrderArchive(page: number, pageSize: number = ARCHIVE_PAGE_SIZE): Promise<ArchivePage<ArchivedOrder> | null> {
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive || profile.mustChangePassword || !canManageOrderLifecycle(profile.role)) return null;
 
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
-    .from("orders")
-    .select("id, public_number, customer_name, current_stage_id, cancelled_at, cancelled_by, cancellation_reason, updated_at")
-    .eq("lifecycle_state", "cancelled")
-    .order("cancelled_at", { ascending: false });
-  if (error) throw new Error("No se pudo cargar el Archivo de pedidos.");
+  const result = await resolveArchivePage<ArchiveRow>(
+    async (from, to) => {
+      const { data, count, error } = await supabase
+        .from("orders")
+        .select("id, public_number, customer_name, current_stage_id, cancelled_at, cancelled_by, cancellation_reason, updated_at", { count: "exact" })
+        .eq("lifecycle_state", "cancelled")
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+      return { data: (data ?? null) as ArchiveRow[] | null, count, error: error as QueryError };
+    },
+    page,
+    pageSize,
+    "No se pudo cargar el Archivo de pedidos.",
+  );
 
+  const empty = result.orders.length === 0;
   const [{ data: stages }, { data: profiles }] = await Promise.all([
     supabase.from("workflow_stages").select("id, name"),
-    supabase.from("profiles").select("id, display_name").in("id", (rows ?? []).map((row) => row.cancelled_by).filter((id): id is string => Boolean(id))),
+    empty
+      ? Promise.resolve({ data: [] as LookupRow[] | null, error: null as QueryError })
+      : supabase.from("profiles").select("id, display_name").in("id", result.orders.map((row) => row.cancelled_by).filter((id): id is string => Boolean(id))),
   ]);
-  return mapArchiveRows((rows ?? []) as ArchiveRow[], (stages ?? []) as LookupRow[], (profiles ?? []) as LookupRow[]);
+  return { ...result, orders: mapArchiveRows(result.orders, (stages ?? []) as LookupRow[], (profiles ?? []) as LookupRow[]) };
 }
 
-export async function getArchivedDeliveredOrders(): Promise<ArchivedDeliveredOrder[] | null> {
+export async function getArchivedDeliveredOrders(page: number, pageSize: number = ARCHIVE_PAGE_SIZE): Promise<ArchivePage<ArchivedDeliveredOrder> | null> {
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive || profile.mustChangePassword || !canArchiveDeliveredOrder(profile.role)) return null;
 
   const supabase = await createClient();
-  const viewClient = supabase as unknown as ViewClient;
-  const [{ data: rawRows, error }, { data: stages }] = await Promise.all([
-    viewClient.from("archived_delivered_orders").select("id, public_number, customer_name, client_name, team_name, quantity, order_date, promised_delivery_date, current_stage_id, updated_at").order("updated_at", { ascending: false }),
-    supabase.from("workflow_stages").select("id, name"),
-  ]);
-  if (error) throw new Error("No se pudo cargar el Archivo de entregados.");
+  const result = await resolveArchivePage<ArchivedDeliveredRow>(
+    async (from, to) => {
+      const { data, count, error } = await supabase
+        .from("archived_delivered_orders")
+        .select("id, public_number, customer_name, client_name, team_name, quantity, order_date, promised_delivery_date, current_stage_id, updated_at", { count: "exact" })
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+      return { data: (data ?? null) as ArchivedDeliveredRow[] | null, count, error: error as QueryError };
+    },
+    page,
+    pageSize,
+    "No se pudo cargar el Archivo de entregados.",
+  );
 
-  const rows = (rawRows ?? []).flatMap((row) => {
-    if (typeof row !== "object" || row === null) return [];
-    const value = row as Record<string, unknown>;
-    if (typeof value.id !== "string" || typeof value.public_number !== "number" || typeof value.quantity !== "number" || typeof value.current_stage_id !== "string" || typeof value.order_date !== "string" || typeof value.promised_delivery_date !== "string" || typeof value.updated_at !== "string") return [];
-    return [value as unknown as ArchivedDeliveredRow];
-  });
-  return mapArchivedDeliveredRows(rows, (stages ?? []) as LookupRow[]);
+  const { data: stages } = await supabase.from("workflow_stages").select("id, name");
+  return { ...result, orders: mapArchivedDeliveredRows(result.orders, (stages ?? []) as LookupRow[]) };
 }
