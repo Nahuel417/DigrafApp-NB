@@ -303,6 +303,10 @@ Nombre: `Digraf - MVP operativo`
 
 Cada tarjeta de implementación incluye los checklists `Dependencias`, `Alcance`, `Implementación y seguridad`, `Pruebas` y `Criterio de terminado`. Las tarjetas de decisión incluyen `Alternativas`, `Resolución aprobada`, `Documentación actualizada`, `Criterios de aceptación` y `Casos de prueba derivados`.
 
+### Estado local de M16
+
+M16 está implementado localmente y queda pendiente de autorización de staging. Antes de habilitar el scheduler se deben provisionar por separado el secreto de Vault y el secreto de entorno de la Edge Function, desplegar la función, ejecutar el smoke test de staging y obtener una autorización posterior para crear y activar el Cron gestionado por Supabase. La migración no crea ningún job de Cron.
+
 ### Post-MVP
 
 - PM-01 Formulario público con enlace único.

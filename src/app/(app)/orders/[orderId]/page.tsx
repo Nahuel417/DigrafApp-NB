@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canEditOrderDescription, canEditOrderSensitive, canManageOrderLifecycle, canReadOrderFinancials } from "@/lib/auth/permissions";
+import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderLifecycle, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
 import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
@@ -16,7 +16,7 @@ import { CreateCommentForm, CommentList, Timeline, EditableDescription } from "@
 import { OrderEditForm } from "@/features/orders/components/order-edit-form";
 import { OrderDesignImagePanel } from "@/features/orders/components/order-design-image-panel";
 import { OrderSpecifications } from "@/features/orders/components/order-specifications";
-import { CancelOrderDialog, RestoreOrderDialog } from "@/features/orders/components/order-lifecycle-dialogs";
+import { ArchiveDeliveredOrderDialog, CancelOrderDialog, PurgeCancelledOrderDialog, RestoreOrderDialog, UnarchiveDeliveredOrderDialog } from "@/features/orders/components/order-lifecycle-dialogs";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const profile = await requireActiveProfile();
@@ -40,7 +40,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const canEditSensitive = canEditOrderSensitive(profile.role);
   const canEditDescription = canEditOrderDescription(profile.role);
   const isCancelled = order.lifecycleState === "cancelled";
-  const canManageDesignImage = !isCancelled && (profile.role === "super_admin" || profile.role === "admin" || profile.role === "attention");
+  const isArchivedDelivered = order.lifecycleState === "archived_delivered";
+  const isReadOnly = isCancelled || isArchivedDelivered;
+  const canManageDesignImage = !isReadOnly && (profile.role === "super_admin" || profile.role === "admin" || profile.role === "attention");
   const balance = canReadFinances ? visibleBalanceString(financials) : null;
 
   const timelineItems = timelineEvents.map((event) => ({
@@ -60,16 +62,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   return (
     <main className="mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
       <header>
-        <Button asChild variant="ghost"><Link href={isCancelled ? "/orders/archive" : "/orders"}><ArrowLeft data-icon="inline-start" />{isCancelled ? "Volver al Archivo" : "Volver al tablero"}</Link></Button>
+        <Button asChild variant="ghost"><Link href={isCancelled ? "/orders/archive" : isArchivedDelivered ? "/orders/archive/delivered" : "/orders"}><ArrowLeft data-icon="inline-start" />{isCancelled || isArchivedDelivered ? "Volver al Archivo" : "Volver al tablero"}</Link></Button>
         <p className="mt-3 text-sm text-muted-foreground">Pedidos</p>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-display sm:text-3xl">{formatOrderNumber(order.publicNumber)}</h1>
-            <Badge variant={isCancelled ? "inactive" : "outline"}>{isCancelled ? "Anulado" : order.currentStage.name}</Badge>
+            <Badge variant={isCancelled || isArchivedDelivered ? "inactive" : "outline"}>{isCancelled ? "Anulado" : isArchivedDelivered ? "Entregado archivado" : order.currentStage.name}</Badge>
           </div>
           {canManageOrderLifecycle(profile.role) ? (
             isCancelled ? (
-              <RestoreOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} />
+              <div className="flex flex-wrap justify-end gap-2">
+                <RestoreOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} />
+                {canPurgeCancelledOrder(profile.role) ? <PurgeCancelledOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} /> : null}
+              </div>
+            ) : isArchivedDelivered ? (
+              <UnarchiveDeliveredOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} />
+            ) : canArchiveDeliveredOrder(profile.role) && order.currentStage.code === "delivered" ? (
+              <ArchiveDeliveredOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} />
             ) : (
               <CancelOrderDialog customerName={order.customerName ?? "Cliente histórico"} expectedUpdatedAt={order.updatedAt} orderId={order.id} publicNumber={order.publicNumber} />
             )
@@ -143,13 +152,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
                 description={order.description ?? ""}
                 key={order.updatedAt}
                 orderId={order.id}
-                 readOnly={isCancelled || !canEditDescription}
+                  readOnly={isReadOnly || !canEditDescription}
                 updatedAt={order.updatedAt}
               />
             </div>
           </section>
 
-          {canEditSensitive && !isCancelled ? (
+          {canEditSensitive && !isReadOnly ? (
             <section className="rounded-xl border border-border bg-card p-5 shadow-xs" id="edit-order">
               <h2 className="text-base font-semibold">Editar pedido</h2>
               <p className="mt-1 text-sm text-muted-foreground">Los cambios quedan auditados y requieren confirmación.</p>
@@ -198,7 +207,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h2 className="text-base font-semibold">Comentarios</h2>
             <div className="mt-4">
-              {!isCancelled ? <CreateCommentForm orderId={order.id} /> : <p className="text-sm text-muted-foreground">El pedido está congelado; los comentarios históricos se conservan abajo.</p>}
+              {!isReadOnly ? <CreateCommentForm orderId={order.id} /> : <p className="text-sm text-muted-foreground">El pedido está archivado o congelado; los comentarios históricos se conservan abajo.</p>}
               <Separator className="my-5" />
               <CommentList comments={comments.map((comment) => ({ id: comment.id, actor: comment.actor, body: comment.body ?? "", occurredAt: comment.occurredAt }))} />
             </div>

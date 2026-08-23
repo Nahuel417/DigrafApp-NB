@@ -33,4 +33,5 @@ describe("order archive list", () => {
     render(<OrderArchiveList orders={[]} />);
     expect(screen.getByText("No hay pedidos anulados en el Archivo.")).toBeTruthy();
   });
+
 });

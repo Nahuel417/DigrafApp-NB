@@ -846,6 +846,13 @@ export type Database = {
             foreignKeyName: "order_catalog_items_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_catalog_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -900,6 +907,13 @@ export type Database = {
             foreignKeyName: "order_change_events_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_change_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -939,6 +953,13 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_comments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
             referencedColumns: ["id"]
           },
           {
@@ -1005,6 +1026,13 @@ export type Database = {
             foreignKeyName: "order_design_image_events_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_design_image_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1049,6 +1077,13 @@ export type Database = {
             foreignKeyName: "order_design_images_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_design_images_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1087,6 +1122,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "order_financials_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_financials_order_id_fkey"
             columns: ["order_id"]
@@ -1145,6 +1187,13 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lifecycle_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
             referencedColumns: ["id"]
           },
           {
@@ -1239,6 +1288,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_lines_order_id_fkey"
             columns: ["order_id"]
@@ -1365,6 +1421,13 @@ export type Database = {
             foreignKeyName: "order_payments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1373,6 +1436,69 @@ export type Database = {
             columns: ["reversal_cash_movement_id"]
             isOneToOne: false
             referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_purge_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          idempotency_fingerprint: string | null
+          last_error: string | null
+          lease_expires_at: string | null
+          lease_token: string | null
+          next_attempt_at: string | null
+          object_paths: Json
+          order_id: string
+          result: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          idempotency_fingerprint?: string | null
+          last_error?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          next_attempt_at?: string | null
+          object_paths?: Json
+          order_id: string
+          result?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          idempotency_fingerprint?: string | null
+          last_error?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          next_attempt_at?: string | null
+          object_paths?: Json
+          order_id?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_purge_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_purge_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1433,6 +1559,13 @@ export type Database = {
             foreignKeyName: "order_stage_events_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "archived_delivered_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_stage_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1453,19 +1586,19 @@ export type Database = {
           client_name: string | null
           created_at: string
           created_by: string
-          current_stage_id: string
+          current_stage_id: string | null
           customer_name: string | null
           description: string | null
           id: string
-          idempotency_fingerprint: string
-          idempotency_key: string
+          idempotency_fingerprint: string | null
+          idempotency_key: string | null
           lifecycle_state: string
-          order_date: string
+          order_date: string | null
           order_type: Database["public"]["Enums"]["order_type"] | null
           phone: string | null
-          promised_delivery_date: string
+          promised_delivery_date: string | null
           public_number: number
-          quantity: number
+          quantity: number | null
           team_name: string | null
           updated_at: string
         }
@@ -1476,19 +1609,19 @@ export type Database = {
           client_name?: string | null
           created_at?: string
           created_by: string
-          current_stage_id: string
+          current_stage_id?: string | null
           customer_name?: string | null
           description?: string | null
           id?: string
-          idempotency_fingerprint: string
-          idempotency_key: string
+          idempotency_fingerprint?: string | null
+          idempotency_key?: string | null
           lifecycle_state?: string
-          order_date: string
+          order_date?: string | null
           order_type?: Database["public"]["Enums"]["order_type"] | null
           phone?: string | null
-          promised_delivery_date: string
+          promised_delivery_date?: string | null
           public_number?: number
-          quantity: number
+          quantity?: number | null
           team_name?: string | null
           updated_at?: string
         }
@@ -1499,19 +1632,19 @@ export type Database = {
           client_name?: string | null
           created_at?: string
           created_by?: string
-          current_stage_id?: string
+          current_stage_id?: string | null
           customer_name?: string | null
           description?: string | null
           id?: string
-          idempotency_fingerprint?: string
-          idempotency_key?: string
+          idempotency_fingerprint?: string | null
+          idempotency_key?: string | null
           lifecycle_state?: string
-          order_date?: string
+          order_date?: string | null
           order_type?: Database["public"]["Enums"]["order_type"] | null
           phone?: string | null
-          promised_delivery_date?: string
+          promised_delivery_date?: string | null
           public_number?: number
-          quantity?: number
+          quantity?: number | null
           team_name?: string | null
           updated_at?: string
         }
@@ -1649,9 +1782,88 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      archived_delivered_orders: {
+        Row: {
+          client_name: string | null
+          created_at: string | null
+          created_by: string | null
+          current_stage_id: string | null
+          customer_name: string | null
+          description: string | null
+          id: string | null
+          lifecycle_state: string | null
+          order_date: string | null
+          order_type: Database["public"]["Enums"]["order_type"] | null
+          phone: string | null
+          promised_delivery_date: string | null
+          public_number: number | null
+          quantity: number | null
+          team_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_name?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_stage_id?: string | null
+          customer_name?: string | null
+          description?: string | null
+          id?: string | null
+          lifecycle_state?: string | null
+          order_date?: string | null
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          phone?: string | null
+          promised_delivery_date?: string | null
+          public_number?: number | null
+          quantity?: number | null
+          team_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_name?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_stage_id?: string | null
+          customer_name?: string | null
+          description?: string | null
+          id?: string | null
+          lifecycle_state?: string | null
+          order_date?: string | null
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          phone?: string | null
+          promised_delivery_date?: string | null
+          public_number?: number | null
+          quantity?: number | null
+          team_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      archive_delivered_order: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+        }
+        Returns: Json
+      }
       cancel_order: {
         Args: {
           p_expected_updated_at: string
@@ -1684,6 +1896,14 @@ export type Database = {
           expense_category_name: string
           movement_id: string
           voided: boolean
+        }[]
+      }
+      claim_order_purge_storage_jobs: {
+        Args: { p_limit: number }
+        Returns: {
+          job_id: string
+          lease_token: string
+          object_paths: Json
         }[]
       }
       close_cash_day: {
@@ -1908,6 +2128,15 @@ export type Database = {
           previous_object_path: string
         }[]
       }
+      finalize_order_purge_storage_job: {
+        Args: {
+          p_error: string
+          p_job_id: string
+          p_lease_token: string
+          p_succeeded: boolean
+        }
+        Returns: Json
+      }
       get_cash_day_summary: {
         Args: { p_cash_day_id: string }
         Returns: {
@@ -2010,6 +2239,16 @@ export type Database = {
       m15_restore_fingerprint: {
         Args: { p_expected_updated_at: string; p_order_id: string }
         Returns: string
+      }
+      m16_purge_cancelled_order_core: {
+        Args: {
+          p_actor_id: string
+          p_idempotency_key: string
+          p_now: string
+          p_order_id: string
+          p_source: string
+        }
+        Returns: Json
       }
       m7_assert_image_actor: {
         Args: { p_actor_id: string }
@@ -2118,9 +2357,27 @@ export type Database = {
         Args: { p_product_id: string; selections: Json }
         Returns: undefined
       }
+      prepare_cancelled_order_purge_jobs: {
+        Args: { p_limit: number }
+        Returns: {
+          job_id: string
+          order_id: string
+          status: string
+        }[]
+      }
       prepare_password_reset: {
         Args: { target_id: string }
         Returns: undefined
+      }
+      purge_cancelled_order: {
+        Args: { p_idempotency_key: string; p_order_id: string }
+        Returns: Json
+      }
+      purge_due_cancelled_orders: {
+        Args: { p_limit: number }
+        Returns: {
+          result: Json
+        }[]
       }
       record_password_reset_result: {
         Args: { succeeded: boolean; target_id: string }
@@ -2243,6 +2500,14 @@ export type Database = {
       set_catalog_product_active: {
         Args: { target_id: string; target_is_active: boolean }
         Returns: undefined
+      }
+      unarchive_delivered_order: {
+        Args: {
+          p_expected_updated_at: string
+          p_idempotency_key: string
+          p_order_id: string
+        }
+        Returns: Json
       }
       update_managed_profile: {
         Args: {

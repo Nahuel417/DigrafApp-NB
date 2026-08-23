@@ -82,6 +82,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
       .select("id, public_number, current_stage_id, updated_at")
       .single();
     if (error || !data) throw error ?? new Error("No se pudo crear el pedido M11.");
+    if (data.current_stage_id === null) throw new Error("El pedido M11 no devolvió una etapa operativa.");
 
     const { error: financialError } = await service.from("order_financials").insert({
       order_id: data.id,
@@ -91,7 +92,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     });
     if (financialError) throw financialError;
     orderIds.push(data.id);
-    return data;
+    return { ...data, current_stage_id: data.current_stage_id };
   }
 
   async function confirm(client: Client, order: { id: string; updated_at: string }, key: string = randomUUID(), expectedUpdatedAt = order.updated_at) {

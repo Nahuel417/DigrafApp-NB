@@ -1,17 +1,57 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canManageOrderLifecycle } from "@/lib/auth/permissions";
+import { canManageOrderLifecycle, canPurgeCancelledOrder } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-import { cancelOrderSchema, restoreOrderSchema } from "./cancellation-schemas";
+import { archiveDeliveredOrderSchema, cancelOrderSchema, purgeCancelledOrderSchema, restoreOrderSchema } from "./cancellation-schemas";
 
 type CancelOrderResult = Database["public"]["Functions"]["cancel_order"]["Returns"][number];
 type RestoreOrderResult = Database["public"]["Functions"]["restore_order"]["Returns"][number];
+type M16RpcName = "archive_delivered_order" | "unarchive_delivered_order" | "purge_cancelled_order";
+type M16OrderResult = {
+  order_id: string;
+  public_number: number;
+  lifecycle_state: string;
+  updated_at: string;
+};
+type M16ActionState = MutationState & { code?: "permission_denied" | "invalid_request" | "version_conflict" | "idempotency_conflict" | "not_found" | "ineligible"; order?: M16OrderResult };
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
+type M16Rpc = (name: M16RpcName, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+export type ArchiveDeliveredActionState = M16ActionState;
+export type UnarchiveDeliveredActionState = M16ActionState;
+export type PurgeCancelledActionState = M16ActionState;
+
+function callM16Rpc(client: ServerClient, name: M16RpcName, args: Record<string, unknown>) {
+  return (client.rpc.bind(client) as unknown as M16Rpc)(name, args);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function m16OrderResult(data: unknown): M16OrderResult | null {
+  const value = Array.isArray(data) ? data[0] : data;
+  if (!isRecord(value) || typeof value.order_id !== "string" || typeof value.lifecycle_state !== "string" || typeof value.updated_at !== "string") return null;
+  const publicNumber = typeof value.public_number === "number" ? value.public_number : Number(value.public_number);
+  return Number.isFinite(publicNumber) ? { order_id: value.order_id, public_number: publicNumber, lifecycle_state: value.lifecycle_state, updated_at: value.updated_at } : null;
+}
+
+function mapM16Error(message: string, fallback: string) {
+  if (message.includes("permiso")) return { code: "permission_denied" as const, message: message.includes("purgar") ? "No tenés permiso para purgar pedidos anulados." : "No tenés permiso para gestionar el Archivo de entregados." };
+  if (message.includes("cambió")) return { code: "version_conflict" as const, message: "El pedido cambió en otra sesión. Actualizá el Archivo e intentá nuevamente." };
+  if (message.includes("idempotencia")) return { code: "idempotency_conflict" as const, message: "La clave de idempotencia ya fue utilizada para otra operación." };
+  if (message.includes("no existe")) return { code: "not_found" as const, message: "El pedido seleccionado no existe." };
+  if (message.includes("retención") || message.includes("30 días") || message.includes("anulados")) return { code: "ineligible" as const, message: "El pedido todavía no cumple las condiciones de purga." };
+  if (message.includes("archivados")) return { code: "ineligible" as const, message: "El pedido no está archivado como entregado." };
+  return { code: "invalid_request" as const, message: fallback };
+}
 
 export type CancellationActionState = MutationState & {
   code?: "permission_denied" | "invalid_request" | "payment_m12" | "version_conflict" | "idempotency_conflict" | "already_cancelled" | "not_found" | "frozen";
@@ -61,6 +101,7 @@ function mapRestoreError(message: string) {
 function lifecyclePaths(orderId: string) {
   revalidatePath("/orders");
   revalidatePath("/orders/archive");
+  revalidatePath("/orders/archive/delivered");
   revalidatePath(`/orders/${orderId}`);
 }
 
@@ -119,4 +160,36 @@ export async function restoreOrderAction(_previous: RestoreActionState, formData
   if (!order) return { ...mutationResult("error", "No se pudo restaurar el pedido. Intentá nuevamente."), code: "invalid_request" };
   lifecyclePaths(parsed.data.orderId);
   return { ...mutationResult("success", "Pedido restaurado y retirado del Archivo."), order };
+}
+
+type M16Data = { orderId: string; idempotencyKey: string; expectedUpdatedAt?: string };
+type M16Role = Parameters<typeof canManageOrderLifecycle>[0];
+
+async function runM16Action<T extends M16Data>(formData: FormData, schema: z.ZodType<T>, allowed: (role: M16Role) => boolean, denied: string, invalid: string, rpcName: M16RpcName, args: (data: T) => Record<string, unknown>, success: string): Promise<M16ActionState> {
+  const parsed = schema.safeParse(formValues(formData));
+  if (!parsed.success) return { ...mutationResult("error", parsed.error.issues[0]?.code === "unrecognized_keys" ? invalid : parsed.error.issues[0]?.message ?? invalid), code: "invalid_request" };
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword || !allowed(profile.role)) return { ...mutationResult("error", denied), code: "permission_denied" };
+  const { data, error } = await callM16Rpc(await createClient(), rpcName, args(parsed.data));
+  if (error) {
+    const mapped = mapM16Error(error.message, invalid);
+    lifecyclePaths(parsed.data.orderId);
+    return { ...mutationResult("error", mapped.message), code: mapped.code };
+  }
+  const order = m16OrderResult(data);
+  if (!order) return { ...mutationResult("error", invalid), code: "invalid_request" };
+  lifecyclePaths(parsed.data.orderId);
+  return { ...mutationResult("success", success), order };
+}
+
+export async function archiveDeliveredOrderAction(_previous: ArchiveDeliveredActionState, formData: FormData) {
+  return runM16Action(formData, archiveDeliveredOrderSchema, canManageOrderLifecycle, "No tenés permiso para gestionar el Archivo de entregados.", "No se pudo archivar el pedido entregado. Intentá nuevamente.", "archive_delivered_order", (data) => ({ p_order_id: data.orderId, p_expected_updated_at: data.expectedUpdatedAt, p_idempotency_key: data.idempotencyKey }), "Pedido entregado archivado.");
+}
+
+export async function unarchiveDeliveredOrderAction(_previous: UnarchiveDeliveredActionState, formData: FormData) {
+  return runM16Action(formData, archiveDeliveredOrderSchema, canManageOrderLifecycle, "No tenés permiso para gestionar el Archivo de entregados.", "No se pudo retirar el pedido del Archivo de entregados. Intentá nuevamente.", "unarchive_delivered_order", (data) => ({ p_order_id: data.orderId, p_expected_updated_at: data.expectedUpdatedAt, p_idempotency_key: data.idempotencyKey }), "Pedido entregado retirado del archivo.");
+}
+
+export async function purgeCancelledOrderAction(_previous: PurgeCancelledActionState, formData: FormData) {
+  return runM16Action(formData, purgeCancelledOrderSchema, canPurgeCancelledOrder, "No tenés permiso para purgar pedidos anulados.", "No se pudo purgar el pedido. Intentá nuevamente.", "purge_cancelled_order", (data) => ({ p_order_id: data.orderId, p_idempotency_key: data.idempotencyKey }), "Pedido anulado purgado.");
 }

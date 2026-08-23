@@ -13,6 +13,7 @@ const localUrl = url ?? "http://127.0.0.1:54396";
 
 type Role = Database["public"]["Enums"]["app_role"];
 type Identity = { email: string; id: string; role: Role };
+type OrderSeed = { id: string; current_stage_id: string; updated_at: string };
 
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Movimientos auditados M4", () => {
   const admin = createClient<Database>(localUrl, serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
@@ -63,8 +64,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Movimientos auditad
       .select("id, current_stage_id, updated_at")
       .single();
     if (error || !data) throw error ?? new Error("No se pudo crear un pedido sintético M4.");
+    if (data.current_stage_id === null) throw new Error("El pedido M4 no devolvió una etapa operativa.");
     orderIds.push(data.id);
-    return data;
+    return { ...data, current_stage_id: data.current_stage_id } satisfies OrderSeed;
   }
 
   async function move(

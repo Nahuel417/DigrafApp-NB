@@ -50,4 +50,24 @@ describe("order detail lifecycle mapping", () => {
     }, { id: "stage-1", code: "design", name: "Diseño" });
     expect(result).toMatchObject({ lifecycleState: "active", cancelledAt: null, cancellationReason: null });
   });
+
+  it("does not expose a purged tombstone as an editable operational order", () => {
+    expect(mapOrderDetailRow({
+      id: "order-purged",
+      public_number: 6,
+      customer_name: null,
+      quantity: null,
+      order_type: null,
+      order_date: null,
+      promised_delivery_date: null,
+      description: null,
+      current_stage_id: null,
+      lifecycle_state: "purged_cancelled",
+      cancelled_at: "2026-08-14T12:00:00.000Z",
+      cancelled_by: "profile-1",
+      cancellation_reason: null,
+      updated_at: "2026-08-14T12:00:00.000Z",
+      created_at: "2026-08-14T10:00:00.000Z",
+    }, { id: "stage-1", code: "design", name: "Diseño" })).toBeNull();
+  });
 });
