@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapArchiveRows } from "./archive-queries";
+import { mapArchiveRows, mapArchivedDeliveredRows } from "./archive-queries";
 
 describe("order archive query mapping", () => {
   it("maps a cancelled order with its historical stage and actor", () => {
@@ -26,5 +26,10 @@ describe("order archive query mapping", () => {
       [],
       [],
     )[0]).toMatchObject({ currentStageName: "Etapa no disponible", cancelledByDisplayName: "Perfil no disponible" });
+  });
+
+  it("maps archived delivered rows without changing their retained order data", () => {
+    const row = { id: "order-3", public_number: 14, customer_name: "Equipo Oeste", client_name: "Club Oeste", team_name: "Primera", quantity: 12, order_date: "2026-08-01", promised_delivery_date: "2026-08-10", current_stage_id: "stage-delivered", updated_at: "2026-08-10T12:00:00.000Z" };
+    expect(mapArchivedDeliveredRows([row], [{ id: "stage-delivered", name: "Entregado" }])[0]).toEqual({ id: "order-3", publicNumber: 14, customerName: "Club Oeste", teamName: "Primera", quantity: 12, currentStageName: "Entregado", orderDate: "2026-08-01", promisedDeliveryDate: "2026-08-10", updatedAt: "2026-08-10T12:00:00.000Z" });
   });
 });

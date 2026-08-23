@@ -3,13 +3,16 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { cancelOrderAction, restoreOrderAction } from "../cancellation-actions";
+import { archiveDeliveredOrderAction, cancelOrderAction, purgeCancelledOrderAction, restoreOrderAction, unarchiveDeliveredOrderAction } from "../cancellation-actions";
 
-import { CancelOrderDialog, RestoreOrderDialog } from "./order-lifecycle-dialogs";
+import { ArchiveDeliveredOrderDialog, CancelOrderDialog, PurgeCancelledOrderDialog, RestoreOrderDialog, UnarchiveDeliveredOrderDialog } from "./order-lifecycle-dialogs";
 
 vi.mock("../cancellation-actions", () => ({
+  archiveDeliveredOrderAction: vi.fn(),
   cancelOrderAction: vi.fn(),
+  purgeCancelledOrderAction: vi.fn(),
   restoreOrderAction: vi.fn(),
+  unarchiveDeliveredOrderAction: vi.fn(),
 }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -26,8 +29,11 @@ describe("order lifecycle dialogs", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(archiveDeliveredOrderAction).mockResolvedValue({});
     vi.mocked(cancelOrderAction).mockResolvedValue({});
+    vi.mocked(purgeCancelledOrderAction).mockResolvedValue({});
     vi.mocked(restoreOrderAction).mockResolvedValue({});
+    vi.mocked(unarchiveDeliveredOrderAction).mockResolvedValue({});
   });
 
   it("requires explicit cancellation confirmation and a visible reason field", () => {
@@ -62,5 +68,29 @@ describe("order lifecycle dialogs", () => {
     expect(screen.getByRole("heading", { name: "Restaurar PED-000012" })).toBeTruthy();
     expect(screen.getByText(/volverá al tablero en su etapa operativa anterior/)).toBeTruthy();
     expect(screen.queryByLabelText("Motivo de anulación")).toBeNull();
+  });
+
+  it("requires confirmation before archiving a delivered order", () => {
+    render(<ArchiveDeliveredOrderDialog {...order} />);
+    fireEvent.click(screen.getByRole("button", { name: "Archivar entregado" }));
+
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(screen.getByText(/se conservará indefinidamente/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(archiveDeliveredOrderAction).not.toHaveBeenCalled();
+  });
+
+  it("separates reversible unarchive from irreversible purge confirmation", () => {
+    render(<>
+      <UnarchiveDeliveredOrderDialog {...order} />
+      <PurgeCancelledOrderDialog {...order} />
+    </>);
+    fireEvent.click(screen.getByRole("button", { name: "Retirar del archivo de entregados" }));
+    expect(screen.getByText(/volverá al tablero/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Purgar pedido" }));
+    expect(screen.getByText(/no se puede deshacer/i)).toBeTruthy();
+    expect(screen.getByRole("alertdialog").textContent).toContain("solo se podrá ejecutar después de 30 días");
   });
 });

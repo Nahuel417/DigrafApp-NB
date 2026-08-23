@@ -24,8 +24,12 @@ function line(type: OrderLineType = "individual"): EditableLine {
   return { key: crypto.randomUUID(), position: 0, line_type: type, quantity: 1, color: "", options: [] };
 }
 
-function productOptions(product: OrderCatalogProduct | undefined, selections: CatalogOptionSelection[] | undefined, onChange: (options: CatalogOptionSelection[]) => void) {
-  if (!product || product.options.length === 0) return <p className="text-sm text-muted-foreground">Este producto no tiene opciones configuradas.</p>;
+function hasNoConfiguredOptions(product: OrderCatalogProduct | undefined, hasLegacyOptions: boolean) {
+  return !product || (product.options.length === 0 && !hasLegacyOptions);
+}
+
+function productOptions(product: OrderCatalogProduct | undefined, selections: CatalogOptionSelection[] | undefined, hasLegacyOptions: boolean, onChange: (options: CatalogOptionSelection[]) => void) {
+  if (!product || hasNoConfiguredOptions(product, hasLegacyOptions)) return null;
 
   function selected(optionId: string) {
     return selections?.find((item) => item.option_id === optionId)?.value_ids ?? [];
@@ -71,8 +75,8 @@ function ProductSelect({ id, label, products, value, onChange }: { id: string; l
   </Field>;
 }
 
-function ProductOptions({ product, selections, onChange }: { product: OrderCatalogProduct | undefined; selections: CatalogOptionSelection[] | undefined; onChange: (options: CatalogOptionSelection[]) => void }) {
-  return productOptions(product, selections, onChange);
+function ProductOptions({ hasLegacyOptions, product, selections, onChange }: { hasLegacyOptions: boolean; product: OrderCatalogProduct | undefined; selections: CatalogOptionSelection[] | undefined; onChange: (options: CatalogOptionSelection[]) => void }) {
+  return productOptions(product, selections, hasLegacyOptions, onChange);
 }
 
 function LegacySelect({ id, label, options, value, onChange }: { id: string; label: string; options: LegacyCatalogOption[]; value: string; onChange: (value: string) => void }) {
@@ -116,6 +120,12 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
   const legacyOptions = item.configuration?.legacy_options ?? {};
   const updateLegacyOptions = (options: LegacyLineOptions) => update({ configuration: { ...item.configuration, legacy_options: options } });
   const individualLayer = product?.garmentLayer;
+  const legacyOptionLists = item.line_type === "set"
+    ? [catalogs.necklines, catalogs.upperPatterns, catalogs.lowerPatterns, catalogs.fabrics, catalogs.extras]
+    : item.line_type === "individual" && individualLayer
+      ? [individualLayer === "upper" ? catalogs.necklines : catalogs.lowerPatterns, ...(individualLayer === "upper" ? [catalogs.upperPatterns] : []), catalogs.fabrics, catalogs.extras]
+      : [];
+  const hasLegacyOptions = legacyOptionLists.some((options) => options.length > 0);
 
   return <article className="rounded-lg border border-border bg-muted/20 p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -141,12 +151,15 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
         <FieldLabel htmlFor={`line-color-${item.key}`}>Color <span className="font-normal text-muted-foreground">(opcional)</span></FieldLabel>
         <Input id={`line-color-${item.key}`} maxLength={100} onChange={(event) => update({ color: event.target.value })} value={item.color ?? ""} />
       </Field>
-      {item.line_type !== "set" ? <ProductSelect id={`line-product-${item.key}`} label="Producto de catálogo" onChange={(productId) => update({ product_id: productId, options: [], configuration: { ...item.configuration, legacy_options: {} } })} products={products} value={item.product_id ?? ""} /> : null}
+    {item.line_type !== "set" ? <div className="min-w-0"><ProductSelect id={`line-product-${item.key}`} label="Producto de catálogo" onChange={(productId) => update({ product_id: productId, options: [], configuration: { ...item.configuration, legacy_options: {} } })} products={products} value={item.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={product} selections={item.options} onChange={(options) => update({ options })} />{hasNoConfiguredOptions(product, hasLegacyOptions) ? <p className="mt-2 text-sm text-muted-foreground">Este producto no tiene opciones configuradas.</p> : null}</div> : null}
     </div>
-    {item.line_type === "set" ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
-      <div><ProductSelect id={`line-upper-${item.key}`} label="Parte superior" onChange={(productId) => update({ configuration: { ...item.configuration, upper: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "upper")} value={item.configuration?.upper?.product_id ?? ""} /><ProductOptions product={upperProduct} selections={item.configuration?.upper?.options} onChange={(options) => update({ configuration: { ...item.configuration, upper: { product_id: item.configuration?.upper?.product_id ?? "", options } } })} /></div>
-      <div><ProductSelect id={`line-lower-${item.key}`} label="Parte inferior" onChange={(productId) => update({ configuration: { ...item.configuration, lower: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "lower")} value={item.configuration?.lower?.product_id ?? ""} /><ProductOptions product={lowerProduct} selections={item.configuration?.lower?.options} onChange={(options) => update({ configuration: { ...item.configuration, lower: { product_id: item.configuration?.lower?.product_id ?? "", options } } })} /></div>
-    </div> : <ProductOptions product={product} selections={item.options} onChange={(options) => update({ options })} />}
+    {item.line_type === "set" ? <>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div><ProductSelect id={`line-upper-${item.key}`} label="Parte superior" onChange={(productId) => update({ configuration: { ...item.configuration, upper: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "upper")} value={item.configuration?.upper?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={upperProduct} selections={item.configuration?.upper?.options} onChange={(options) => update({ configuration: { ...item.configuration, upper: { product_id: item.configuration?.upper?.product_id ?? "", options } } })} /></div>
+      <div><ProductSelect id={`line-lower-${item.key}`} label="Parte inferior" onChange={(productId) => update({ configuration: { ...item.configuration, lower: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "lower")} value={item.configuration?.lower?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={lowerProduct} selections={item.configuration?.lower?.options} onChange={(options) => update({ configuration: { ...item.configuration, lower: { product_id: item.configuration?.lower?.product_id ?? "", options } } })} /></div>
+      </div>
+      {hasNoConfiguredOptions(upperProduct, hasLegacyOptions) || hasNoConfiguredOptions(lowerProduct, hasLegacyOptions) ? <p className="text-sm text-muted-foreground">No hay opciones configuradas para las partes seleccionadas.</p> : null}
+    </> : null}
     {item.line_type === "set" ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower needsUpper onChange={updateLegacyOptions} options={legacyOptions} /> : item.line_type === "individual" && individualLayer ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower={individualLayer === "lower"} needsUpper={individualLayer === "upper"} onChange={updateLegacyOptions} options={legacyOptions} /> : null}
     <Field className="mt-4"><FieldLabel>Escudos <span className="font-normal text-muted-foreground">(opcionales, múltiples)</span></FieldLabel><div className="flex flex-wrap gap-x-4 gap-y-2 rounded-md border border-input p-3">{catalogs.shields.length ? catalogs.shields.map((shield) => <label className="flex min-h-8 items-center gap-2 text-sm" key={shield.id}><input checked={(item.shield_product_ids ?? []).includes(shield.id)} onChange={(event) => update({ shield_product_ids: event.target.checked ? [...new Set([...(item.shield_product_ids ?? []), shield.id])] : (item.shield_product_ids ?? []).filter((id) => id !== shield.id) })} type="checkbox" />{shield.name}</label>) : <span className="text-sm text-muted-foreground">No hay escudos activos.</span>}</div></Field>
   </article>;

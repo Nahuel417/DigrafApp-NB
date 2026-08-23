@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Archive, RotateCcw } from "lucide-react";
+import { AlertCircle, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 
@@ -12,8 +12,8 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 
-import { cancelOrderAction, restoreOrderAction } from "../cancellation-actions";
-import type { CancellationActionState, RestoreActionState } from "../cancellation-actions";
+import { archiveDeliveredOrderAction, cancelOrderAction, purgeCancelledOrderAction, restoreOrderAction, unarchiveDeliveredOrderAction } from "../cancellation-actions";
+import type { ArchiveDeliveredActionState, CancellationActionState, RestoreActionState } from "../cancellation-actions";
 import { formatOrderNumber } from "../detail-format";
 
 type OrderLifecycleDialogProps = {
@@ -149,4 +149,94 @@ export function RestoreOrderDialog(props: OrderLifecycleDialogProps) {
       </AlertDialogContent>
     </AlertDialog>
   );
+}
+
+type M16DialogAction = (previous: ArchiveDeliveredActionState, formData: FormData) => Promise<ArchiveDeliveredActionState>;
+
+function M16ArchiveDialog({
+  action,
+  buttonLabel,
+  customerName,
+  description,
+  destructive = false,
+  expectedUpdatedAt,
+  orderId,
+  pendingLabel,
+  publicNumber,
+  title,
+}: OrderLifecycleDialogProps & {
+  action: M16DialogAction;
+  buttonLabel: string;
+  description: string;
+  destructive?: boolean;
+  pendingLabel: string;
+  title: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction] = useActionState<ArchiveDeliveredActionState, FormData>(action, {});
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+  useMutationToast(state);
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) setIdempotencyKey(crypto.randomUUID());
+    setOpen(nextOpen);
+  }
+
+  useEffect(() => {
+    if (!state.toastId) return;
+    if (state.status === "success") {
+      cancelButtonRef.current?.click();
+      router.refresh();
+    }
+  }, [router, state.status, state.toastId]);
+
+  return (
+    <AlertDialog onOpenChange={handleOpenChange} open={open}>
+      <AlertDialogTrigger asChild>
+        <Button variant={destructive ? "destructive" : "outline"}>
+          {destructive ? <Trash2 aria-hidden="true" /> : <Archive aria-hidden="true" />}
+          {buttonLabel}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title} {formatOrderNumber(publicNumber)}</AlertDialogTitle>
+          <AlertDialogDescription>{customerName} {description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <form action={formAction} className="flex flex-col gap-4">
+          <input name="orderId" type="hidden" value={orderId} />
+          <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+          {title.includes("Archivar") || title.includes("Retirar") ? <input name="expectedUpdatedAt" type="hidden" value={expectedUpdatedAt} /> : null}
+          {state.status === "error" ? (
+            <Alert role="alert" variant="destructive">
+              <AlertCircle aria-hidden="true" />
+              <AlertTitle>No se pudo completar la operación</AlertTitle>
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel ref={cancelButtonRef}>Cancelar</AlertDialogCancel>
+            <SubmitButton pendingLabel={pendingLabel} variant={destructive ? "destructive" : "default"}>
+              {destructive ? <Trash2 aria-hidden="true" /> : <Archive aria-hidden="true" />}
+              Confirmar
+            </SubmitButton>
+          </AlertDialogFooter>
+        </form>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+export function ArchiveDeliveredOrderDialog(props: OrderLifecycleDialogProps) {
+  return <M16ArchiveDialog {...props} action={archiveDeliveredOrderAction} buttonLabel="Archivar entregado" description="se conservará indefinidamente y podrá retirarse del archivo. No se eliminan relaciones, finanzas ni imágenes." pendingLabel="Archivando..." title="Archivar entregado" />;
+}
+
+export function UnarchiveDeliveredOrderDialog(props: OrderLifecycleDialogProps) {
+  return <M16ArchiveDialog {...props} action={unarchiveDeliveredOrderAction} buttonLabel="Retirar del archivo de entregados" description="volverá al tablero como pedido entregado. Esta acción es reversible y conserva todos sus datos." pendingLabel="Retirando..." title="Retirar del archivo" />;
+}
+
+export function PurgeCancelledOrderDialog(props: OrderLifecycleDialogProps) {
+  return <M16ArchiveDialog {...props} action={purgeCancelledOrderAction} buttonLabel="Purgar pedido" description="solo se podrá ejecutar después de 30 días y eliminará los datos operativos. No se puede deshacer; las finanzas y la auditoría se conservarán." destructive pendingLabel="Purgando..." title="Purgar pedido" />;
 }

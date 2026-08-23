@@ -66,6 +66,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
       idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32),
     }).select("id, public_number, current_stage_id, updated_at").single();
     if (error || !data) throw error ?? new Error("No se pudo crear el pedido M15.");
+    if (data.current_stage_id === null) throw new Error("El pedido M15 no devolvió una etapa operativa.");
     const { error: financialError } = await service.from("order_financials").insert({
       order_id: data.id,
       total_amount: 1250,
@@ -74,7 +75,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     });
     if (financialError) throw financialError;
     orderIds.push(data.id);
-    return data;
+    return { ...data, current_stage_id: data.current_stage_id };
   }
 
   async function cancel(client: Client, order: Order, reason: string, key: string = randomUUID()) {

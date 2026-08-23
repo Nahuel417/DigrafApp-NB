@@ -16,7 +16,7 @@ export type OrderDetail = {
   promisedDeliveryDate: string;
   description: string | null;
   currentStage: { id: string; code: string; name: string };
-  lifecycleState: "active" | "cancelled";
+  lifecycleState: "active" | "cancelled" | "archived_delivered" | "purged_cancelled";
   cancelledAt: string | null;
   cancelledBy: string | null;
   cancellationReason: string | null;
@@ -69,12 +69,12 @@ type OrderDetailRow = {
   client_name?: string | null;
   team_name?: string | null;
   phone?: string | null;
-  quantity: number;
+  quantity: number | null;
   order_type: Database["public"]["Enums"]["order_type"] | null;
-  order_date: string;
-  promised_delivery_date: string;
+  order_date: string | null;
+  promised_delivery_date: string | null;
   description: string | null;
-  current_stage_id: string;
+  current_stage_id: string | null;
   lifecycle_state: string;
   cancelled_at: string | null;
   cancelled_by: string | null;
@@ -83,7 +83,8 @@ type OrderDetailRow = {
   updated_at: string;
 };
 
-export function mapOrderDetailRow(row: OrderDetailRow, stage: { id: string; code: string; name: string }): OrderDetail {
+export function mapOrderDetailRow(row: OrderDetailRow, stage: { id: string; code: string; name: string }): OrderDetail | null {
+  if (row.quantity === null || row.order_date === null || row.promised_delivery_date === null || row.current_stage_id === null) return null;
   return {
     id: row.id,
     publicNumber: row.public_number,
@@ -119,6 +120,9 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
   if (orderError || !order) return null;
 
   const stage = Array.isArray(order.workflow_stages) ? order.workflow_stages[0] : order.workflow_stages;
+  if (!stage) return null;
+  const mappedOrder = mapOrderDetailRow(order, { id: stage.id, code: stage.code, name: stage.name });
+  if (!mappedOrder) return null;
 
   const [{ data: financials }, { data: selections }, { data: lines }, formCatalogs] = await Promise.all([
     supabase.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId).single(),
@@ -130,7 +134,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   return {
     order: {
-      ...mapOrderDetailRow(order, { id: stage.id, code: stage.code, name: stage.name }),
+      ...mappedOrder,
       clientName: order.client_name,
       teamName: order.team_name,
       phone: order.phone,
