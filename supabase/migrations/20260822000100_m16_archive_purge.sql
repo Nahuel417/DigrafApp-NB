@@ -579,8 +579,9 @@ declare
   target_order public.orders%rowtype;
 begin
   select * into actor from public.profiles where id = (select auth.uid());
+  if not found or not actor.is_active or actor.must_change_password then raise exception 'No tenés permiso para ver el historial del pedido.'; end if;
   select * into target_order from public.orders where id = p_order_id;
-  if not found or not actor.is_active or actor.must_change_password then raise exception 'El pedido seleccionado no existe.'; end if;
+  if not found then raise exception 'El pedido seleccionado no existe.'; end if;
   if target_order.lifecycle_state in ('cancelled', 'archived_delivered') and actor.role not in ('super_admin', 'admin') then raise exception 'El pedido seleccionado no existe.'; end if;
   if target_order.lifecycle_state = 'purged_cancelled' and actor.role <> 'super_admin' then raise exception 'El pedido seleccionado no existe.'; end if;
   return query
@@ -588,7 +589,11 @@ begin
     select stage_event.id, 'stage_moved'::text, profile.display_name, stage_event.created_at, '{}'::jsonb, null::text, null::text, stage_event.from_stage_id, stage_event.to_stage_id
     from public.order_stage_events stage_event join public.profiles profile on profile.id = stage_event.actor_id where stage_event.order_id = p_order_id
     union all
-    select change_event.id, change_event.action, profile.display_name, change_event.created_at, change_event.details, null::text, change_event.change_note, null::uuid, null::uuid
+    select change_event.id, change_event.action, profile.display_name, change_event.created_at,
+      case when actor.role = 'employee' and exists (select 1 from jsonb_array_elements(coalesce(change_event.details->'changes', '[]'::jsonb)) item where item->>'field' in ('total_amount', 'deposit_amount', 'deposit_paid')) then jsonb_build_object('version', 1, 'changes', jsonb_build_array(jsonb_build_object('field', 'order_updated'))) else change_event.details end,
+      null::text,
+      case when actor.role = 'employee' and exists (select 1 from jsonb_array_elements(coalesce(change_event.details->'changes', '[]'::jsonb)) item where item->>'field' in ('total_amount', 'deposit_amount', 'deposit_paid')) then null else change_event.change_note end,
+      null::uuid, null::uuid
     from public.order_change_events change_event join public.profiles profile on profile.id = change_event.actor_id where change_event.order_id = p_order_id
     union all
     select comment.id, 'commented'::text, profile.display_name, comment.created_at, '{}'::jsonb, comment.body, null::text, null::uuid, null::uuid

@@ -64,4 +64,18 @@ describe("M16 migration contracts", () => {
     );
     expect(migration).toContain("raise exception 'El pedido está anulado y se encuentra congelado.';");
   });
+
+  it("preserves timeline actor validation ordering and employee financial redaction", () => {
+    const timeline = migration.slice(migration.indexOf("create or replace function public.get_order_timeline(p_order_id uuid)"));
+    const actorSelection = timeline.indexOf("select * into actor from public.profiles where id = (select auth.uid());");
+    const actorValidation = timeline.indexOf("if not found or not actor.is_active or actor.must_change_password then raise exception 'No tenés permiso para ver el historial del pedido.'; end if;");
+    const targetSelection = timeline.indexOf("select * into target_order from public.orders where id = p_order_id;");
+
+    expect(actorSelection).toBeGreaterThanOrEqual(0);
+    expect(actorValidation).toBeGreaterThan(actorSelection);
+    expect(actorValidation).toBeLessThan(targetSelection);
+    expect(timeline).toContain("then jsonb_build_object('version', 1, 'changes', jsonb_build_array(jsonb_build_object('field', 'order_updated'))) else change_event.details end");
+    expect(timeline).toContain("then null else change_event.change_note end");
+    expect(timeline).toContain("item->>'field' in ('total_amount', 'deposit_amount', 'deposit_paid')");
+  });
 });
