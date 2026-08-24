@@ -1,25 +1,50 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { OrderArchiveList } from "./order-archive-list";
+import { DeliveredArchiveList, OrderArchiveList } from "./order-archive-list";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
 
+afterEach(cleanup);
+
+const baseOrder = {
+  id: "order-1",
+  publicNumber: 12,
+  customerName: "Equipo Norte",
+  currentStageName: "Diseño",
+  cancelledAt: "2026-08-14T12:00:00.000Z",
+  cancelledByDisplayName: "Admin",
+  cancellationReason: "Cliente pidió pausa",
+  updatedAt: "2026-08-14T12:00:00.000Z",
+};
+
+const baseDelivered = {
+  id: "order-3",
+  publicNumber: 14,
+  customerName: "Club Oeste",
+  teamName: "Primera",
+  quantity: 12,
+  currentStageName: "Entregado",
+  orderDate: "2026-08-01",
+  promisedDeliveryDate: "2026-08-10",
+  updatedAt: "2026-08-10T12:00:00.000Z",
+};
+
 describe("order archive list", () => {
   it("shows historical reason, stage, actor and restore action", () => {
-    render(<OrderArchiveList orders={[{
-      id: "order-1",
-      publicNumber: 12,
-      customerName: "Equipo Norte",
-      currentStageName: "Diseño",
-      cancelledAt: "2026-08-14T12:00:00.000Z",
-      cancelledByDisplayName: "Admin",
-      cancellationReason: "Cliente pidió pausa",
-      updatedAt: "2026-08-14T12:00:00.000Z",
-    }]} />);
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={1}
+        pageSize={10}
+        total={1}
+        totalPages={1}
+      />,
+    );
 
     expect(screen.getByRole("heading", { name: "Pedidos anulados" })).toBeTruthy();
     expect(screen.getByText("Cliente pidió pausa")).toBeTruthy();
@@ -30,8 +55,187 @@ describe("order archive list", () => {
   });
 
   it("explains when the archive is empty", () => {
-    render(<OrderArchiveList orders={[]} />);
+    render(<OrderArchiveList basePath="/orders/archive" orders={[]} page={1} pageSize={10} total={0} totalPages={1} />);
     expect(screen.getByText("No hay pedidos anulados en el Archivo.")).toBeTruthy();
   });
 
+  it("hides pagination when a single page covers the total", () => {
+    render(<OrderArchiveList basePath="/orders/archive" orders={[baseOrder]} page={1} pageSize={10} total={1} totalPages={1} />);
+
+    expect(screen.queryByText(/Página/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Anterior/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Siguiente/ })).toBeNull();
+  });
+
+  it("renders the indicator and canonical adjacent links on intermediate pages", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByText("Página 2 de 3 · Total 25 registros")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive?page=3");
+  });
+
+  it("disables the previous link on the first page of a multi-page archive", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={1}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Anterior" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Anterior" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive?page=2");
+  });
+
+  it("disables the next link on the last page of a multi-page archive", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={3}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive?page=2");
+    expect(screen.queryByRole("link", { name: "Siguiente" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Siguiente" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("delivered archive list", () => {
+  it("hides pagination when a single page covers the total", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archive/delivered"
+        orders={[baseDelivered]}
+        page={1}
+        pageSize={10}
+        total={1}
+        totalPages={1}
+      />,
+    );
+
+    expect(screen.queryByText(/Página/)).toBeNull();
+  });
+
+  it("renders the indicator and canonical adjacent links on intermediate pages", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archive/delivered"
+        orders={[baseDelivered]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByText("Página 2 de 3 · Total 25 registros")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive/delivered?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive/delivered?page=3");
+  });
+
+  it("disables the previous link on the first page and the next link on the last page", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archive/delivered"
+        orders={[baseDelivered]}
+        page={3}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive/delivered?page=2");
+    expect(screen.queryByRole("link", { name: "Siguiente" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Siguiente" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("archive pagination hrefs", () => {
+  it("preserves Change 1 hrefs for cancelled when defaults are used", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archive"
+        orders={[baseOrder]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive?page=3");
+  });
+
+  it("preserves Change 1 hrefs for delivered when defaults are used", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archive/delivered"
+        orders={[baseDelivered]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archive/delivered?page=1");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archive/delivered?page=3");
+  });
+
+  it("builds delivered-tab pagination hrefs preserving cancelledPage and tab", () => {
+    render(
+      <DeliveredArchiveList
+        basePath="/orders/archives"
+        pageParam="deliveredPage"
+        extraParams={{ tab: "delivered", cancelledPage: "4" }}
+        orders={[baseDelivered]}
+        page={2}
+        pageSize={10}
+        total={25}
+        totalPages={3}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archives?tab=delivered&deliveredPage=1&cancelledPage=4");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archives?tab=delivered&deliveredPage=3&cancelledPage=4");
+  });
+
+  it("builds cancelled-tab pagination hrefs preserving deliveredPage and tab", () => {
+    render(
+      <OrderArchiveList
+        basePath="/orders/archives"
+        pageParam="cancelledPage"
+        extraParams={{ tab: "cancelled", deliveredPage: "2" }}
+        orders={[baseOrder]}
+        page={4}
+        pageSize={10}
+        total={50}
+        totalPages={5}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Anterior" }).getAttribute("href")).toBe("/orders/archives?tab=cancelled&cancelledPage=3&deliveredPage=2");
+    expect(screen.getByRole("link", { name: "Siguiente" }).getAttribute("href")).toBe("/orders/archives?tab=cancelled&cancelledPage=5&deliveredPage=2");
+  });
 });

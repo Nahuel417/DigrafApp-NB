@@ -74,4 +74,49 @@ describe("process-order-purge secret gate", () => {
       p_error: null,
     });
   });
+
+  it("records a Storage failure for durable retry", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: { storage_status: "storage_retry", attempts: 1 }, error: null });
+    const remove = vi.fn().mockResolvedValue({ error: { message: "Storage unavailable", statusCode: 503 } });
+
+    const response = await processOrderPurgeRequest(new Request("http://localhost", {
+      headers: { "X-M16-Cron-Secret": "expected-secret" },
+      method: "POST",
+    }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenLastCalledWith("finalize_order_purge_storage_job", {
+      p_job_id: "job-1",
+      p_lease_token: "lease-1",
+      p_succeeded: false,
+      p_error: "Storage unavailable",
+    });
+  });
+
+  it("completes a retry without invoking the database purge core again", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-2", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: { storage_status: "storage_completed", attempts: 1 }, error: null });
+    const remove = vi.fn().mockResolvedValue({ error: null });
+
+    const response = await processOrderPurgeRequest(new Request("http://localhost", {
+      headers: { "X-M16-Cron-Secret": "expected-secret" },
+      method: "POST",
+    }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
+
+    expect(response.status).toBe(200);
+    expect(rpc.mock.calls.map(([name]) => name)).not.toContain("m16_purge_cancelled_order_core");
+    expect(rpc).toHaveBeenLastCalledWith("finalize_order_purge_storage_job", {
+      p_job_id: "job-1",
+      p_lease_token: "lease-2",
+      p_succeeded: true,
+      p_error: null,
+    });
+  });
 });

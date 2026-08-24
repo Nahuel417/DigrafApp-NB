@@ -80,7 +80,7 @@ describe("order lifecycle dialogs", () => {
     expect(archiveDeliveredOrderAction).not.toHaveBeenCalled();
   });
 
-  it("separates reversible unarchive from irreversible purge confirmation", () => {
+  it("separates reversible unarchive from irreversible delete confirmation", () => {
     render(<>
       <UnarchiveDeliveredOrderDialog {...order} />
       <PurgeCancelledOrderDialog {...order} />
@@ -89,8 +89,33 @@ describe("order lifecycle dialogs", () => {
     expect(screen.getByText(/volverá al tablero/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Purgar pedido" }));
+    fireEvent.click(screen.getByRole("button", { name: "Borrar pedido" }));
     expect(screen.getByText(/no se puede deshacer/i)).toBeTruthy();
-    expect(screen.getByRole("alertdialog").textContent).toContain("solo se podrá ejecutar después de 30 días");
+    expect(screen.getByLabelText("Motivo del borrado")).toBeTruthy();
+    expect(screen.getByRole("alertdialog").textContent).toContain("se ejecuta inmediatamente");
+    expect(screen.getByRole("alertdialog").textContent).not.toMatch(/purgar|purga/i);
   });
+
+  it("submits the required manual delete reason", async () => {
+    render(<PurgeCancelledOrderDialog {...order} />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar pedido" }));
+    fireEvent.change(screen.getByLabelText("Motivo del borrado"), { target: { value: "Cliente pidió eliminarlo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() => expect(purgeCancelledOrderAction).toHaveBeenCalledTimes(1));
+    const formData = vi.mocked(purgeCancelledOrderAction).mock.calls[0]?.[1] as FormData;
+    expect(formData.get("reason")).toBe("Cliente pidió eliminarlo");
+  });
+
+  it("shows the delete pending label", () => {
+    vi.mocked(purgeCancelledOrderAction).mockImplementation(() => new Promise(() => {}));
+    render(<PurgeCancelledOrderDialog {...order} />);
+    fireEvent.click(screen.getByRole("button", { name: "Borrar pedido" }));
+    fireEvent.change(screen.getByLabelText("Motivo del borrado"), { target: { value: "Motivo válido" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(screen.getByRole("button", { name: "Borrando..." })).toBeTruthy();
+    expect(screen.getByRole("alertdialog").textContent).not.toMatch(/purgar|purga/i);
+  });
+
 });

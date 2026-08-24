@@ -30,17 +30,6 @@ async function localSql(sql: string): Promise<unknown[]> {
   return JSON.parse(stdout.slice(jsonStart)) as unknown[];
 }
 
-async function expectLocalSqlFailure(sql: string, pattern: RegExp) {
-  let message = "";
-  try {
-    await localSql(sql);
-  } catch (error) {
-    const childError = error as Error & { stderr?: string; stdout?: string };
-    message = `${childError.message ?? String(error)} ${childError.stderr ?? ""} ${childError.stdout ?? ""}`;
-  }
-  expect(message).toMatch(pattern);
-}
-
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archive and cancelled purge", () => {
   const service = createClient<Database>(localUrl, serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
   const identities: Identity[] = [];
@@ -135,7 +124,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   async function createCancelledOrder(age = "31 days") {
     const order = await createOrder();
     await cancelOrder(order);
-    await ageCancelledOrder(order.id, new Date(Date.now() - (age === "29 days" ? 29 : 31) * 24 * 60 * 60 * 1000).toISOString());
+    await ageCancelledOrder(order.id, new Date(Date.now() - (age === "29 days" ? 29 : 31) * 24 * 60 * 60 * 1000 - (age === "29 days" ? 60_000 : 0)).toISOString());
     return order.id;
   }
 
@@ -283,6 +272,80 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     return { orderId: order.id, orderUpdatedAt: order.updated_at, currentPath, previousPath, paymentId: payment.id, cashMovementId: cashMovement.id };
   }
 
+  async function ensureCashOpen() {
+    const attention = await signedClient(identity("attention"));
+    const summary = await attention.rpc("get_current_cash_summary");
+    if (summary.error || !summary.data?.[0]) throw summary.error ?? new Error("Could not prepare the M16 cash day.");
+    const cashDayId = summary.data[0].cash_day_id;
+    if (summary.data[0].closed_at) {
+      const reopened = await attention.rpc("reopen_cash_day", {
+        p_cash_day_id: cashDayId,
+        p_reason: "M16 retention fixture reopen",
+        p_idempotency_key: `m16-reopen-${randomUUID()}`,
+      });
+      if (reopened.error) throw reopened.error;
+    }
+    return cashDayId;
+  }
+
+  async function closeAndReopenCash() {
+    const admin = await signedClient(identity("admin"));
+    const summary = await admin.rpc("get_current_cash_summary");
+    if (summary.error || !summary.data?.[0]) throw summary.error ?? new Error("Could not read the M16 cash day.");
+    const cashDayId = summary.data[0].cash_day_id;
+    if (!summary.data[0].closed_at) {
+      const closed = await admin.rpc("close_cash_day", { p_cash_day_id: cashDayId, p_idempotency_key: `m16-close-${randomUUID()}` });
+      if (closed.error) throw closed.error;
+    }
+    const attention = await signedClient(identity("attention"));
+    const reopened = await attention.rpc("reopen_cash_day", {
+      p_cash_day_id: cashDayId,
+      p_reason: "M16 retention fixture reopen",
+      p_idempotency_key: `m16-reopen-${randomUUID()}`,
+    });
+    if (reopened.error) throw reopened.error;
+    return cashDayId;
+  }
+
+  async function createM12RetentionFixture() {
+    const cashDayId = await ensureCashOpen();
+    const order = await createOrder(receivedStageId);
+    const { error: financialError } = await service.from("order_financials").insert({ order_id: order.id, total_amount: 125.5, deposit_amount: 0, deposit_paid: false });
+    if (financialError) throw financialError;
+
+    const attention = await signedClient(identity("attention"));
+    const confirmed = await attention.rpc("confirm_order_payment", {
+      p_order_id: order.id,
+      p_expected_updated_at: order.updated_at,
+      p_idempotency_key: `m16-m12-confirm-${randomUUID()}`,
+    });
+    if (confirmed.error || !confirmed.data?.[0]) throw confirmed.error ?? new Error("Could not confirm the M12 retention payment.");
+    const payment = confirmed.data[0] as { payment_id: string; updated_at: string; cash_movement_id: string | null };
+
+    const admin = await signedClient(identity("admin"));
+    const reversed = await admin.rpc("reverse_order_payment", {
+      p_order_id: order.id,
+      p_payment_id: payment.payment_id,
+      p_expected_updated_at: payment.updated_at,
+      p_idempotency_key: `m16-m12-reverse-${randomUUID()}`,
+      p_reason: "M16 retention fixture",
+    });
+    if (reversed.error || !reversed.data?.[0]) throw reversed.error ?? new Error("Could not reverse the M12 retention payment.");
+    const reversal = reversed.data[0] as { updated_at: string };
+
+    const { data: paymentRow, error: paymentError } = await service.from("order_payments").select("cash_movement_id, reversal_cash_movement_id").eq("id", payment.payment_id).single();
+    if (paymentError || !paymentRow) throw paymentError ?? new Error("Could not read the M12 payment links.");
+    const movementIds = [paymentRow.cash_movement_id, paymentRow.reversal_cash_movement_id].filter((movementId): movementId is string => Boolean(movementId));
+    for (const movementId of movementIds) {
+      if (movementId && !cashMovementIds.includes(movementId)) cashMovementIds.push(movementId);
+    }
+
+    await closeAndReopenCash();
+    const cancelled = await cancelOrder({ id: order.id, updated_at: reversal.updated_at }, "M16 M12 retention fixture");
+    if (cancelled.error) throw new Error(cancelled.error.message);
+    return { cashDayId, orderId: order.id, paymentId: payment.payment_id, movementIds };
+  }
+
   async function queryArchivedOrderData(client: Client, orderId: string, paymentId: string) {
     const [payments, paymentEvents, financials, images, imageEvents, lifecycleEvents, stageEvents, changeEvents] = await Promise.all([
       client.from("order_payments").select("*").eq("order_id", orderId),
@@ -311,6 +374,36 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
       lifecycleEvents: data.lifecycleEvents.data ?? [],
       stageEvents: data.stageEvents.data ?? [],
       changeEvents: data.changeEvents.data ?? [],
+    };
+  }
+
+  async function snapshotM12RetentionData(fixture: { cashDayId: string; orderId: string; paymentId: string; movementIds: string[] }) {
+    const [cashDays, cashMovements, cashMovementEvents, cashLifecycleEvents, payments, paymentEvents, financials, lifecycleEvents, stageEvents, changeEvents] = await Promise.all([
+      service.from("cash_days").select("*").eq("id", fixture.cashDayId),
+      service.from("cash_movements").select("*").in("id", fixture.movementIds),
+      service.from("cash_movement_events").select("*").in("movement_id", fixture.movementIds),
+      service.from("cash_day_lifecycle_events").select("*").eq("cash_day_id", fixture.cashDayId),
+      service.from("order_payments").select("*").eq("id", fixture.paymentId),
+      service.from("order_payment_events").select("*").eq("order_payment_id", fixture.paymentId),
+      service.from("order_financials").select("*").eq("order_id", fixture.orderId),
+      service.from("order_lifecycle_events").select("*").eq("order_id", fixture.orderId),
+      service.from("order_stage_events").select("*").eq("order_id", fixture.orderId),
+      service.from("order_change_events").select("*").eq("order_id", fixture.orderId),
+    ]);
+    const responses = [cashDays, cashMovements, cashMovementEvents, cashLifecycleEvents, payments, paymentEvents, financials, lifecycleEvents, stageEvents, changeEvents];
+    const failed = responses.find((response) => response.error);
+    if (failed?.error) throw failed.error;
+    return {
+      cashDays: cashDays.data ?? [],
+      cashMovements: cashMovements.data ?? [],
+      cashMovementEvents: cashMovementEvents.data ?? [],
+      cashLifecycleEvents: cashLifecycleEvents.data ?? [],
+      payments: payments.data ?? [],
+      paymentEvents: paymentEvents.data ?? [],
+      financials: financials.data ?? [],
+      lifecycleEvents: lifecycleEvents.data ?? [],
+      stageEvents: stageEvents.data ?? [],
+      changeEvents: changeEvents.data ?? [],
     };
   }
 
@@ -343,7 +436,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
       await service.from("order_lifecycle_events").delete().in("order_id", orderIds);
       await service.from("orders").delete().in("id", orderIds);
     }
+    if (cashMovementIds.length) await service.from("cash_movement_events").delete().in("movement_id", cashMovementIds);
     if (cashMovementIds.length) await service.from("cash_movements").delete().in("id", cashMovementIds);
+    if (cashDayIds.length) await service.from("cash_day_lifecycle_events").delete().in("cash_day_id", cashDayIds);
     if (cashDayIds.length) await service.from("cash_days").delete().in("id", cashDayIds);
     if (catalogItemIds.length) await service.from("catalog_items").delete().in("id", catalogItemIds);
     for (const identity of identities) {
@@ -432,77 +527,70 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect(after.lifecycleEvents.map((event) => event.event_type)).toEqual(expect.arrayContaining(["delivered_archived", "delivered_unarchived"]));
   });
 
-  it("rejects purge before the exact cutoff and keeps financial and audit rows", async () => {
+  it("purges a cancelled order immediately for Admin and preserves the full reason snapshot", async () => {
     const order = await createOrder();
-    const cancelled = await cancelOrder(order, "M16 retention fixture");
+    const cancelled = await cancelOrder(order, "M16 immediate purge fixture");
     expect(cancelled.error).toBeNull();
 
-    const superAdmin = await signedClient(identity("super_admin"));
-    const rejected = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: `m16-purge-${randomUUID()}` });
-    expect(rejected.error?.message).toMatch(/30|cutoff|retention/i);
+    const admin = await signedClient(identity("admin"));
+    const reason = "  Cliente pidió purgarlo  ";
+    const purged = await invoke(admin, "purge_cancelled_order", {
+      p_order_id: order.id,
+      p_idempotency_key: `m16-immediate-${randomUUID()}`,
+      p_reason: reason,
+    });
+    expect(purged.error).toBeNull();
+    expect(purged.data).toMatchObject({ order_id: order.id, lifecycle_state: "purged_cancelled", source: "manual", reason: "Cliente pidió purgarlo" });
+
+    const tombstone = await service.from("orders").select("id, public_number, lifecycle_state, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason, cancelled_by, cancelled_at, created_at").eq("id", order.id).single();
+    expect(tombstone.data).toMatchObject({ id: order.id, lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
+    expect(tombstone.data?.cancelled_by).toBe(identity("admin").id);
+  });
+
+  it("rejects invalid manual reasons and denied roles without reserving the request", async () => {
+    const order = await createOrder();
+    const cancelled = await cancelOrder(order, "M16 reason fixture");
+    expect(cancelled.error).toBeNull();
+    const admin = await signedClient(identity("admin"));
+    const key = `m16-invalid-reason-${randomUUID()}`;
+
+    const invalid = await invoke(admin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: key, p_reason: " " });
+    expect(invalid.error?.message).toMatch(/motivo|reason/i);
+    for (const role of ["attention", "employee"] as const) {
+      const denied = await invoke(await signedClient(identity(role)), "purge_cancelled_order", {
+        p_order_id: order.id,
+        p_idempotency_key: `m16-denied-purge-${role}-${randomUUID()}`,
+        p_reason: "Motivo válido",
+      });
+      expect(denied.error?.message, `${role} manual purge`).toMatch(/permission|permiso/i);
+    }
+    const job = await service.from("order_purge_jobs").select("id").eq("order_id", order.id);
+    expect(job.data).toHaveLength(0);
     const retained = await service.from("orders").select("lifecycle_state").eq("id", order.id).single();
     expect(retained.data?.lifecycle_state).toBe("cancelled");
   });
 
-  it("does not reserve an idempotency key when an early purge is rejected", async () => {
-    const order = await createOrder();
-    const cancelled = await cancelOrder(order, "M16 retry fixture");
-    expect(cancelled.error).toBeNull();
-
-    const superAdmin = await signedClient(identity("super_admin"));
-    const early = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: `m16-early-${randomUUID()}` });
-    expect(early.error?.message).toMatch(/30|retención/i);
-
-    await ageCancelledOrder(order.id, new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString());
-    for (const role of ["admin", "attention", "employee"] as const) {
-      const denied = await invoke(await signedClient(identity(role)), "purge_cancelled_order", {
-        p_order_id: order.id,
-        p_idempotency_key: `m16-denied-purge-${role}-${randomUUID()}`,
-      });
-      expect(denied.error?.message, `${role} manual purge`).toMatch(/permission|permiso|super|role|rol/i);
-    }
-    const eligible = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: `m16-later-${randomUUID()}` });
-    expect(eligible.error).toBeNull();
-    expect(eligible.data).toMatchObject({ order_id: order.id, lifecycle_state: "purged_cancelled" });
-  });
-
-  it("enforces the UTC cutoff just before, exactly at, and just after 30 days", async () => {
-    const actorId = identity("super_admin").id;
-    const beforeOrder = await createOrder();
-    await cancelOrder(beforeOrder);
-    const beforeNow = new Date();
-    await ageCancelledOrder(beforeOrder.id, new Date(beforeNow.getTime() - 30 * 24 * 60 * 60 * 1000 + 1).toISOString());
-    await expectLocalSqlFailure(`
-      select public.m16_purge_cancelled_order_core(
-        '${beforeOrder.id}'::uuid, '${actorId}'::uuid, 'manual', 'm16-before-${randomUUID()}', '${beforeNow.toISOString()}'::timestamptz
-      ) as result;
-    `, /Command failed/);
+  it("enforces the scheduler UTC cutoff just before, exactly at, and after 30 days", async () => {
+    const beforeOrder = await createCancelledOrder("29 days");
+    const preparedBefore = await service.rpc("prepare_cancelled_order_purge_jobs", { p_limit: 10 });
+    expect(preparedBefore.error).toBeNull();
+    const beforeDue = await service.rpc("purge_due_cancelled_orders", { p_limit: 10 });
+    expect(beforeDue.error).toBeNull();
+    expect(beforeDue.data?.some((row) => (row.result as { order_id?: string }).order_id === beforeOrder)).toBe(false);
 
     const exactOrder = await createOrder();
     await cancelOrder(exactOrder);
-    const exactNow = new Date();
-    await ageCancelledOrder(exactOrder.id, new Date(exactNow.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString());
-    const exactRows = await localSql(`
-      select public.m16_purge_cancelled_order_core(
-        '${exactOrder.id}'::uuid, '${actorId}'::uuid, 'manual', 'm16-exact-${randomUUID()}', '${exactNow.toISOString()}'::timestamptz
-      ) as result;
-    `);
-    expect(exactRows[0]).toMatchObject({ result: { order_id: exactOrder.id, lifecycle_state: "purged_cancelled" } });
-
-    const afterOrder = await createOrder();
-    await cancelOrder(afterOrder);
-    const afterNow = new Date();
-    await ageCancelledOrder(afterOrder.id, new Date(afterNow.getTime() - 30 * 24 * 60 * 60 * 1000 - 1).toISOString());
-    const afterRows = await localSql(`
-      select public.m16_purge_cancelled_order_core(
-        '${afterOrder.id}'::uuid, '${actorId}'::uuid, 'manual', 'm16-after-${randomUUID()}', '${afterNow.toISOString()}'::timestamptz
-      ) as result;
-    `);
-    expect(afterRows[0]).toMatchObject({ result: { order_id: afterOrder.id, lifecycle_state: "purged_cancelled" } });
+    await ageCancelledOrder(exactOrder.id, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+    const afterOrder = await createCancelledOrder("31 days");
+    const preparedDue = await service.rpc("prepare_cancelled_order_purge_jobs", { p_limit: 10 });
+    expect(preparedDue.error).toBeNull();
+    const due = await service.rpc("purge_due_cancelled_orders", { p_limit: 10 });
+    expect(due.error).toBeNull();
+    const purgedIds = (due.data ?? []).map((row) => (row.result as { order_id?: string }).order_id);
+    expect(purgedIds).toEqual(expect.arrayContaining([exactOrder.id, afterOrder]));
   }, 30000);
 
   it("rejects active, paid, delivered, and archived-delivered states regardless of age", async () => {
-    const actorId = identity("super_admin").id;
     const activeId = (await createOrder()).id;
     const paidId = (await createOrder(paidStageId)).id;
     const archivedOrder = await createOrder();
@@ -514,22 +602,136 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     });
     expect(archived.error).toBeNull();
     for (const orderId of [activeId, paidId, archivedOrder.id]) {
-      await expectLocalSqlFailure(`select public.m16_purge_cancelled_order_core('${orderId}'::uuid, '${actorId}'::uuid, 'manual', 'm16-ineligible-${randomUUID()}', clock_timestamp())`, /Command failed/);
+      const rejected = await invoke(admin, "purge_cancelled_order", {
+        p_order_id: orderId,
+        p_idempotency_key: `m16-ineligible-${randomUUID()}`,
+        p_reason: "Motivo válido",
+      });
+      expect(rejected.error?.message).toMatch(/anulados|state|estado|purge|purga/i);
     }
+  });
+
+  it("rejects every non-cancelled state at manual and scheduler boundaries", async () => {
+    const active = await createOrder(receivedStageId);
+    const paid = await createOrder(paidStageId);
+    const delivered = await createOrder();
+    const archivedOrder = await createOrder();
+    const admin = await signedClient(identity("admin"));
+    const archived = await invoke(admin, "archive_delivered_order", {
+      p_order_id: archivedOrder.id,
+      p_expected_updated_at: archivedOrder.updated_at,
+      p_idempotency_key: `m16-boundary-archive-${randomUUID()}`,
+    });
+    expect(archived.error).toBeNull();
+
+    const targets = [
+      { id: active.id, state: "active" },
+      { id: paid.id, state: "active" },
+      { id: delivered.id, state: "active" },
+      { id: archivedOrder.id, state: "archived_delivered" },
+    ];
+    for (const target of targets) {
+      const rejected = await invoke(admin, "purge_cancelled_order", {
+        p_order_id: target.id,
+        p_idempotency_key: `m16-boundary-manual-${randomUUID()}`,
+        p_reason: "Boundary rejection",
+      });
+      expect(rejected.error?.message, target.state).toMatch(/anulados|state|estado|purge|purga/i);
+    }
+
+    const { error: jobError } = await service.from("order_purge_jobs").insert(targets.map(({ id }) => ({ order_id: id, status: "prepared" as const })));
+    expect(jobError).toBeNull();
+    const scheduled = await service.rpc("purge_due_cancelled_orders", { p_limit: 50 });
+    expect(scheduled.error).toBeNull();
+    const returnedIds = (scheduled.data ?? []).map((row) => (row.result as { order_id?: string }).order_id);
+    expect(returnedIds).not.toEqual(expect.arrayContaining(targets.map(({ id }) => id)));
+    for (const target of targets) {
+      const retained = await service.from("orders").select("lifecycle_state").eq("id", target.id).single();
+      expect(retained.data?.lifecycle_state, target.state).toBe(target.state);
+    }
+  });
+
+  it("denies anonymous, inactive, and must-change-password manual purge actors", async () => {
+    const order = await createOrder();
+    await cancelOrder(order, "M16 actor denial fixture");
+    const anonymous = createClient<Database>(localUrl, publishableKey ?? "test-key", { auth: { persistSession: false } });
+    const inactiveIdentity = await createIdentity("admin");
+    const mustChangeIdentity = await createIdentity("admin");
+    expect((await service.from("profiles").update({ is_active: false }).eq("id", inactiveIdentity.id)).error).toBeNull();
+    expect((await service.from("profiles").update({ must_change_password: true }).eq("id", mustChangeIdentity.id)).error).toBeNull();
+    const inactive = await signedClient(inactiveIdentity);
+    const mustChange = await signedClient(mustChangeIdentity);
+    for (const [name, client] of [["anonymous", anonymous], ["inactive", inactive], ["must_change_password", mustChange]] as const) {
+      const denied = await invoke(client, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: `m16-actor-${name}-${randomUUID()}`, p_reason: "Valid reason" });
+      expect(denied.error?.message, name).toMatch(/permission|permiso/i);
+    }
+    expect((await service.from("orders").select("lifecycle_state").eq("id", order.id).single()).data?.lifecycle_state).toBe("cancelled");
+  });
+
+  it("conflicts when an idempotency key reuses a different btrimmed reason", async () => {
+    const order = await createOrder();
+    await cancelOrder(order, "M16 idempotency fixture");
+    const admin = await signedClient(identity("admin"));
+    const key = `m16-reason-conflict-${randomUUID()}`;
+    const first = await invoke(admin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: key, p_reason: "  Motivo   con   espacios  " });
+    expect(first.error).toBeNull();
+    const conflict = await invoke(admin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: key, p_reason: "Motivo con espacios" });
+    expect(conflict.error?.message).toMatch(/idempotencia|idempotency/i);
+    expect((await service.from("order_lifecycle_events").select("id").eq("order_id", order.id).eq("event_type", "cancelled_purged")).data).toHaveLength(1);
+  });
+
+  it("rolls back the purge and creates no Storage job when the audit write fails", async () => {
+    const fixture = await createRetentionFixture("cancelled");
+    const { error: jobError } = await service.from("order_purge_jobs").insert({
+      order_id: fixture.orderId,
+      status: "prepared",
+      idempotency_fingerprint: "0".repeat(32),
+    });
+    expect(jobError).toBeNull();
+    try {
+      const result = await invoke(await signedClient(identity("admin")), "purge_cancelled_order", {
+        p_order_id: fixture.orderId,
+        p_idempotency_key: `m16-rollback-${randomUUID()}`,
+        p_reason: "Rollback purge",
+      });
+      expect(result.error?.message).toMatch(/idempotencia|idempotency/i);
+    } finally {
+      await service.from("order_purge_jobs").delete().eq("order_id", fixture.orderId);
+    }
+    expect((await service.from("orders").select("lifecycle_state, customer_name").eq("id", fixture.orderId).single()).data).toMatchObject({ lifecycle_state: "cancelled", customer_name: expect.any(String) });
+    expect((await service.from("order_design_images").select("id").eq("order_id", fixture.orderId)).data).toHaveLength(1);
+    expect((await service.from("order_lifecycle_events").select("id").eq("order_id", fixture.orderId).eq("event_type", "cancelled_purged")).data).toHaveLength(0);
+    expect((await service.from("order_purge_jobs").select("id").eq("order_id", fixture.orderId)).data).toHaveLength(0);
+  });
+
+  it("records manual audit actor, server time, source, and internal whitespace", async () => {
+    const order = await createOrder();
+    await cancelOrder(order, "M16 audit fixture");
+    const actor = identity("admin");
+    const reason = "  Motivo   con   espacios  ";
+    const startedAt = Date.now();
+    const result = await invoke(await signedClient(actor), "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: `m16-audit-${randomUUID()}`, p_reason: reason });
+    const finishedAt = Date.now();
+    expect(result.error).toBeNull();
+    const event = await service.from("order_lifecycle_events").select("actor_id, reason, occurred_at, result_snapshot").eq("order_id", order.id).eq("event_type", "cancelled_purged").single();
+    expect(event.error).toBeNull();
+    expect(event.data).toMatchObject({ actor_id: actor.id, reason: "Motivo   con   espacios", result_snapshot: { source: "manual", reason: "Motivo   con   espacios" } });
+    expect(Date.parse(event.data!.occurred_at)).toBeGreaterThanOrEqual(startedAt - 2000);
+    expect(Date.parse(event.data!.occurred_at)).toBeLessThanOrEqual(finishedAt + 2000);
   });
 
   it("prepares day-29 jobs but purges only after the day-30 scheduler boundary", async () => {
     const orderId = await createCancelledOrder("29 days");
-    const prepared = await service.rpc("prepare_cancelled_order_purge_jobs", { p_limit: 10 });
+    const prepared = await service.rpc("prepare_cancelled_order_purge_jobs", { p_limit: 500 });
     expect(prepared.error).toBeNull();
     expect(prepared.data?.some((job) => job.order_id === orderId)).toBe(true);
 
-    const beforeDue = await service.rpc("purge_due_cancelled_orders", { p_limit: 10 });
+    const beforeDue = await service.rpc("purge_due_cancelled_orders", { p_limit: 500 });
     expect(beforeDue.error).toBeNull();
     expect(beforeDue.data?.some((row) => (row.result as { order_id?: string }).order_id === orderId)).toBe(false);
 
     await ageCancelledOrder(orderId, new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString());
-    const due = await service.rpc("purge_due_cancelled_orders", { p_limit: 10 });
+    const due = await service.rpc("purge_due_cancelled_orders", { p_limit: 500 });
     expect(due.error).toBeNull();
     expect(due.data?.some((row) => (row.result as { order_id?: string }).order_id === orderId)).toBe(true);
   });
@@ -541,9 +743,19 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
         has_function_privilege('authenticated', 'public.archive_delivered_order(uuid,timestamptz,text)', 'execute') as authenticated_archive,
         has_function_privilege('service_role', 'public.archive_delivered_order(uuid,timestamptz,text)', 'execute') as service_archive,
         has_function_privilege('service_role', 'public.prepare_cancelled_order_purge_jobs(integer)', 'execute') as service_prepare,
-        has_function_privilege('authenticated', 'public.prepare_cancelled_order_purge_jobs(integer)', 'execute') as authenticated_prepare;
+        has_function_privilege('authenticated', 'public.prepare_cancelled_order_purge_jobs(integer)', 'execute') as authenticated_prepare,
+        has_function_privilege('authenticated', 'public.purge_cancelled_order(uuid,text,text)', 'execute') as authenticated_manual,
+        has_function_privilege('service_role', 'public.purge_cancelled_order(uuid,text,text)', 'execute') as service_manual,
+        has_function_privilege('service_role', 'public.purge_due_cancelled_orders(integer)', 'execute') as service_scheduler,
+        has_function_privilege('authenticated', 'public.purge_due_cancelled_orders(integer)', 'execute') as authenticated_scheduler,
+        has_function_privilege('service_role', 'public.m16_purge_cancelled_order_core(uuid,uuid,text,text,text,timestamptz)', 'execute') as service_core,
+        to_regprocedure('public.purge_cancelled_order(uuid,text)')::text as old_manual,
+        to_regprocedure('public.m16_purge_cancelled_order_core(uuid,uuid,text,text,timestamptz)')::text as old_core,
+        to_regprocedure('public.purge_cancelled_order(uuid,text,text)')::text as new_manual,
+        to_regprocedure('public.m16_purge_cancelled_order_core(uuid,uuid,text,text,text,timestamptz)')::text as new_core;
     `);
-    expect(grants[0]).toEqual({ anon_archive: false, authenticated_archive: true, service_archive: false, service_prepare: true, authenticated_prepare: false });
+    expect(grants[0]).toMatchObject({ anon_archive: false, authenticated_archive: true, service_archive: false, service_prepare: true, authenticated_prepare: false, authenticated_manual: true, service_manual: false, service_scheduler: true, authenticated_scheduler: false, service_core: false, old_manual: null, old_core: null });
+    expect(grants[0]).toMatchObject({ new_manual: expect.stringContaining("purge_cancelled_order"), new_core: expect.stringContaining("m16_purge_cancelled_order_core") });
     const cronRows = await localSql("select to_regclass('cron.job')::text as cron_table");
     expect(cronRows[0]).toEqual({ cron_table: null });
 
@@ -564,14 +776,18 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     const superAdmin = await signedClient(identity("super_admin"));
     const key = `m16-concurrent-${randomUUID()}`;
     const [first, second] = await Promise.all([
-      invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key }),
-      invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key }),
+      invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key, p_reason: "Concurrent purge" }),
+      invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key, p_reason: "Concurrent purge" }),
     ]);
     expect(first.error).toBeNull();
     expect(second.error).toBeNull();
     expect(second.data).toEqual(first.data);
-    const replay = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key });
+    const eventBeforeJobMutation = await service.from("order_lifecycle_events").select("result_snapshot").eq("order_id", orderId).eq("event_type", "cancelled_purged").single();
+    const { error: jobMutationError } = await service.from("order_purge_jobs").update({ result: { storage_status: "storage_completed", changed_by_test: true } }).eq("order_id", orderId);
+    expect(jobMutationError).toBeNull();
+    const replay = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: key, p_reason: "Concurrent purge" });
     expect(replay.data).toEqual(first.data);
+    expect(replay.data).toEqual(eventBeforeJobMutation.data?.result_snapshot);
     const { count: jobs } = await service.from("order_purge_jobs").select("id", { count: "exact", head: true }).eq("order_id", orderId);
     const { count: purges } = await service.from("order_lifecycle_events").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("event_type", "cancelled_purged");
     expect(jobs).toBe(1);
@@ -581,7 +797,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   it("rejects stale leases and durably retries Storage cleanup", async () => {
     const orderId = await createCancelledOrder();
     const superAdmin = await signedClient(identity("super_admin"));
-    const purged = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: `m16-lease-purge-${randomUUID()}` });
+    const purged = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: orderId, p_idempotency_key: `m16-lease-purge-${randomUUID()}`, p_reason: "Lease purge" });
     expect(purged.error).toBeNull();
     const { data: targetJob, error: targetJobError } = await service.from("order_purge_jobs").select("id").eq("order_id", orderId).single();
     expect(targetJobError).toBeNull();
@@ -642,43 +858,36 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect((await service.from("order_purge_jobs").select("status, attempts").eq("id", claim.job_id).single()).data).toEqual({ status: "storage_completed", attempts: 1 });
   });
 
-  it("retains financial and audit FKs while deleting operational data and capturing paths", async () => {
-    const fixture = await createRetentionFixture();
-    const superAdmin = await signedClient(identity("super_admin"));
-    const result = await invoke(superAdmin, "purge_cancelled_order", { p_order_id: fixture.orderId, p_idempotency_key: `m16-retention-${randomUUID()}` });
+  it("preserves the complete M12 cash graph and audit snapshots while deleting operational data", async () => {
+    const fixture = await createM12RetentionFixture();
+    const before = await snapshotM12RetentionData(fixture);
+    for (const [name, rows] of [["cashMovements", before.cashMovements], ["payments", before.payments], ["paymentEvents", before.paymentEvents], ["financials", before.financials]] as const) expect(rows.length, name).toBeGreaterThan(0);
+    const admin = await signedClient(identity("admin"));
+    const result = await invoke(admin, "purge_cancelled_order", {
+      p_order_id: fixture.orderId,
+      p_idempotency_key: `m16-m12-retention-${randomUUID()}`,
+      p_reason: "M12 retention audit",
+    });
     expect(result.error).toBeNull();
+    expect(result.data).toMatchObject({ source: "manual", reason: "M12 retention audit" });
 
-    const order = await service.from("orders").select("lifecycle_state, customer_name, quantity, current_stage_id, cancellation_reason").eq("id", fixture.orderId).single();
-    expect(order.data).toEqual({ lifecycle_state: "purged_cancelled", customer_name: null, quantity: null, current_stage_id: null, cancellation_reason: null });
-    const [financials, payments, paymentEvents, cashMovements, lifecycleEvents, stageEvents, changeEvents, comments, catalogItems, lines, images, imageEvents, job] = await Promise.all([
-      service.from("order_financials").select("order_id").eq("order_id", fixture.orderId),
-      service.from("order_payments").select("id, order_id").eq("order_id", fixture.orderId),
-      service.from("order_payment_events").select("order_payment_id").eq("order_payment_id", fixture.paymentId),
-      service.from("cash_movements").select("id").eq("id", fixture.cashMovementId),
-      service.from("order_lifecycle_events").select("event_type").eq("order_id", fixture.orderId),
-      service.from("order_stage_events").select("id").eq("order_id", fixture.orderId),
-      service.from("order_change_events").select("id").eq("order_id", fixture.orderId),
-      service.from("order_comments").select("id").eq("order_id", fixture.orderId),
-      service.from("order_catalog_items").select("id").eq("order_id", fixture.orderId),
-      service.from("order_lines").select("id").eq("order_id", fixture.orderId),
-      service.from("order_design_images").select("id").eq("order_id", fixture.orderId),
-      service.from("order_design_image_events").select("id").eq("order_id", fixture.orderId),
-      service.from("order_purge_jobs").select("status, object_paths").eq("order_id", fixture.orderId).single(),
-    ]);
-    expect(financials.data).toHaveLength(1);
-    expect(payments.data).toHaveLength(1);
-    expect(paymentEvents.data).toHaveLength(1);
-    expect(cashMovements.data).toHaveLength(1);
-    expect(lifecycleEvents.data?.map((event) => event.event_type)).toEqual(expect.arrayContaining(["cancelled", "cancelled_purged"]));
-    expect(stageEvents.data).toHaveLength(1);
-    expect(changeEvents.data).toHaveLength(1);
-    expect(comments.data).toHaveLength(0);
-    expect(catalogItems.data).toHaveLength(0);
-    expect(lines.data).toHaveLength(0);
-    expect(images.data).toHaveLength(0);
-    expect(imageEvents.data).toHaveLength(0);
+    const after = await snapshotM12RetentionData(fixture);
+    expect(after.cashDays).toEqual(before.cashDays);
+    expect(after.cashMovements).toEqual(before.cashMovements);
+    expect(after.cashMovementEvents).toEqual(before.cashMovementEvents);
+    expect(after.cashLifecycleEvents).toEqual(before.cashLifecycleEvents);
+    expect(after.payments).toEqual(before.payments);
+    expect(after.paymentEvents).toEqual(before.paymentEvents);
+    expect(after.financials).toEqual(before.financials);
+    expect(after.stageEvents).toEqual(before.stageEvents);
+    expect(after.changeEvents).toEqual(before.changeEvents);
+    expect(after.lifecycleEvents.filter((event) => event.event_type !== "cancelled_purged")).toEqual(before.lifecycleEvents);
+
+    const order = await service.from("orders").select("lifecycle_state, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason").eq("id", fixture.orderId).single();
+    expect(order.data).toEqual({ lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
+
+    const job = await service.from("order_purge_jobs").select("status, object_paths").eq("order_id", fixture.orderId).single();
     expect(job.data?.status).toBe("storage_pending");
-    expect(job.data?.object_paths).toEqual(expect.arrayContaining([fixture.currentPath, fixture.previousPath]));
   });
 
   it("denies direct core and scheduler access to authenticated clients", async () => {

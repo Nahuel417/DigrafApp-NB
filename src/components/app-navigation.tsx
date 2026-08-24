@@ -29,8 +29,7 @@ const navigationItems: Array<{
 }> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Panel" },
   { href: "/orders", icon: Kanban, label: "Pedidos" },
-  { href: "/orders/archive", icon: Archive, label: "Archivo", capability: "canManageOrderLifecycle" },
-  { href: "/orders/archive/delivered", icon: Archive, label: "Entregados archivados", capability: "canArchiveDeliveredOrder" },
+  { href: "/orders/archives", icon: Archive, label: "Archivo", capability: "canManageOrderLifecycle" },
   { href: "/cash", icon: WalletCards, label: "Caja", capability: "canOperateCash" },
   { href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido", capability: "canCreateOrders" },
   { href: "/catalogs", icon: ListTree, label: "Catálogos", capability: "canManageCatalogs" },

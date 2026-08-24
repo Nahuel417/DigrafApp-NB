@@ -20,6 +20,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Cerrar caja | Sí | Sí | No | No |
 | Comentar pedido | Sí | Sí | Sí | Sí |
 | Editar datos sensibles | Sí | Sí | Sí | No |
+| Purgar manualmente pedido anulado | Sí | Sí | No | No |
 
 `super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
 
@@ -168,7 +169,8 @@ Toda operación sensible registra el actor autenticado y la hora del servidor. N
 - Los anulados se ven en un Archivo histórico solo para Admin/Super admin. El acceso directo no autorizado responde como recurso no accesible.
 - La restauración devuelve el pedido a su etapa operativa previa antes de `cancelled_at + 30×24 horas` en UTC. La fecha exacta de vencimiento ya no admite restauración.
 - M15 conserva relaciones, eventos append-only, finanzas, imágenes y Storage; no elimina ni purga datos y nunca escribe caja.
-- La eliminación irreversible, la retención posterior a la ventana y cualquier scheduler corresponden a M16.
+- M16 permite la purga manual inmediata únicamente a Admin/Super admin sobre `lifecycle_state = cancelled`, con motivo recortado solo en los extremos y de 2 a 500 caracteres. El actor, la hora y la fuente se derivan en servidor; la auditoría conserva el motivo completo y un snapshot inmutable para replay.
+- La purga automática de M16 sigue siendo exclusiva de `service_role` y solo procede desde `cancelled_at + 30×24 horas` en UTC. La purga conserva el tombstone de `orders`, finanzas, pagos, caja y auditoría; elimina únicamente los datos operativos permitidos y deja los fallos de Storage en reintento durable.
 
 ## Fuera del MVP
 
