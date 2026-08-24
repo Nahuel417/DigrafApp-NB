@@ -31,6 +31,18 @@ export function canReversePayment(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention";
 }
 
+export function canManageOrderLifecycle(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
+export function canArchiveDeliveredOrder(role: AppRole) {
+  return canManageOrderLifecycle(role);
+}
+
+export function canPurgeCancelledOrder(role: AppRole) {
+  return role === "super_admin" || role === "admin";
+}
+
 export function canMoveOrder(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }

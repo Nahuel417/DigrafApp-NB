@@ -75,7 +75,7 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
   const stages = stagesResult.data as BoardStage[];
   const boardRows = ordersResult.data as unknown as BoardRpcRow[];
   const primaryImages = boardRows.length
-    ? await supabase.from("order_design_images").select("order_id, id, updated_at").eq("is_primary", true).in("order_id", boardRows.map((order) => order.id))
+    ? await supabase.from("order_design_images").select("order_id, id, updated_at").eq("is_primary", true)
     : { data: [], error: null };
   if (primaryImages.error) throw new Error("No se pudo cargar la imagen primaria de los pedidos.");
   const primaryByOrderId = new Map((primaryImages.data ?? []).map((image) => [image.order_id, { id: image.id, updatedAt: image.updated_at }]));
@@ -117,5 +117,6 @@ export async function getOrderMovementSnapshot(orderId: string): Promise<OrderMo
     .maybeSingle();
 
   if (error || !data) return null;
+  if (data.current_stage_id === null) return null;
   return { currentStageId: data.current_stage_id, updatedAt: data.updated_at };
 }

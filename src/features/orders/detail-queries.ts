@@ -16,6 +16,10 @@ export type OrderDetail = {
   promisedDeliveryDate: string;
   description: string | null;
   currentStage: { id: string; code: string; name: string };
+  lifecycleState: "active" | "cancelled" | "archived_delivered" | "purged_cancelled";
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancellationReason: string | null;
   createdAt: string;
   updatedAt: string;
   lines: OrderDetailLine[];
@@ -58,18 +62,67 @@ export type OrderDetailData = {
   catalogs: OrderDetailCatalogs;
 };
 
+type OrderDetailRow = {
+  id: string;
+  public_number: number;
+  customer_name: string | null;
+  client_name?: string | null;
+  team_name?: string | null;
+  phone?: string | null;
+  quantity: number | null;
+  order_type: Database["public"]["Enums"]["order_type"] | null;
+  order_date: string | null;
+  promised_delivery_date: string | null;
+  description: string | null;
+  current_stage_id: string | null;
+  lifecycle_state: string;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function mapOrderDetailRow(row: OrderDetailRow, stage: { id: string; code: string; name: string }): OrderDetail | null {
+  if (row.quantity === null || row.order_date === null || row.promised_delivery_date === null || row.current_stage_id === null) return null;
+  return {
+    id: row.id,
+    publicNumber: row.public_number,
+    customerName: row.customer_name,
+    clientName: row.client_name ?? null,
+    teamName: row.team_name ?? null,
+    phone: row.phone ?? null,
+    quantity: row.quantity,
+    orderType: row.order_type,
+    orderDate: row.order_date,
+    promisedDeliveryDate: row.promised_delivery_date,
+    description: row.description,
+    currentStage: stage,
+    lifecycleState: row.lifecycle_state as OrderDetail["lifecycleState"],
+    cancelledAt: row.cancelled_at,
+    cancelledBy: row.cancelled_by,
+    cancellationReason: row.cancellation_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lines: [],
+  };
+}
+
 export async function getOrderDetail(orderId: string): Promise<OrderDetailData | null> {
   const supabase = await createClient();
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, public_number, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, updated_at, created_at, workflow_stages (id, code, name)")
+    .select("id, public_number, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, lifecycle_state, cancelled_at, cancelled_by, cancellation_reason, updated_at, created_at, workflow_stages (id, code, name)")
     .eq("id", orderId)
     .single();
 
   if (orderError || !order) return null;
 
   const stage = Array.isArray(order.workflow_stages) ? order.workflow_stages[0] : order.workflow_stages;
+  if (!stage) return null;
+  const mappedOrder = mapOrderDetailRow(order, { id: stage.id, code: stage.code, name: stage.name });
+  if (!mappedOrder) return null;
 
   const [{ data: financials }, { data: selections }, { data: lines }, formCatalogs] = await Promise.all([
     supabase.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId).single(),
@@ -81,20 +134,10 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   return {
     order: {
-      id: order.id,
-      publicNumber: order.public_number,
-      customerName: order.customer_name,
+      ...mappedOrder,
       clientName: order.client_name,
       teamName: order.team_name,
       phone: order.phone,
-      quantity: order.quantity,
-      orderType: order.order_type,
-      orderDate: order.order_date,
-      promisedDeliveryDate: order.promised_delivery_date,
-      description: order.description,
-      currentStage: { id: stage.id, code: stage.code, name: stage.name },
-      createdAt: order.created_at,
-      updatedAt: order.updated_at,
       lines: (lines ?? []).map((line) => ({
         id: line.id,
         position: line.position,

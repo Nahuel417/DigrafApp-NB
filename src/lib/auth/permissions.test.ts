@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderSensitive, canManageCatalogs, canManageOrderDesignImages, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canArchiveDeliveredOrder, canEditOrderSensitive, canManageOrderDesignImages, canPurgeCancelledOrder } from "./permissions";
 
 describe("M3 permissions", () => {
   it("allows Attention to create manual orders without catalog administration", () => {
@@ -87,5 +88,25 @@ describe("PR2 approved order authority", () => {
     expect(canManageStages("attention")).toBe(false);
     expect(canManageOrderDesignImages("employee")).toBe(false);
     expect(canEditOrderSensitive("employee")).toBe(false);
+  });
+});
+
+describe("order lifecycle permissions", () => {
+  it("limits cancellation, archive, and restoration to managers", () => {
+    expect(canManageOrderLifecycle("super_admin")).toBe(true);
+    expect(canManageOrderLifecycle("admin")).toBe(true);
+    expect(canManageOrderLifecycle("attention")).toBe(false);
+    expect(canManageOrderLifecycle("employee")).toBe(false);
+  });
+
+  it("allows managers to purge cancelled orders and keeps delivered archive authority separate", () => {
+    expect(canArchiveDeliveredOrder("super_admin")).toBe(true);
+    expect(canArchiveDeliveredOrder("admin")).toBe(true);
+    expect(canArchiveDeliveredOrder("attention")).toBe(false);
+    expect(canArchiveDeliveredOrder("employee")).toBe(false);
+    expect(canPurgeCancelledOrder("super_admin")).toBe(true);
+    expect(canPurgeCancelledOrder("admin")).toBe(true);
+    expect(canPurgeCancelledOrder("attention")).toBe(false);
+    expect(canPurgeCancelledOrder("employee")).toBe(false);
   });
 });

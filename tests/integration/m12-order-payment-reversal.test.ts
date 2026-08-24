@@ -63,10 +63,11 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Reversión de pago 
       idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32),
     }).select("id, public_number, current_stage_id, updated_at").single();
     if (error || !data) throw error ?? new Error("No se pudo crear pedido M12.");
+    if (data.current_stage_id === null) throw new Error("El pedido M12 no devolvió una etapa operativa.");
     const { error: financialError } = await service.from("order_financials").insert({ order_id: data.id, total_amount: totalAmount, deposit_amount: 0, deposit_paid: false });
     if (financialError) throw financialError;
     orderIds.push(data.id);
-    return data;
+    return { ...data, current_stage_id: data.current_stage_id };
   }
 
   async function confirm(order: Order) {
