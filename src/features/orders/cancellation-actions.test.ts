@@ -41,6 +41,7 @@ const validArchive = () => form({
 const validPurge = () => form({
   orderId: "11111111-1111-4111-8111-111111111111",
   idempotencyKey: "purge-key",
+  reason: "Motivo del borrado",
 });
 
 describe("M15 cancellation actions", () => {
@@ -148,18 +149,60 @@ describe("M16 delivered archive and purge actions", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("keeps purge authority separate from delivered archive authority", async () => {
-    const denied = await purgeCancelledOrderAction({}, validPurge());
-    expect(denied).toMatchObject({ status: "error", message: "No tenés permiso para purgar pedidos anulados." });
-
-    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "super_admin" });
-    rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
-    const result = await purgeCancelledOrderAction({}, form({ orderId: "11111111-1111-4111-8111-111111111111", idempotencyKey: "purge-key" }));
-    expect(result).toMatchObject({ status: "success", message: "Pedido anulado purgado." });
+  it("allows Admin and Super admin, passes the reason, and rejects actor fields", async () => {
+    rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled" }, error: null });
+    const result = await purgeCancelledOrderAction({}, validPurge());
+    expect(result).toMatchObject({ status: "success", message: "Pedido anulado borrado." });
     expect(rpc).toHaveBeenCalledWith("purge_cancelled_order", {
       p_order_id: "11111111-1111-4111-8111-111111111111",
       p_idempotency_key: "purge-key",
+      p_reason: "Motivo del borrado",
     });
+
+    const invalid = validPurge();
+    invalid.set("actorId", "attacker-id");
+    invalid.set("role", "super_admin");
+    const rejected = await purgeCancelledOrderAction({}, invalid);
+    expect(rejected).toMatchObject({ status: "error", code: "invalid_request" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const denied = await purgeCancelledOrderAction({}, validPurge());
+    expect(denied).toMatchObject({ status: "error", message: "No tenés permiso para borrar pedidos anulados." });
+
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "super_admin" });
+    rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
+    const superAdmin = await purgeCancelledOrderAction({}, validPurge());
+    expect(superAdmin).toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenLastCalledWith("purge_cancelled_order", {
+      p_order_id: "11111111-1111-4111-8111-111111111111",
+      p_idempotency_key: "purge-key",
+      p_reason: "Motivo del borrado",
+    });
+  });
+
+  it.each(["archive_delivered_order", "unarchive_delivered_order"])("rejects %s results without updated_at", async (rpcName) => {
+    rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: rpcName === "archive_delivered_order" ? "archived_delivered" : "delivered" }, error: null });
+
+    const result = rpcName === "archive_delivered_order"
+      ? await archiveDeliveredOrderAction({}, validArchive())
+      : await unarchiveDeliveredOrderAction({}, validArchive());
+
+    expect(result).toMatchObject({ status: "error", code: "invalid_request" });
+  });
+
+  it("returns visible delete validation and fallback messages", async () => {
+    const invalid = await purgeCancelledOrderAction({}, form({ orderId: "bad", idempotencyKey: "key", reason: "x" }));
+    expect(invalid).toMatchObject({ status: "error", message: "El pedido seleccionado no es válido." });
+
+    const invalidReason = validPurge();
+    invalidReason.set("reason", "x");
+    const invalidReasonResult = await purgeCancelledOrderAction({}, invalidReason);
+    expect(invalidReasonResult).toMatchObject({ status: "error", message: "El motivo del borrado debe tener entre 2 y 500 caracteres." });
+
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "unexpected database detail" } });
+    const fallback = await purgeCancelledOrderAction({}, validPurge());
+    expect(fallback).toMatchObject({ status: "error", message: "No se pudo borrar el pedido. Intentá nuevamente." });
   });
 });
 

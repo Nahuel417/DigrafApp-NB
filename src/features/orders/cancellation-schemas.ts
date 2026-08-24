@@ -21,6 +21,7 @@ export const archiveDeliveredOrderSchema = restoreOrderSchema;
 export const purgeCancelledOrderSchema = z.strictObject({
   orderId: z.string().uuid("El pedido seleccionado no es válido."),
   idempotencyKey,
+  reason: z.string().trim().min(2, "El motivo del borrado debe tener entre 2 y 500 caracteres.").max(500, "El motivo del borrado debe tener entre 2 y 500 caracteres."),
 });
 
 export type CancelOrderValues = z.infer<typeof cancelOrderSchema>;

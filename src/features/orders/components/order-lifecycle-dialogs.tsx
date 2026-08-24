@@ -209,6 +209,13 @@ function M16ArchiveDialog({
           <input name="orderId" type="hidden" value={orderId} />
           <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
           {title.includes("Archivar") || title.includes("Retirar") ? <input name="expectedUpdatedAt" type="hidden" value={expectedUpdatedAt} /> : null}
+          {destructive ? (
+            <Field>
+              <FieldLabel htmlFor={`purge-reason-${orderId}`}>Motivo del borrado</FieldLabel>
+              <Textarea id={`purge-reason-${orderId}`} maxLength={500} minLength={2} name="reason" required rows={4} />
+              <FieldDescription>Entre 2 y 500 caracteres. Se guarda en el historial.</FieldDescription>
+            </Field>
+          ) : null}
           {state.status === "error" ? (
             <Alert role="alert" variant="destructive">
               <AlertCircle aria-hidden="true" />
@@ -238,5 +245,5 @@ export function UnarchiveDeliveredOrderDialog(props: OrderLifecycleDialogProps) 
 }
 
 export function PurgeCancelledOrderDialog(props: OrderLifecycleDialogProps) {
-  return <M16ArchiveDialog {...props} action={purgeCancelledOrderAction} buttonLabel="Purgar pedido" description="solo se podrá ejecutar después de 30 días y eliminará los datos operativos. No se puede deshacer; las finanzas y la auditoría se conservarán." destructive pendingLabel="Purgando..." title="Purgar pedido" />;
+  return <M16ArchiveDialog {...props} action={purgeCancelledOrderAction} buttonLabel="Borrar pedido" description="se ejecuta inmediatamente, elimina los datos operativos y no se puede deshacer; las finanzas y la auditoría se conservarán." destructive pendingLabel="Borrando..." title="Borrar pedido" />;
 }

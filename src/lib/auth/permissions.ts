@@ -40,7 +40,7 @@ export function canArchiveDeliveredOrder(role: AppRole) {
 }
 
 export function canPurgeCancelledOrder(role: AppRole) {
-  return role === "super_admin";
+  return role === "super_admin" || role === "admin";
 }
 
 export function canMoveOrder(role: AppRole) {

@@ -99,12 +99,14 @@ describe("order lifecycle permissions", () => {
     expect(canManageOrderLifecycle("employee")).toBe(false);
   });
 
-  it("separates delivered archive and cancelled purge authority", () => {
+  it("allows managers to purge cancelled orders and keeps delivered archive authority separate", () => {
     expect(canArchiveDeliveredOrder("super_admin")).toBe(true);
     expect(canArchiveDeliveredOrder("admin")).toBe(true);
     expect(canArchiveDeliveredOrder("attention")).toBe(false);
     expect(canArchiveDeliveredOrder("employee")).toBe(false);
     expect(canPurgeCancelledOrder("super_admin")).toBe(true);
-    expect(canPurgeCancelledOrder("admin")).toBe(false);
+    expect(canPurgeCancelledOrder("admin")).toBe(true);
+    expect(canPurgeCancelledOrder("attention")).toBe(false);
+    expect(canPurgeCancelledOrder("employee")).toBe(false);
   });
 });

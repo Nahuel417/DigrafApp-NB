@@ -20,7 +20,8 @@ type M16OrderResult = {
   lifecycle_state: string;
   updated_at: string;
 };
-type M16ActionState = MutationState & { code?: "permission_denied" | "invalid_request" | "version_conflict" | "idempotency_conflict" | "not_found" | "ineligible"; order?: M16OrderResult };
+type M16PurgeOrderResult = Omit<M16OrderResult, "updated_at"> & { updated_at?: string };
+type M16ActionState = MutationState & { code?: "permission_denied" | "invalid_request" | "version_conflict" | "idempotency_conflict" | "not_found" | "ineligible"; order?: M16OrderResult | M16PurgeOrderResult };
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 type M16Rpc = (name: M16RpcName, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 
@@ -36,19 +37,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function m16OrderResult(data: unknown): M16OrderResult | null {
+function m16OrderResult(data: unknown, allowMissingUpdatedAt = false): M16OrderResult | M16PurgeOrderResult | null {
   const value = Array.isArray(data) ? data[0] : data;
-  if (!isRecord(value) || typeof value.order_id !== "string" || typeof value.lifecycle_state !== "string" || typeof value.updated_at !== "string") return null;
+  if (!isRecord(value) || typeof value.order_id !== "string" || typeof value.lifecycle_state !== "string") return null;
+  if (!allowMissingUpdatedAt && typeof value.updated_at !== "string") return null;
   const publicNumber = typeof value.public_number === "number" ? value.public_number : Number(value.public_number);
-  return Number.isFinite(publicNumber) ? { order_id: value.order_id, public_number: publicNumber, lifecycle_state: value.lifecycle_state, updated_at: value.updated_at } : null;
+  return Number.isFinite(publicNumber) ? { order_id: value.order_id, public_number: publicNumber, lifecycle_state: value.lifecycle_state, ...(typeof value.updated_at === "string" ? { updated_at: value.updated_at } : {}) } : null;
 }
 
 function mapM16Error(message: string, fallback: string) {
-  if (message.includes("permiso")) return { code: "permission_denied" as const, message: message.includes("purgar") ? "No tenés permiso para purgar pedidos anulados." : "No tenés permiso para gestionar el Archivo de entregados." };
+  if (message.includes("permiso")) return { code: "permission_denied" as const, message: message.includes("purgar") ? "No tenés permiso para borrar pedidos anulados." : "No tenés permiso para gestionar el Archivo de entregados." };
+  if (message.includes("motivo de purga")) return { code: "invalid_request" as const, message: "El motivo del borrado debe tener entre 2 y 500 caracteres." };
   if (message.includes("cambió")) return { code: "version_conflict" as const, message: "El pedido cambió en otra sesión. Actualizá el Archivo e intentá nuevamente." };
   if (message.includes("idempotencia")) return { code: "idempotency_conflict" as const, message: "La clave de idempotencia ya fue utilizada para otra operación." };
   if (message.includes("no existe")) return { code: "not_found" as const, message: "El pedido seleccionado no existe." };
-  if (message.includes("retención") || message.includes("30 días") || message.includes("anulados")) return { code: "ineligible" as const, message: "El pedido todavía no cumple las condiciones de purga." };
+  if (message.includes("retención") || message.includes("30 días") || message.includes("anulados")) return { code: "ineligible" as const, message: "El pedido todavía no cumple las condiciones de borrado." };
   if (message.includes("archivados")) return { code: "ineligible" as const, message: "El pedido no está archivado como entregado." };
   return { code: "invalid_request" as const, message: fallback };
 }
@@ -175,7 +178,7 @@ async function runM16Action<T extends M16Data>(formData: FormData, schema: z.Zod
     lifecyclePaths(parsed.data.orderId);
     return { ...mutationResult("error", mapped.message), code: mapped.code };
   }
-  const order = m16OrderResult(data);
+  const order = m16OrderResult(data, rpcName === "purge_cancelled_order");
   if (!order) return { ...mutationResult("error", invalid), code: "invalid_request" };
   lifecyclePaths(parsed.data.orderId);
   return { ...mutationResult("success", success), order };
@@ -190,5 +193,5 @@ export async function unarchiveDeliveredOrderAction(_previous: UnarchiveDelivere
 }
 
 export async function purgeCancelledOrderAction(_previous: PurgeCancelledActionState, formData: FormData) {
-  return runM16Action(formData, purgeCancelledOrderSchema, canPurgeCancelledOrder, "No tenés permiso para purgar pedidos anulados.", "No se pudo purgar el pedido. Intentá nuevamente.", "purge_cancelled_order", (data) => ({ p_order_id: data.orderId, p_idempotency_key: data.idempotencyKey }), "Pedido anulado purgado.");
+  return runM16Action(formData, purgeCancelledOrderSchema, canPurgeCancelledOrder, "No tenés permiso para borrar pedidos anulados.", "No se pudo borrar el pedido. Intentá nuevamente.", "purge_cancelled_order", (data) => ({ p_order_id: data.orderId, p_idempotency_key: data.idempotencyKey, p_reason: data.reason }), "Pedido anulado borrado.");
 }

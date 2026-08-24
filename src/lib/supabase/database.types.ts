@@ -2246,6 +2246,7 @@ export type Database = {
           p_idempotency_key: string
           p_now: string
           p_order_id: string
+          p_reason: string
           p_source: string
         }
         Returns: Json
@@ -2370,7 +2371,11 @@ export type Database = {
         Returns: undefined
       }
       purge_cancelled_order: {
-        Args: { p_idempotency_key: string; p_order_id: string }
+        Args: {
+          p_idempotency_key: string
+          p_order_id: string
+          p_reason: string
+        }
         Returns: Json
       }
       purge_due_cancelled_orders: {
