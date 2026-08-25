@@ -107,7 +107,6 @@ export function UserActions({ currentRole, user }: UserActionsProps) {
             <SelectTrigger
               aria-describedby={roleErrors?.length ? `${roleId}-error` : undefined}
               aria-invalid={Boolean(roleErrors?.length)}
-              className="h-11 md:h-9"
               id={roleId}
               ref={roleSelectRef}
             >

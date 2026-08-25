@@ -6,11 +6,13 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import type { LegacyCatalogOption, OrderCatalogOption, OrderCatalogProduct, OrderFormCatalogs } from "../queries";
 import type { CatalogOptionSelection, LegacyLineOptions, OrderLineInput, OrderLineType } from "../line-contracts";
 
 type EditableLine = OrderLineInput & { key: string };
+const emptySelectValue = "__empty__";
 
 const lineTypeLabels: Record<OrderLineType, string> = {
   individual: "Prenda individual",
@@ -45,10 +47,10 @@ function productOptions(product: OrderCatalogProduct | undefined, selections: Ca
     {product.options.map((option) => option.selectionMode === "single" ? (
       <Field key={option.id}>
         <FieldLabel htmlFor={`option-${option.id}`}>{option.name} <span className="font-normal text-muted-foreground">(opcional)</span></FieldLabel>
-        <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" id={`option-${option.id}`} onChange={(event) => update(option, event.target.value ? [event.target.value] : [])} value={selected(option.id)[0] ?? ""}>
-          <option value="">Sin seleccionar</option>
-          {option.values.map((value) => <option key={value.id} value={value.id}>{value.value}</option>)}
-        </select>
+        <Select onValueChange={(value) => update(option, value === emptySelectValue ? [] : [value])} value={selected(option.id)[0] ?? emptySelectValue}>
+          <SelectTrigger id={`option-${option.id}`}><SelectValue placeholder="Sin seleccionar" /></SelectTrigger>
+          <SelectContent><SelectGroup><SelectItem value={emptySelectValue}>Sin seleccionar</SelectItem>{option.values.map((value) => <SelectItem key={value.id} value={value.id}>{value.value}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
       </Field>
     ) : (
       <Field key={option.id}>
@@ -67,10 +69,10 @@ function productOptions(product: OrderCatalogProduct | undefined, selections: Ca
 function ProductSelect({ id, label, products, value, onChange }: { id: string; label: string; products: OrderCatalogProduct[]; value: string; onChange: (value: string) => void }) {
   return <Field>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" id={id} onChange={(event) => onChange(event.target.value)} value={value}>
-      <option value="">Elegí un producto</option>
-      {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-    </select>
+    <Select onValueChange={(nextValue) => onChange(nextValue === emptySelectValue ? "" : nextValue)} value={value || emptySelectValue}>
+      <SelectTrigger id={id}><SelectValue placeholder="Elegí un producto" /></SelectTrigger>
+      <SelectContent><SelectGroup><SelectItem value={emptySelectValue}>Elegí un producto</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>)}</SelectGroup></SelectContent>
+    </Select>
     {products.length === 0 ? <FieldDescription>No hay productos activos para este tipo.</FieldDescription> : null}
   </Field>;
 }
@@ -82,10 +84,10 @@ function ProductOptions({ hasLegacyOptions, product, selections, onChange }: { h
 function LegacySelect({ id, label, options, value, onChange }: { id: string; label: string; options: LegacyCatalogOption[]; value: string; onChange: (value: string) => void }) {
   return <Field>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" id={id} onChange={(event) => onChange(event.target.value)} value={value}>
-      <option value="">Elegí una opción</option>
-      {options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-    </select>
+    <Select onValueChange={(nextValue) => onChange(nextValue === emptySelectValue ? "" : nextValue)} value={value || emptySelectValue}>
+      <SelectTrigger id={id}><SelectValue placeholder="Elegí una opción" /></SelectTrigger>
+      <SelectContent><SelectGroup><SelectItem value={emptySelectValue}>Elegí una opción</SelectItem>{options.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectGroup></SelectContent>
+    </Select>
   </Field>;
 }
 
@@ -139,9 +141,10 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
       <Field>
         <FieldLabel htmlFor={`line-type-${item.key}`}>Tipo de renglón</FieldLabel>
-        <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" id={`line-type-${item.key}`} onChange={(event) => onChange({ ...line(), key: item.key, line_type: event.target.value as OrderLineType, quantity: item.quantity, color: item.color })} value={item.line_type}>
-          {Object.entries(lineTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
+        <Select onValueChange={(value) => onChange({ ...line(), key: item.key, line_type: value as OrderLineType, quantity: item.quantity, color: item.color })} value={item.line_type}>
+          <SelectTrigger id={`line-type-${item.key}`}><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup>{Object.entries(lineTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
       </Field>
       <Field>
         <FieldLabel htmlFor={`line-quantity-${item.key}`}>Cantidad</FieldLabel>

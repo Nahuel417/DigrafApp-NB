@@ -67,11 +67,6 @@ export const catalogItemIdSchema = z.object({
 export const catalogProductSchema = z.object({
   kind: z.enum(productCatalogKinds),
   name: z.string().trim().min(2, "Ingresá un nombre de al menos 2 caracteres.").max(100, "El nombre no puede superar los 100 caracteres."),
-  categoryId: z.union([z.literal(""), z.string().uuid("La categoría seleccionada no es válida.")]),
-});
-
-export const catalogCategorySchema = z.object({
-  name: z.string().trim().min(2, "Ingresá un nombre de al menos 2 caracteres.").max(80, "El nombre no puede superar los 80 caracteres."),
 });
 
 export function catalogItemKindLabel(kind: CatalogItemKind) {
