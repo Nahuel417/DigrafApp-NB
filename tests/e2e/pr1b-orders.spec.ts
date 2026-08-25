@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+
+async function selectValue(page: Page, label: string, optionName: string, index = 0) {
+  await page.getByLabel(label).nth(index).click();
+  await page.getByRole("option", { exact: true, name: optionName }).click();
+}
 
 test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ page }) => {
   const url = process.env.SUPABASE_URL;
@@ -15,8 +20,9 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
   const runId = randomUUID().slice(0, 8);
   let userId: string | undefined;
   let orderId: string | undefined;
-  const legacyIds: string[] = [];
-  const productIds: string[] = [];
+    const legacyIds: string[] = [];
+    const productIds: string[] = [];
+    const productNames: string[] = [];
   const cleanupFailures: string[] = [];
 
   async function cleanup(label: string, operation: PromiseLike<{ error: { message: string } | null }>) {
@@ -43,13 +49,15 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
       { kind: "neckline", garment_layer: null, name: `Cuello PR1B ${runId}`, created_by: actorId, updated_by: actorId },
       { kind: "upper_pattern", garment_layer: null, name: `Molde superior PR1B ${runId}`, created_by: actorId, updated_by: actorId },
       { kind: "fabric", garment_layer: null, name: `Tela PR1B ${runId}`, created_by: actorId, updated_by: actorId },
-    ]).select("id, kind");
+    ]).select("id, kind, name");
     if (legacy.error || !legacy.data) throw legacy.error ?? new Error("No se creó el catálogo legacy PR1B.");
     legacyIds.push(...legacy.data.map((item) => item.id));
     const legacyByKind = new Map(legacy.data.map((item) => [item.kind, item.id]));
-    const garment = await service.from("catalog_products").select("id").eq("legacy_catalog_item_id", legacyByKind.get("garment")!).single();
+    const legacyNameByKind = new Map(legacy.data.map((item) => [item.kind, item.name]));
+    const garment = await service.from("catalog_products").select("id, name").eq("legacy_catalog_item_id", legacyByKind.get("garment")!).single();
     if (garment.error || !garment.data) throw garment.error ?? new Error("No se proyectó la prenda PR1B.");
     productIds.push(garment.data.id);
+    productNames.push(garment.data.name);
 
     const flagSectionId = sectionByCode.get("flags");
     if (!flagSectionId) throw new Error("No se encontró la sección flags PR1B.");
@@ -71,13 +79,13 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     promisedDate.setDate(promisedDate.getDate() + 1);
     const promisedDateValue = [promisedDate.getFullYear(), String(promisedDate.getMonth() + 1).padStart(2, "0"), String(promisedDate.getDate()).padStart(2, "0")].join("-");
     await page.getByLabel("Fecha prometida de entrega").fill(promisedDateValue);
-    await page.getByLabel("Producto de catálogo").first().selectOption(productIds[0]!);
-    await page.getByLabel("Cuello").selectOption(legacyByKind.get("neckline")!);
-    await page.getByLabel("Molde superior").selectOption(legacyByKind.get("upper_pattern")!);
-    await page.getByLabel("Tela").selectOption(legacyByKind.get("fabric")!);
+    await selectValue(page, "Producto de catálogo", productNames[0]!);
+    await selectValue(page, "Cuello", legacyNameByKind.get("neckline")!);
+    await selectValue(page, "Molde superior", legacyNameByKind.get("upper_pattern")!);
+    await selectValue(page, "Tela", legacyNameByKind.get("fabric")!);
     await page.getByRole("button", { name: "Agregar renglón" }).click();
-    await page.getByLabel("Tipo de renglón").nth(1).selectOption("flag");
-    await page.getByLabel("Producto de catálogo").nth(1).selectOption(productIds[1]!);
+    await selectValue(page, "Tipo de renglón", "Bandera", 1);
+    await selectValue(page, "Producto de catálogo", `Bandera PR1B ${runId}`, 1);
     await page.getByLabel("Total del pedido").fill("1200,00");
     await page.getByLabel("Monto de seña").fill("0");
     await page.getByRole("button", { name: "Crear pedido" }).click();

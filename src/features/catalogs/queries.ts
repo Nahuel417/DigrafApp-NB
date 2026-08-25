@@ -8,8 +8,7 @@ export type CatalogItem = Pick<
   "id" | "kind" | "garment_layer" | "name" | "is_active"
 >;
 
-export type CatalogProduct = Pick<Tables<"catalog_products">, "id" | "kind" | "category_id" | "name" | "is_active">;
-export type CatalogCategory = Pick<Tables<"catalog_categories">, "id" | "section_id" | "name" | "is_active">;
+export type CatalogProduct = Pick<Tables<"catalog_products">, "id" | "kind" | "name" | "is_active">;
 
 export async function getCatalogItems() {
   const profile = await getCurrentProfile();
@@ -33,11 +32,12 @@ export async function getProductCatalogs() {
   if (!profile || profile.mustChangePassword || !canManageCatalogs(profile.role)) return null;
 
   const supabase = await createClient();
-  const [{ data: products, error: productsError }, { data: categories, error: categoriesError }, { data: sections, error: sectionsError }] = await Promise.all([
-    supabase.from("catalog_products").select("id, kind, category_id, name, is_active").neq("kind", "garment").order("kind").order("name"),
-    supabase.from("catalog_categories").select("id, section_id, name, is_active").order("name"),
-    supabase.from("catalog_sections").select("id, code").eq("code", "shields").maybeSingle(),
-  ]);
-  if (productsError || categoriesError || sectionsError) throw new Error("No se pudieron cargar los nuevos catálogos.");
-  return { products, categories, shieldSectionId: sections?.id ?? null };
+  const { data: products, error } = await supabase
+    .from("catalog_products")
+    .select("id, kind, name, is_active")
+    .neq("kind", "garment")
+    .order("kind")
+    .order("name");
+  if (error) throw new Error("No se pudieron cargar los nuevos catálogos.");
+  return { products };
 }

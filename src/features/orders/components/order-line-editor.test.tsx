@@ -22,6 +22,11 @@ const catalogs = {
 describe("OrderLineEditor", () => {
   afterEach(cleanup);
 
+  function choose(label: string, option: string) {
+    fireEvent.click(screen.getByRole("combobox", { name: label }));
+    fireEvent.click(screen.getByRole("option", { name: option }));
+  }
+
   it("serializes multiple lines and allows reordering without drag and drop", () => {
     const { container } = render(<OrderLineEditor catalogs={catalogs} />);
     fireEvent.click(screen.getByRole("button", { name: "Agregar renglón" }));
@@ -49,19 +54,19 @@ describe("OrderLineEditor", () => {
       necklines: [{ id: "44444444-4444-4444-8444-444444444444", name: "Cuello redondo" }],
     };
     render(<OrderLineEditor catalogs={catalogsWithLegacyOptions} />);
-    fireEvent.change(screen.getByLabelText("Producto de catálogo"), { target: { value: catalogsWithLegacyOptions.garments[0]!.id } });
+    choose("Producto de catálogo", "Remera");
     expect(screen.queryByText("Este producto no tiene opciones configuradas.")).toBeNull();
   });
 
   it("shows the missing-options message when no options are available", () => {
     render(<OrderLineEditor catalogs={catalogs} />);
-    fireEvent.change(screen.getByLabelText("Producto de catálogo"), { target: { value: catalogs.garments[0]!.id } });
+    choose("Producto de catálogo", "Remera");
     expect(screen.getByText("Este producto no tiene opciones configuradas.")).not.toBeNull();
   });
 
   it("shows one message for a set with no configured part options", () => {
     render(<OrderLineEditor catalogs={catalogs} />);
-    fireEvent.change(screen.getByLabelText("Tipo de renglón"), { target: { value: "set" } });
+    choose("Tipo de renglón", "Conjunto");
     expect(screen.getAllByText("No hay opciones configuradas para las partes seleccionadas.")).toHaveLength(1);
     expect(screen.queryAllByText("Este producto no tiene opciones configuradas.")).toHaveLength(0);
   });

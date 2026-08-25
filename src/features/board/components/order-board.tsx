@@ -27,7 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { formatArs } from "@/lib/money/decimal";
 
@@ -55,11 +55,6 @@ function orderDetailPath(orderId: string) {
   return `/orders/${orderId}`;
 }
 
-function orderTypeLabel(orderType: BoardOrder["orderType"]) {
-  if (orderType === null) return "Varios tipos";
-  return orderType === "set" ? "Conjunto" : "Prenda individual";
-}
-
 function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbnail?: boolean }) {
   return (
     <>
@@ -81,7 +76,7 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
       <p className="mt-1 break-words text-sm text-muted-foreground">{order.teamName ?? "Equipo sin completar"}</p>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div><dt className="text-muted-foreground">Cantidad</dt><dd className="mt-0.5 font-mono font-medium">{order.quantity}</dd></div>
-        <div><dt className="text-muted-foreground">Tipo</dt><dd className="mt-0.5">{orderTypeLabel(order.orderType)}</dd></div>
+        <div><dt className="text-muted-foreground">Producto</dt><dd className="mt-0.5 break-words">{order.productName ?? "Sin producto"}</dd></div>
         <div className="col-span-2"><dt className="text-muted-foreground">Entrega prometida</dt><dd className="mt-0.5 font-mono font-medium">{order.promisedDeliveryDate}</dd></div>
       </dl>
     </>
@@ -129,7 +124,9 @@ function MoveOrderSelector({
             <SelectValue placeholder="Elegí una etapa" />
           </SelectTrigger>
           <SelectContent>
-            {availableDestinations.map((column) => <SelectItem key={column.id} value={column.id}>{column.name}</SelectItem>)}
+            <SelectGroup>
+              {availableDestinations.map((column) => <SelectItem key={column.id} value={column.id}>{column.name}</SelectItem>)}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </Field>

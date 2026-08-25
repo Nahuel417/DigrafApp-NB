@@ -35,15 +35,15 @@ test.describe("Select compartido", () => {
     if (userId) await admin.auth.admin.deleteUser(userId);
   });
 
-  test("preserva geometría, foco y cierre por Escape al abrir un Select", async ({ page }) => {
+  test("preserva geometría, scroll, foco y selección al abrir un Select", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Contraseña").fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
-    await page.goto("/cash");
+    await page.goto("/cash?tab=expense");
 
-    const trigger = page.getByRole("combobox", { name: "Categoría", exact: true });
+    const trigger = page.locator("#cash-expense-category");
     await expect(trigger).toBeVisible();
     await trigger.scrollIntoViewIfNeeded();
     const measureLayout = () => page.evaluate(() => {
@@ -110,5 +110,84 @@ test.describe("Select compartido", () => {
     const reopened = await measureLayout();
     expect(reopened.listbox).toEqual(during.listbox);
     await page.keyboard.press("Escape");
+
+    await page.goto("/orders");
+    const orderHref = await page.locator('a[href^="/orders/"]').evaluateAll((links) =>
+      links
+        .map((link) => link.getAttribute("href"))
+        .find((href): href is string => Boolean(href && /^\/orders\/[0-9a-f-]{36}$/.test(href)))
+    );
+    test.skip(!orderHref, "No hay un pedido local para verificar edición.");
+
+    for (const route of ["/orders/new", "/catalogs", orderHref!]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      const triggerScope = route.startsWith("/orders/") && route !== "/orders/new" ? "#edit-order " : "";
+      const sharedTrigger = page.locator(`${triggerScope}[role="combobox"]`).first();
+      await expect(sharedTrigger).toBeVisible();
+      await sharedTrigger.scrollIntoViewIfNeeded();
+      await sharedTrigger.evaluate((element) => {
+        const targetY = Math.max(0, window.scrollY + element.getBoundingClientRect().top - Math.round(window.innerHeight * 0.4));
+        window.scrollTo(0, targetY);
+      });
+      const measureShared = () => sharedTrigger.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          bodyPosition: getComputedStyle(document.body).position,
+          scrollY: window.scrollY,
+          trigger: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+        };
+      });
+      const beforeShared = await measureShared();
+      const beforeValue = await sharedTrigger.textContent();
+      const scrollModel = await page.evaluate(() => {
+        const shellContent = document.querySelector<HTMLElement>(".app-shell > div:last-child");
+        return {
+          contentClientHeight: shellContent?.clientHeight ?? 0,
+          contentOverflowY: shellContent ? getComputedStyle(shellContent).overflowY : "",
+          contentScrollHeight: shellContent?.scrollHeight ?? 0,
+          documentClientHeight: document.documentElement.clientHeight,
+          documentScrollHeight: document.documentElement.scrollHeight,
+          shellPosition: getComputedStyle(document.querySelector<HTMLElement>(".app-shell")!).position,
+          viewportWidth: window.innerWidth,
+        };
+      });
+      if (scrollModel.viewportWidth >= 1024) {
+        expect(scrollModel.shellPosition).toBe("fixed");
+        expect(scrollModel.documentScrollHeight).toBe(scrollModel.documentClientHeight);
+        expect(scrollModel.contentOverflowY).toBe("auto");
+        expect(scrollModel.contentScrollHeight).toBeGreaterThanOrEqual(scrollModel.contentClientHeight);
+      } else {
+        expect(scrollModel.shellPosition).toBe("static");
+        expect(scrollModel.documentScrollHeight).toBeGreaterThanOrEqual(scrollModel.documentClientHeight);
+        expect(scrollModel.contentOverflowY).toBe("visible");
+        expect(scrollModel.contentScrollHeight).toBe(scrollModel.contentClientHeight);
+      }
+
+      await sharedTrigger.click();
+      const sharedListbox = page.getByRole("listbox");
+      await expect(sharedListbox).toBeVisible();
+      await expect(sharedListbox).toHaveAttribute("data-positioned", "true");
+      const duringShared = await measureShared();
+      expect(duringShared).toEqual({ ...beforeShared, bodyPosition: "static" });
+
+      await page.keyboard.press("Escape");
+      await expect(sharedListbox).toHaveCount(0);
+      await expect(sharedTrigger).toBeFocused();
+      expect(await measureShared()).toEqual(beforeShared);
+
+      await page.keyboard.press("Enter");
+      await expect(sharedListbox).toBeVisible();
+      if (route === "/catalogs") {
+        await page.getByRole("option", { exact: true, name: "Prenda inferior" }).click();
+        await expect(sharedTrigger).toHaveText("Prenda inferior");
+      } else {
+        await page.getByRole("option", { exact: true, name: beforeValue ?? "" }).click();
+        await expect(sharedTrigger).toHaveText(beforeValue ?? "");
+      }
+      await expect(sharedListbox).toHaveCount(0);
+      await expect(sharedTrigger).toBeFocused();
+      expect(await measureShared()).toEqual(beforeShared);
+    }
   });
 });

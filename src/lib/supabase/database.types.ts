@@ -389,64 +389,6 @@ export type Database = {
           },
         ]
       }
-      catalog_categories: {
-        Row: {
-          created_at: string
-          created_by: string
-          id: string
-          is_active: boolean
-          name: string
-          name_key: string | null
-          section_id: string
-          updated_at: string
-          updated_by: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          id?: string
-          is_active?: boolean
-          name: string
-          name_key?: string | null
-          section_id: string
-          updated_at?: string
-          updated_by: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          name_key?: string | null
-          section_id?: string
-          updated_at?: string
-          updated_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "catalog_categories_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "catalog_categories_section_id_fkey"
-            columns: ["section_id"]
-            isOneToOne: false
-            referencedRelation: "catalog_sections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "catalog_categories_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       catalog_item_events: {
         Row: {
           action: string
@@ -673,7 +615,6 @@ export type Database = {
       }
       catalog_products: {
         Row: {
-          category_id: string | null
           created_at: string
           created_by: string
           garment_layer: Database["public"]["Enums"]["garment_layer"] | null
@@ -688,7 +629,6 @@ export type Database = {
           updated_by: string
         }
         Insert: {
-          category_id?: string | null
           created_at?: string
           created_by: string
           garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
@@ -703,7 +643,6 @@ export type Database = {
           updated_by: string
         }
         Update: {
-          category_id?: string | null
           created_at?: string
           created_by?: string
           garment_layer?: Database["public"]["Enums"]["garment_layer"] | null
@@ -718,13 +657,6 @@ export type Database = {
           updated_by?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "catalog_products_category_fk"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "catalog_categories"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "catalog_products_created_by_fkey"
             columns: ["created_by"]
@@ -2003,10 +1935,6 @@ export type Database = {
           movement_id: string
         }[]
       }
-      create_catalog_category: {
-        Args: { target_name: string; target_section_id: string }
-        Returns: string
-      }
       create_catalog_item: {
         Args: {
           target_garment_layer: string
@@ -2017,15 +1945,6 @@ export type Database = {
       }
       create_catalog_option_value: {
         Args: { target_option_id: string; target_value: string }
-        Returns: string
-      }
-      create_catalog_product: {
-        Args: {
-          target_category_id: string
-          target_kind: Database["public"]["Enums"]["catalog_product_kind"]
-          target_name: string
-          target_section_id: string
-        }
         Returns: string
       }
       create_catalog_product_option: {
@@ -2388,10 +2307,6 @@ export type Database = {
         Args: { succeeded: boolean; target_id: string }
         Returns: undefined
       }
-      rename_catalog_category: {
-        Args: { target_id: string; target_name: string }
-        Returns: undefined
-      }
       rename_catalog_item: {
         Args: { target_id: string; target_name: string }
         Returns: undefined
@@ -2497,10 +2412,6 @@ export type Database = {
           opening_balance: number
           opening_updated_at: string
         }[]
-      }
-      set_catalog_category_active: {
-        Args: { target_id: string; target_is_active: boolean }
-        Returns: undefined
       }
       set_catalog_product_active: {
         Args: { target_id: string; target_is_active: boolean }

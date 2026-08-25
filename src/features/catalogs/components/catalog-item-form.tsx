@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -76,8 +77,10 @@ export function CatalogItemForm({ kind }: { kind: CatalogItemKind }) {
                 <SelectValue placeholder="Elegí una clasificación" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="upper">Prenda superior</SelectItem>
-                <SelectItem value="lower">Prenda inferior</SelectItem>
+                <SelectGroup>
+                  <SelectItem value="upper">Prenda superior</SelectItem>
+                  <SelectItem value="lower">Prenda inferior</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
             <FieldError errors={layerErrors} id={`${layerId}-error`} />

@@ -9,9 +9,9 @@ import { CatalogItemForm } from "./catalog-item-form";
 import { CatalogItemList } from "./catalog-item-list";
 import { CatalogProductManager } from "./catalog-product-manager";
 import { catalogItemKinds, catalogManagerKindLabel, catalogManagerKinds, type CatalogItemKind, type CatalogManagerKind, type ProductCatalogKind } from "../schemas";
-import type { CatalogCategory, CatalogItem, CatalogProduct } from "../queries";
+import type { CatalogItem, CatalogProduct } from "../queries";
 
-export function CatalogManager({ categories, items, products, shieldSectionId }: { categories: CatalogCategory[]; items: CatalogItem[]; products: CatalogProduct[]; shieldSectionId: string | null }) {
+export function CatalogManager({ items, products }: { items: CatalogItem[]; products: CatalogProduct[] }) {
   const [selectedKind, setSelectedKind] = useState<CatalogManagerKind>("garment");
   const isLegacyKind = catalogItemKinds.includes(selectedKind as CatalogItemKind);
 
@@ -52,7 +52,7 @@ export function CatalogManager({ categories, items, products, shieldSectionId }:
               <h3 className="mt-1 text-lg font-semibold">Nuevo ítem</h3>
               <p className="mt-1 text-sm text-muted-foreground">El nombre queda disponible para los nuevos pedidos cuando lo guardes.</p>
             </div>
-             {isLegacyKind ? <><CatalogItemForm key={selectedKind} kind={selectedKind as CatalogItemKind} /><Separator /><div><p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Listado</p><h3 className="mt-1 text-lg font-semibold">{catalogManagerKindLabel(selectedKind)}</h3></div><CatalogItemList items={items} kind={selectedKind as CatalogItemKind} /></> : <CatalogProductManager categories={categories} kind={selectedKind as ProductCatalogKind} products={products} shieldSectionId={shieldSectionId} />}
+            {isLegacyKind ? <><CatalogItemForm key={selectedKind} kind={selectedKind as CatalogItemKind} /><Separator /><div><p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Listado</p><h3 className="mt-1 text-lg font-semibold">{catalogManagerKindLabel(selectedKind)}</h3></div><CatalogItemList items={items} kind={selectedKind as CatalogItemKind} /></> : <CatalogProductManager kind={selectedKind as ProductCatalogKind} products={products} />}
           </div>
         </div>
       </div>
