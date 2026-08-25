@@ -94,7 +94,7 @@ Campos mínimos:
 - Colección privada de 0 a 3 imágenes de diseño, con una primaria opcional.
 - Monto total manual, monto de seña y estado de seña pagada.
 
-Los catálogos son listas sin precio, organizadas por secciones y productos. Banderas, bolsos y escudos tienen secciones propias; las categorías de escudos solo las administran Admin y Super admin. Las opciones de producto son opcionales y admiten selección simple o múltiple.
+Los catálogos son listas sin precio, organizadas por secciones y productos. Banderas, bolsos y escudos tienen secciones propias y los tres se administran como productos simples por nombre. Las opciones de producto son opcionales y admiten selección simple o múltiple.
 
 La matriz de especificaciones del alta manual es:
 
@@ -115,7 +115,7 @@ Los importes del pedido se almacenan como `numeric(14,2)`:
 
 Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super admin y Admin pueden administrar catálogos. Empleado no obtiene permisos adicionales en M3. Los importes son visibles para Super admin, Admin y Atención; Empleado no puede leerlos.
 
-Los productos, categorías, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
+Los productos, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
 Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción; Super admin, Admin y Atención pueden gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
 

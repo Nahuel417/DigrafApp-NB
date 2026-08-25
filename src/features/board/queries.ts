@@ -17,6 +17,7 @@ export type BoardOrder = {
   teamName: string | null;
   quantity: number;
   orderType: "set" | "individual" | null;
+  productName?: string | null;
   promisedDeliveryDate: string;
   currentStageId: string;
   updatedAt: string;
@@ -63,6 +64,30 @@ type BoardRpcRow = {
   total_amount: number | null; payment_confirmed_at: string | null;
 };
 
+type BoardLineRow = {
+  order_id: string;
+  position: number;
+  line_type: string;
+  product_name_snapshot: string;
+  configuration: unknown;
+};
+
+function boardLineProductName(line: BoardLineRow) {
+  if (line.line_type !== "set") return line.product_name_snapshot;
+
+  const configuration = line.configuration;
+  if (!configuration || typeof configuration !== "object" || Array.isArray(configuration)) return line.product_name_snapshot;
+  const layers = configuration as Record<string, unknown>;
+
+  const names = ["upper", "lower"]
+    .map((layer) => layers[layer])
+    .filter((layer): layer is Record<string, unknown> => Boolean(layer && typeof layer === "object" && !Array.isArray(layer)))
+    .map((layer) => layer.product_name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+
+  return names.length ? names.join(" + ") : line.product_name_snapshot;
+}
+
 export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBoard> {
   const supabase = await createClient();
   const [stagesResult, ordersResult] = await Promise.all([
@@ -74,11 +99,23 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
 
   const stages = stagesResult.data as BoardStage[];
   const boardRows = ordersResult.data as unknown as BoardRpcRow[];
-  const primaryImages = boardRows.length
-    ? await supabase.from("order_design_images").select("order_id, id, updated_at").eq("is_primary", true)
-    : { data: [], error: null };
-  if (primaryImages.error) throw new Error("No se pudo cargar la imagen primaria de los pedidos.");
-  const primaryByOrderId = new Map((primaryImages.data ?? []).map((image) => [image.order_id, { id: image.id, updatedAt: image.updated_at }]));
+  const [primaryImagesResult, orderLinesResult] = await Promise.all([
+    boardRows.length
+      ? supabase.from("order_design_images").select("order_id, id, updated_at").eq("is_primary", true)
+      : Promise.resolve({ data: [] as { order_id: string; id: string; updated_at: string }[], error: null }),
+    boardRows.length
+      ? supabase.from("order_lines").select("order_id, position, line_type, product_name_snapshot, configuration").in("order_id", boardRows.map((order) => order.id)).order("position")
+      : Promise.resolve({ data: [] as BoardLineRow[], error: null }),
+  ]);
+  if (primaryImagesResult.error) throw new Error("No se pudo cargar la imagen primaria de los pedidos.");
+  if (orderLinesResult.error) throw new Error("No se pudieron cargar los productos de los pedidos.");
+  const primaryByOrderId = new Map((primaryImagesResult.data ?? []).map((image) => [image.order_id, { id: image.id, updatedAt: image.updated_at }]));
+  const productNamesByOrderId = new Map<string, string>();
+  for (const line of (orderLinesResult.data ?? []) as BoardLineRow[]) {
+    const productName = boardLineProductName(line);
+    const current = productNamesByOrderId.get(line.order_id);
+    productNamesByOrderId.set(line.order_id, current ? `${current} + ${productName}` : productName);
+  }
 
   const orders = boardRows.map((order) => {
     const primaryDesignImage = primaryByOrderId.get(order.id) ?? null;
@@ -89,6 +126,7 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
     teamName: order.team_name,
     quantity: order.quantity,
     orderType: order.order_type,
+    productName: productNamesByOrderId.get(order.id) ?? null,
     promisedDeliveryDate: order.promised_delivery_date,
     currentStageId: order.current_stage_id,
     updatedAt: order.updated_at,

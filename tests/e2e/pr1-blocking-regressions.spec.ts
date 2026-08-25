@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+
+async function selectValue(page: Page, label: string | RegExp, optionName: string | RegExp, index = 0) {
+  await page.getByLabel(label).nth(index).click();
+  await page.getByRole("option", { exact: true, name: optionName }).click();
+}
 
 test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async ({ page }) => {
   const url = process.env.SUPABASE_URL;
@@ -17,7 +22,6 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
   const orderIds: string[] = [];
   const legacyIds: string[] = [];
   const productIds: string[] = [];
-  const categoryIds: string[] = [];
   const optionIds: string[] = [];
   const optionValueIds: string[] = [];
 
@@ -63,23 +67,20 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
     if (legacy.error) throw legacy.error;
     legacyIds.push(...legacy.data.map((item) => item.id));
     const legacyByKind = new Map(legacy.data.map((item) => [`${item.kind}:${item.garment_layer ?? ""}`, item]));
-    const projections = await service.from("catalog_products").select("id, legacy_catalog_item_id, garment_layer").in("legacy_catalog_item_id", legacyIds);
+    const projections = await service.from("catalog_products").select("id, legacy_catalog_item_id, garment_layer, name").in("legacy_catalog_item_id", legacyIds);
     if (projections.error || projections.data.length !== 2) throw projections.error ?? new Error("No se proyectaron las prendas PR1.");
     const upperProduct = projections.data.find((product) => product.garment_layer === "upper");
     const lowerProduct = projections.data.find((product) => product.garment_layer === "lower");
     if (!upperProduct || !lowerProduct) throw new Error("Las capas de prendas PR1 no son válidas.");
     productIds.push(upperProduct.id, lowerProduct.id);
 
-    const category = await service.from("catalog_categories").insert({ section_id: sectionByCode.get("shields")!, name: `Categoría ${runId}`, created_by: userId, updated_by: userId }).select("id").single();
-    if (category.error) throw category.error;
-    categoryIds.push(category.data.id);
-    for (const [code, kind, name, categoryId] of [
-      ["flags", "flag", `Bandera ${runId}`, null],
-      ["bags", "bag", `Bolso ${runId}`, null],
-      ["shields", "shield", `Escudo A ${runId}`, category.data.id],
-      ["shields", "shield", `Escudo B ${runId}`, category.data.id],
+    for (const [code, kind, name] of [
+      ["flags", "flag", `Bandera ${runId}`],
+      ["bags", "bag", `Bolso ${runId}`],
+      ["shields", "shield", `Escudo A ${runId}`],
+      ["shields", "shield", `Escudo B ${runId}`],
     ] as const) {
-      const product = await service.from("catalog_products").insert({ section_id: sectionByCode.get(code)!, kind, category_id: categoryId, name, created_by: userId, updated_by: userId }).select("id").single();
+      const product = await service.from("catalog_products").insert({ section_id: sectionByCode.get(code)!, kind, name, created_by: userId, updated_by: userId }).select("id").single();
       if (product.error) throw product.error;
       productIds.push(product.data.id);
     }
@@ -99,17 +100,18 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
     await page.goto("/catalogs");
     for (const tab of ["Banderas", "Bolsos", "Escudos"]) await expect(page.getByRole("button", { name: tab })).toBeVisible();
     await page.getByRole("button", { name: "Escudos" }).click();
-    await expect(page.locator(`input[value="Categoría ${runId}"]`)).toBeVisible();
+    await expect(page.getByText("Categorías de escudos")).toHaveCount(0);
+    await expect(page.getByLabel("Categoría (opcional)")).toHaveCount(0);
     await expect(page.locator(`input[value="Escudo A ${runId}"]`)).toBeVisible();
 
     const simpleClient = `Simple ${runId}`;
     await fillBase(simpleClient);
-    await page.getByLabel("Producto de catálogo").selectOption(upperProduct.id);
-    await page.getByLabel("Cuello").selectOption(legacyByKind.get("neckline:")!.id);
-    await page.getByLabel("Molde superior").selectOption(legacyByKind.get("upper_pattern:")!.id);
-    await page.getByLabel("Tela").selectOption(legacyByKind.get("fabric:")!.id);
+    await selectValue(page, "Producto de catálogo", upperProduct.name);
+    await selectValue(page, "Cuello", legacyByKind.get("neckline:")!.name);
+    await selectValue(page, "Molde superior", legacyByKind.get("upper_pattern:")!.name);
+    await selectValue(page, "Tela", legacyByKind.get("fabric:")!.name);
     await page.getByLabel(`Extra ${runId}`).check();
-    await page.getByLabel(new RegExp(`Acabado ${runId}`)).selectOption(optionValue.data.id);
+    await selectValue(page, new RegExp(`Acabado ${runId}`), `Mate ${runId}`);
     await page.getByLabel(`Escudo A ${runId}`).check();
     await page.getByLabel(`Escudo B ${runId}`).check();
     await page.getByLabel("Total del pedido").fill("20000");
@@ -119,26 +121,26 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
 
     const setClient = `Conjunto ${runId}`;
     await fillBase(setClient);
-    await page.getByLabel("Tipo de renglón").selectOption("set");
-    await page.getByLabel("Parte superior").selectOption(upperProduct.id);
-    await page.getByLabel("Parte inferior").selectOption(lowerProduct.id);
-    await page.getByLabel("Cuello").selectOption(legacyByKind.get("neckline:")!.id);
-    await page.getByLabel("Molde superior").selectOption(legacyByKind.get("upper_pattern:")!.id);
-    await page.getByLabel("Molde de short/pollera").selectOption(legacyByKind.get("lower_pattern:")!.id);
-    await page.getByLabel("Tela").selectOption(legacyByKind.get("fabric:")!.id);
+    await selectValue(page, "Tipo de renglón", "Conjunto");
+    await selectValue(page, "Parte superior", upperProduct.name);
+    await selectValue(page, "Parte inferior", lowerProduct.name);
+    await selectValue(page, "Cuello", legacyByKind.get("neckline:")!.name);
+    await selectValue(page, "Molde superior", legacyByKind.get("upper_pattern:")!.name);
+    await selectValue(page, "Molde de short/pollera", legacyByKind.get("lower_pattern:")!.name);
+    await selectValue(page, "Tela", legacyByKind.get("fabric:")!.name);
     await page.getByLabel("Total del pedido").fill("30000");
     await page.getByLabel("Monto de seña").fill("5000");
     await createOrderAndRemember(setClient);
 
     const mixedClient = `Mixto ${runId}`;
     await fillBase(mixedClient);
-    await page.getByLabel("Producto de catálogo").selectOption(upperProduct.id);
-    await page.getByLabel("Cuello").selectOption(legacyByKind.get("neckline:")!.id);
-    await page.getByLabel("Molde superior").selectOption(legacyByKind.get("upper_pattern:")!.id);
-    await page.getByLabel("Tela").selectOption(legacyByKind.get("fabric:")!.id);
+    await selectValue(page, "Producto de catálogo", upperProduct.name);
+    await selectValue(page, "Cuello", legacyByKind.get("neckline:")!.name);
+    await selectValue(page, "Molde superior", legacyByKind.get("upper_pattern:")!.name);
+    await selectValue(page, "Tela", legacyByKind.get("fabric:")!.name);
     await page.getByRole("button", { name: "Agregar renglón" }).click();
-    await page.getByLabel("Tipo de renglón").nth(1).selectOption("flag");
-    await page.getByLabel("Producto de catálogo").nth(1).selectOption(productIds[2]!);
+    await selectValue(page, "Tipo de renglón", "Bandera", 1);
+    await selectValue(page, "Producto de catálogo", `Bandera ${runId}`, 1);
     await page.getByLabel("Total del pedido").fill("40000");
     await page.getByLabel("Monto de seña").fill("10000");
     await createOrderAndRemember(mixedClient);
@@ -156,7 +158,6 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
     if (optionValueIds.length) await service.from("catalog_product_option_values").delete().in("id", optionValueIds);
     if (optionIds.length) await service.from("catalog_product_options").delete().in("id", optionIds);
     if (productIds.length) await service.from("catalog_products").delete().in("id", productIds);
-    if (categoryIds.length) await service.from("catalog_categories").delete().in("id", categoryIds);
     if (userId) await service.from("catalog_item_events").delete().eq("actor_id", userId);
     if (legacyIds.length) await service.from("catalog_items").delete().in("id", legacyIds);
     if (userId) {

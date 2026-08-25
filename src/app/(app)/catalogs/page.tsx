@@ -22,7 +22,7 @@ export default async function CatalogsPage() {
         </p>
       </header>
 
-      <CatalogManager categories={productCatalogs.categories} items={items} products={productCatalogs.products} shieldSectionId={productCatalogs.shieldSectionId} />
+      <CatalogManager items={items} products={productCatalogs.products} />
     </main>
   );
 }
