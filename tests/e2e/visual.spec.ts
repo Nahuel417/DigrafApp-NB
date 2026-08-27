@@ -188,11 +188,13 @@ test.describe("referencia visual", () => {
       "create-user.png",
       { animations: "disabled", caret: "initial" },
     );
-    await expect(page.locator("tbody tr").filter({ hasText: "Administración visual" })).toHaveScreenshot(
+    const managedUserRow = page.locator("tbody tr").filter({ hasText: "Administración visual" });
+    await managedUserRow.getByRole("button", { name: "Gestionar" }).click();
+    await expect(managedUserRow).toHaveScreenshot(
       "managed-user.png",
       { animations: "disabled", caret: "initial" },
     );
-    await page.getByRole("button", { name: "Desactivar a Administración visual" }).click();
+    await managedUserRow.getByRole("button", { name: "Desactivar a Administración visual" }).click();
     await expect(page.getByRole("alertdialog", { name: "Desactivar usuario" })).toHaveScreenshot(
       "deactivate-user-dialog.png",
       { animations: "disabled", caret: "initial" },
@@ -220,6 +222,7 @@ test.describe("referencia visual", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     const longRow = page.getByText(longEmail).locator("xpath=ancestor::tr");
+    await longRow.getByRole("button", { name: "Gestionar" }).click();
     const deactivateButton = longRow.getByRole("button", { name: `Desactivar a ${longName}` });
     const buttonBox = await deactivateButton.boundingBox();
     expect(buttonBox?.height ?? 0).toBeGreaterThanOrEqual(44);

@@ -168,7 +168,8 @@
   }
 }
 
-.dashboard-profile-strip {
+.dashboard-profile-strip,
+.grid-paper {
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--border) 65%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--border) 65%, transparent) 1px, transparent 1px);
@@ -330,6 +331,29 @@
 
   .user-table td[data-label="Acciones"] {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-table tbody {
+    display: block;
+    padding: 0;
+  }
+
+  .user-table tr {
+    overflow: visible;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .user-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .user-table td.user-row-cell {
+    display: block;
+    border-bottom: 0;
+    padding: 0;
   }
 
   .user-table td::before {
