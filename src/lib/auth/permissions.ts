@@ -27,6 +27,10 @@ export function canConfirmPayment(role: AppRole) {
   return canReadOrderFinancials(role);
 }
 
+export function canDeliverPaidOrder(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention";
+}
+
 export function canReversePayment(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention";
 }

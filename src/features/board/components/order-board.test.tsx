@@ -17,9 +17,9 @@ vi.mock("../actions", () => ({
   reconcileOrderAction: vi.fn(),
   reverseOrderPaymentAction: vi.fn(),
 }));
-
 const receivedId = "11111111-1111-4111-8111-111111111111";
 const paidId = "22222222-2222-4222-8222-222222222222";
+const deliveredId = "55555555-5555-4555-8555-555555555555";
 const order = {
   id: "33333333-3333-4333-8333-333333333333",
   publicNumber: 7,
@@ -38,6 +38,7 @@ const order = {
 const columns = [
   { id: receivedId, code: "received", name: "Pedido recibido", position: 0, orders: [order] },
   { id: paidId, code: "paid", name: "Pagado", position: 1, orders: [] },
+  { id: deliveredId, code: "delivered", name: "Entregado", position: 2, orders: [] },
 ];
 
 beforeEach(() => {
@@ -143,7 +144,7 @@ describe("order board payment confirmation", () => {
   });
 
   it("does not offer Pagado as an Employee destination", () => {
-    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, totalAmount: null }] }, columns[1]]} />);
+    render(<OrderBoard canConfirmPayment={false} canDeliverPaidOrders={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, totalAmount: null }] }, columns[1], columns[2]]} />);
 
     const trigger = screen.getByRole("combobox", { name: "Mover PED-000007 a" });
     fireEvent.click(trigger);
@@ -154,6 +155,28 @@ describe("order board payment confirmation", () => {
     expect(within(getOrderCard()).getByRole("link", { hidden: true, name: /^Equipo M11$/ })).toBeTruthy();
     expect(confirmOrderPaymentAction).not.toHaveBeenCalled();
   });
+
+  it("offers only Entregado for an authorized paid order", () => {
+    const paidOrder = { ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" };
+    render(<OrderBoard canConfirmPayment canDeliverPaidOrders canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [paidOrder] }, columns[2]]} />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Mover PED-000007 a" }));
+
+    expect(screen.getByRole("option", { name: "Entregado" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Pedido recibido" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Pagado" })).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("does not offer or execute paid to Entregado for Employee", () => {
+    const paidOrder = { ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" };
+    render(<OrderBoard canConfirmPayment={false} canDeliverPaidOrders={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [paidOrder] }, columns[2]]} />);
+
+    expect(screen.queryByRole("combobox", { name: "Mover PED-000007 a" })).toBeNull();
+    expect(screen.getByLabelText("No se puede arrastrar PED-000007").hasAttribute("disabled")).toBe(true);
+    expect(moveOrderAction).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("order board payment reversal", () => {
@@ -177,5 +200,20 @@ describe("order board payment reversal", () => {
     fireEvent.click(submit);
     expect(reverseOrderPaymentAction).toHaveBeenCalledTimes(1);
     resolveAction({ status: "success", message: "ok", toastId: "ok", paymentId: "44444444-4444-4444-8444-444444444444", reconciledOrder: { ...order, currentStageId: receivedId } });
+  });
+});
+
+describe("delivered order archive", () => {
+  it("does not offer archiving from the board", () => {
+    const deliveredOrder = { ...order, id: "66666666-6666-4666-8666-666666666666", customerName: "Entregado M16", currentStageId: deliveredId };
+    const deliveredColumns = [
+      { ...columns[0], orders: [] },
+      columns[1],
+      { id: deliveredId, code: "delivered", name: "Entregado", position: 2, orders: [deliveredOrder] },
+    ];
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={deliveredColumns} />);
+
+    expect(screen.queryByRole("button", { name: "Archivar entregado" })).toBeNull();
+    expect(within(getColumn("Entregado")).getByRole("link", { name: "Entregado M16" })).toBeTruthy();
   });
 });
