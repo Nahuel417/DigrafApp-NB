@@ -17,10 +17,10 @@ colors:
   error: "oklch(0.5771 0.2152 27.325)"
 typography:
   body:
-    fontFamily: "Inter"
+    fontFamily: "Outfit"
     letterSpacing: "normal"
   data:
-    fontFamily: "Source Code Pro"
+    fontFamily: "JetBrains Mono"
     letterSpacing: "normal"
     fontFeature: "tabular-nums"
 rounded:
@@ -63,17 +63,17 @@ La paleta light usa neutrales suaves para continuidad del shell y blanco para su
 
 ## Typography
 
-**Body Font:** Inter.
-**Label/Mono Font:** Source Code Pro.
+**Body Font:** Outfit.
+**Label/Mono Font:** JetBrains Mono.
 
-**Character:** Inter sostiene interfaz, navegacion, formularios, cuerpo y labels. Source Code Pro distingue IDs, importes, fechas, estados y datos operativos compactos sin invadir instrucciones o texto largo.
+**Character:** Outfit sostiene interfaz, navegacion, formularios, cuerpo y labels. JetBrains Mono distingue IDs, importes, fechas, estados y datos operativos compactos sin invadir instrucciones o texto largo.
 
 ### Hierarchy
-- **Page titles:** Inter con `tracking-display` moderado.
-- **Section titles:** Inter con tracking normal.
-- **Body and labels:** Inter con tracking normal.
-- **Short uppercase labels:** Inter con `tracking-label` positivo y controlado.
-- **Operational data:** Source Code Pro con `tracking-data` normal y numeros tabulares para importes, cantidades comparables, fechas, horas, totales e IDs.
+- **Page titles:** Outfit con `tracking-display` moderado.
+- **Section titles:** Outfit con tracking normal.
+- **Body and labels:** Outfit con tracking normal.
+- **Short uppercase labels:** Outfit con `tracking-label` positivo y controlado.
+- **Operational data:** JetBrains Mono con `tracking-data` normal y numeros tabulares para importes, cantidades comparables, fechas, horas, totales e IDs.
 
 **The Operational Data Rule.** Los importes y columnas numericas se alinean a la derecha y no se parten. No se aplica letter spacing global, uppercase a texto largo ni tipografia mono a instrucciones.
 
@@ -119,7 +119,7 @@ Las formas son suavemente redondeadas con radio base de `0.6rem` y sus derivados
 - **States:** no depende solo del color; los permisos visibles no sustituyen autorizacion de servidor.
 
 ### Badges, Alerts and Toast
-- **Badges:** texto breve y explicito; Source Code Pro para datos operativos; estado, pago y entrega se mantienen separados.
+- **Badges:** texto breve y explicito; JetBrains Mono para datos operativos; estado, pago y entrega se mantienen separados.
 - **Alerts:** comunican que ocurrio y el siguiente paso; success usa el vocabulario de la accion, warning su consecuencia e info contexto neutral.
 - **Toast:** Sonner en modo light confirma mutaciones, pero nunca es el unico registro de un resultado sensible.
 

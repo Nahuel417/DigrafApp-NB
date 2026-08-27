@@ -138,26 +138,26 @@ Todo cambio de color debe registrar antes de aplicarse:
 
 ### Familias
 
-- Inter: interfaz, navegación, formularios y texto.
-- Source Code Pro: IDs, importes, fechas, estados y datos operativos compactos.
+- Outfit: interfaz, navegación, formularios y texto.
+- JetBrains Mono: IDs, importes, fechas, estados y datos operativos compactos.
 
 Ambas se cargan con `next/font/google`, `display: swap` y variables CSS. No se usan enlaces externos ni otra dependencia tipográfica.
 
 Mappings:
 
-- `--font-sans` → `--font-inter`.
-- `--font-mono` → `--font-source-code-pro`.
+- `--font-sans` → `--font-outfit`.
+- `--font-mono` → `--font-jetbrains-mono`.
 - No existe `--font-serif`: se confirmó que no tenía consumidores.
 
 ### Roles y tracking
 
 | Rol                             | Fuente          | Tracking                                |
 | ------------------------------- | --------------- | --------------------------------------- |
-| Cuerpo y labels                 | Inter           | Normal                                  |
-| Títulos de sección              | Inter           | Normal                                  |
-| Títulos de página               | Inter           | `tracking-display`, moderado            |
-| Etiquetas uppercase breves      | Inter           | `tracking-label`, positivo y controlado |
-| IDs, importes, fechas y estados | Source Code Pro | `tracking-data`, normal                 |
+| Cuerpo y labels                 | Outfit          | Normal                                  |
+| Títulos de sección              | Outfit          | Normal                                  |
+| Títulos de página               | Outfit          | `tracking-display`, moderado            |
+| Etiquetas uppercase breves      | Outfit          | `tracking-label`, positivo y controlado |
+| IDs, importes, fechas y estados | JetBrains Mono  | `tracking-data`, normal                 |
 
 No se aplica letter spacing global al `body`. Se evita uppercase en texto largo, tracking extremo y mono en instrucciones.
 
@@ -275,7 +275,7 @@ Teclado y mobile tienen alternativa completa al drag: selector explícito de des
 
 - Texto breve y explícito.
 - No depender solo del color.
-- Source Code Pro cuando representan un dato operativo.
+- JetBrains Mono cuando representan un dato operativo.
 - Mantener separados estado, pago y entrega.
 - No reutilizar feedback semántico como clasificación automática del negocio.
 

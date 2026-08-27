@@ -53,8 +53,8 @@ Si encontrás una contradicción que afecte alcance, permisos, seguridad, compor
 
 La identidad “Registro de taller” está aprobada e implementada. Paleta, tipografías, tokens, radios, espaciado, componentes, iconografía y modo exclusivamente light son restricciones, no temas abiertos.
 
-- Inter se usa para interfaz, navegación, formularios y texto.
-- Source Code Pro se usa para IDs, importes, fechas, estados y datos operativos compactos.
+- Outfit se usa para interfaz, navegación, formularios y texto.
+- JetBrains Mono se usa para IDs, importes, fechas, estados y datos operativos compactos.
 - Lucide React es la única librería aprobada para iconos de interfaz. No la presentes como decisión pendiente ni recomiendes otra librería.
 - No propongas alternativas de identidad, paleta, tipografía, tokens, componentes, dark mode ni rediseños amplios salvo pedido explícito del usuario.
 - Recomendá solo mejoras graduales, contradicciones verificables, ajustes de claridad, accesibilidad, responsive, estados, densidad y consistencia.
