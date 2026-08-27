@@ -139,7 +139,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Movimientos auditad
     expect((await move(await signedClient(requiredChange), order, "design")).error).not.toBeNull();
   });
 
-  it("protege paid y revierte toda escritura al rechazar un movimiento", async () => {
+  it("rechaza entradas a paid y toda salida pagada salvo Entregado", async () => {
     const client = await signedClient(identities[0]!);
     const order = await createOrder();
     const { error } = await move(client, order, "paid");
@@ -160,7 +160,22 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Movimientos auditad
     expect(count).toBe(0);
 
     const paidOrder = await createOrder("paid");
-    expect((await move(client, paidOrder, "delivered")).error?.message).toContain("Pagado");
+    expect((await move(client, paidOrder, "cut")).error?.message).toContain("entregar");
+  });
+
+  it("permite Pagado -> Entregado a roles autorizados y conserva un único evento en replay", async () => {
+    for (const role of ["super_admin", "admin", "attention"] as const) {
+      const client = await signedClient(identities.find((identity) => identity.role === role)!);
+      const paidOrder = await createOrder("paid");
+      const key = randomUUID();
+      const first = await move(client, paidOrder, "delivered", key);
+      const replay = await move(client, paidOrder, "delivered", key);
+      expect(first.error).toBeNull();
+      expect(replay.error).toBeNull();
+      expect(replay.data?.[0]?.event_id).toBe(first.data?.[0]?.event_id);
+      const { count } = await admin.from("order_stage_events").select("id", { count: "exact", head: true }).eq("order_id", paidOrder.id);
+      expect(count).toBe(1);
+    }
   });
 
   it("rechaza a Empleado al mover hacia o desde Pagado", async () => {
@@ -170,7 +185,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Movimientos auditad
     const paidOrder = await createOrder("paid");
 
     expect((await move(client, receivedOrder, "paid")).error?.message).toContain("Pagado");
-    expect((await move(client, paidOrder, "delivered")).error?.message).toContain("Pagado");
+    expect((await move(client, paidOrder, "delivered")).error?.message).toContain("permiso");
   });
 
   it("rechaza escrituras directas y preserva los importes fuera del alcance de Empleado", async () => {

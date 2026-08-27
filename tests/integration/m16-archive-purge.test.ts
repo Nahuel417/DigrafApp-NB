@@ -463,6 +463,10 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     const archived = await invoke(admin, "archive_delivered_order", { p_order_id: order.id, p_expected_updated_at: order.updated_at, p_idempotency_key: key });
     expect(archived.error).toBeNull();
     expect(archived.data).toMatchObject({ order_id: order.id, lifecycle_state: "archived_delivered" });
+    const board = await invoke(admin, "get_order_board", { p_search: "" });
+    expect(board.error).toBeNull();
+    const boardRows = Array.isArray(board.data) ? board.data : [];
+    expect(boardRows.some((row) => row.id === order.id)).toBe(false);
 
     for (const [role, client, allowed] of [
       ["super_admin", superAdmin, true],

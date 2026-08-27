@@ -14,7 +14,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Restablecer contraseña de cualquier usuario | Sí | No | No | No |
 | Crear pedido manual | Sí | Sí | Sí | No |
 | Administrar etapas y catálogos | Sí | Sí | No | No |
-| Mover pedido | Sí | Sí | Sí | Sí, excepto Pagado |
+| Mover pedido | Sí | Sí | Sí | Sí, excepto Pagado -> Entregado |
 | Confirmar pago | Sí | Sí | Sí | No |
 | Ver y operar caja | Sí | Sí | Sí | No |
 | Cerrar caja | Sí | Sí | No | No |
@@ -74,7 +74,7 @@ Super admin y Admin pueden crear, renombrar, reordenar y retirar etapas. Las nue
 
 Los pedidos pueden moverse hacia adelante y atrás. Cada movimiento debe registrar pedido, etapa anterior, etapa siguiente, actor y timestamp del servidor. El drag and drop debe manejar rechazo del servidor y revertir su estado optimista.
 
-Durante M4, y hasta que M11/M12 incorporen cobro y reversión, toda transición hacia o desde la etapa con código semántico `paid` se rechaza para cualquier rol. Las demás etapas, incluida `delivered`, pueden recorrerse hacia adelante o atrás según los permisos generales; llegar a `delivered` no implica pago.
+La única transición permitida desde `paid` es `paid` -> `delivered`, ejecutable por Super admin, Admin y Atención. Empleado no puede ejecutarla. Toda otra salida desde `paid` y toda entrada a `paid` mediante movimiento se rechazan; llegar a `paid` continúa siendo exclusivo de la confirmación de pago. Las demás etapas pueden recorrerse hacia adelante o atrás según los permisos generales; llegar a `delivered` no implica pago.
 
 Cada movimiento nuevo conserva el snapshot de los nombres de etapa de origen y destino junto con sus identificadores. Los eventos anteriores a esta regla no tienen snapshot y muestran el nombre actual de la etapa; no se los presenta como nombres históricos.
 

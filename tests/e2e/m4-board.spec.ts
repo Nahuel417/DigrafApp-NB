@@ -22,6 +22,8 @@ test.describe("Tablero M4", () => {
     dndConflict: `DnD conflicto ${runId}`,
     network: `Red desconocida ${runId}`,
     unconfirmed: `Estado no confirmado ${runId}`,
+    paidSelector: `Pagado selector ${runId}`,
+    paidDnd: `Pagado DnD ${runId}`,
   };
   const orderIds: string[] = [];
   let userId = "";
@@ -32,6 +34,8 @@ test.describe("Tablero M4", () => {
   let dndConflictOrder: { id: string; publicNumber: number };
   let networkOrder: { id: string; publicNumber: number };
   let unconfirmedOrder: { id: string; publicNumber: number };
+  let paidSelectorOrder: { id: string; publicNumber: number };
+  let paidDndOrder: { id: string; publicNumber: number };
 
   async function createOrder(customerName: string) {
     const { data, error } = await admin
@@ -128,6 +132,10 @@ test.describe("Tablero M4", () => {
     dndConflictOrder = await createOrder(names.dndConflict);
     networkOrder = await createOrder(names.network);
     unconfirmedOrder = await createOrder(names.unconfirmed);
+    paidSelectorOrder = await createOrder(names.paidSelector);
+    paidDndOrder = await createOrder(names.paidDnd);
+    const { error: paidError } = await admin.from("orders").update({ current_stage_id: stages.paid }).in("id", [paidSelectorOrder.id, paidDndOrder.id]);
+    if (paidError) throw paidError;
   });
 
   test.afterAll(async () => {
@@ -233,6 +241,26 @@ test.describe("Tablero M4", () => {
     await expect(page.getByTestId("board-announcement")).toContainText("Cancelaste el movimiento");
     await expect(designColumn.getByText(names.dnd)).toBeVisible();
     await expect(handle).toBeFocused();
+  });
+
+  test("permite entregar un pedido pagado por selector y DnD sin abrir cobro", async ({ page }) => {
+    await login(page);
+    await page.goto("/orders");
+
+    const selectorCard = page.getByText(names.paidSelector).locator("xpath=ancestor::article");
+    await selectorCard.getByLabel(`Mover ${publicId(paidSelectorOrder)} a`).click();
+    await expect(page.getByRole("option", { name: "Entregado", exact: true })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);
+    await page.getByRole("option", { name: "Entregado", exact: true }).click();
+    await selectorCard.getByRole("button", { name: "Mover pedido" }).click();
+    await expect(page.locator('[data-drop-stage="delivered"]').getByText(names.paidSelector)).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
+    const dndCard = page.getByText(names.paidDnd).locator("xpath=ancestor::article");
+    await beginPointerDrag(page, dndCard.getByRole("button", { name: `Arrastrar ${publicId(paidDndOrder)}` }));
+    await dropOn(page, page.locator('[data-drop-stage="delivered"] header'));
+    await expect(page.locator('[data-drop-stage="delivered"]').getByText(names.paidDnd)).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
   });
 
   test("DnD se activa desde la superficie no interactiva de la tarjeta", async ({ page }) => {
