@@ -85,12 +85,14 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
 
 function MoveOrderSelector({
   canConfirmPayment,
+  canDeliverPaidOrders,
   columns,
   isPending,
   onMove,
   order,
 }: {
   canConfirmPayment: boolean;
+  canDeliverPaidOrders?: boolean;
   columns: BoardColumn[];
   isPending: boolean;
   onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
@@ -99,11 +101,13 @@ function MoveOrderSelector({
   const [destination, setDestination] = useState("");
   const selectId = `move-order-${order.id}`;
   const paidStageId = columns.find((column) => column.code === "paid")?.id;
-  const movementLocked = order.currentStageId === paidStageId;
-  const availableDestinations = columns.filter((column) => column.id !== order.currentStageId && (canConfirmPayment || column.code !== "paid"));
+  const movementLocked = order.currentStageId === paidStageId && !canDeliverPaidOrders;
+  const availableDestinations = order.currentStageId === paidStageId
+    ? columns.filter((column) => column.code === "delivered")
+    : columns.filter((column) => column.id !== order.currentStageId && (canConfirmPayment || column.code !== "paid"));
 
   if (movementLocked) {
-    return <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">Los movimientos desde Pagado se habilitarán al confirmar el cobro.</p>;
+    return <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">Los movimientos desde Pagado no están disponibles para este rol.</p>;
   }
 
   return (
@@ -140,6 +144,7 @@ function MoveOrderSelector({
 
 function DraggableOrderCard({
   canConfirmPayment,
+  canDeliverPaidOrders,
   columns,
   isPending,
   onMove,
@@ -147,6 +152,7 @@ function DraggableOrderCard({
   order,
 }: {
   canConfirmPayment: boolean;
+  canDeliverPaidOrders?: boolean;
   columns: BoardColumn[];
   isPending: boolean;
   onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
@@ -154,7 +160,7 @@ function DraggableOrderCard({
   order: BoardOrder;
 }) {
   const paidStageId = columns.find((column) => column.code === "paid")?.id;
-  const dragDisabled = isPending || order.currentStageId === paidStageId;
+  const dragDisabled = isPending || (order.currentStageId === paidStageId && !canDeliverPaidOrders);
   const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } = useDraggable({
     id: order.id,
     disabled: dragDisabled,
@@ -190,7 +196,7 @@ function DraggableOrderCard({
         </div>
       </div>
       <Button aria-label={`Vista rápida de ${orderId(order.publicNumber)}`} className="mt-3 w-full" data-no-drag="true" onClick={() => onQuickView(order.id)} onPointerDown={(event) => event.stopPropagation()} type="button" variant="ghost"><Eye data-icon="inline-start" />Vista rápida</Button>
-      <MoveOrderSelector canConfirmPayment={canConfirmPayment} columns={columns} isPending={isPending} onMove={onMove} order={order} />
+      <MoveOrderSelector canConfirmPayment={canConfirmPayment} canDeliverPaidOrders={canDeliverPaidOrders} columns={columns} isPending={isPending} onMove={onMove} order={order} />
     </article>
   );
 }
@@ -198,25 +204,28 @@ function DraggableOrderCard({
 function BoardColumnView({
   activeOrder,
   canConfirmPayment,
+  canDeliverPaidOrders,
   children,
   column,
   paidStageId,
 }: {
   activeOrder: BoardOrder | null;
   canConfirmPayment: boolean;
+  canDeliverPaidOrders?: boolean;
   children: React.ReactNode;
   column: BoardColumn;
   paidStageId?: string;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ disabled: !canConfirmPayment && column.id === paidStageId, id: column.id, data: { code: column.code } });
+  const { isOver, setNodeRef } = useDroppable({ disabled: (!canConfirmPayment && column.id === paidStageId) || (!canDeliverPaidOrders && activeOrder?.currentStageId === paidStageId), id: column.id, data: { code: column.code } });
   const isCurrentStage = activeOrder?.currentStageId === column.id;
   const isMovingFromPaid = Boolean(activeOrder && activeOrder.currentStageId === paidStageId);
   const isPaidTarget = Boolean(activeOrder && column.id === paidStageId && activeOrder.currentStageId !== paidStageId);
   const isPaymentTarget = Boolean(canConfirmPayment && isPaidTarget);
-  const isValidTarget = Boolean(activeOrder && !isCurrentStage && !isMovingFromPaid && (!isPaidTarget || canConfirmPayment));
+  const isDeliverPaidTarget = Boolean(activeOrder && isMovingFromPaid && column.code === "delivered");
+  const isValidTarget = Boolean(activeOrder && !isCurrentStage && (isDeliverPaidTarget ? canDeliverPaidOrders : !isMovingFromPaid && (!isPaidTarget || canConfirmPayment)));
   const targetLabel = !activeOrder
     ? null
-    : isMovingFromPaid
+    : isMovingFromPaid && !isDeliverPaidTarget
       ? "Destino no disponible"
       : isPaidTarget && !canConfirmPayment
         ? "Destino no disponible"
@@ -255,7 +264,7 @@ function BoardColumnView({
   );
 }
 
-export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns }: { canConfirmPayment: boolean; canCreateOrders: boolean; initialColumns: BoardColumn[] }) {
+export function OrderBoard({ canConfirmPayment, canDeliverPaidOrders = false, canCreateOrders, initialColumns }: { canConfirmPayment: boolean; canDeliverPaidOrders?: boolean; canCreateOrders: boolean; initialColumns: BoardColumn[] }) {
   const [columns, setColumns] = useState(initialColumns);
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -400,8 +409,8 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
       focusOrderControl(source.id, method);
       return;
     }
-    if (source.currentStageId === paidStageId) {
-      reportLocalRejection(order, "Los movimientos desde Pagado estarán disponibles en una etapa posterior.", method);
+    if (source.currentStageId === paidStageId && (!canDeliverPaidOrders || columns.find((column) => column.id === targetStageId)?.code !== "delivered")) {
+      reportLocalRejection(order, "Solo se permite entregar un pedido pagado.", method);
       return;
     }
     if (targetStageId === paidStageId) {
@@ -498,6 +507,8 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
     const targetStageId = String(event.over.id);
     if (targetStageId === order.currentStageId) {
       setAnnouncement(`${orderId(order.publicNumber)} está sobre su etapa actual. Soltar no realizará cambios.`);
+    } else if (order.currentStageId === paidStageId && columns.find((column) => column.id === targetStageId)?.code === "delivered" && canDeliverPaidOrders) {
+      setAnnouncement(`${orderId(order.publicNumber)} está sobre Entregado. Soltá para entregar el pedido.`);
     } else if (targetStageId === paidStageId && order.currentStageId !== paidStageId) {
       setAnnouncement(canConfirmPayment
         ? `${orderId(order.publicNumber)} está sobre Pagado. Soltá para confirmar el cobro.`
@@ -606,9 +617,9 @@ export function OrderBoard({ canConfirmPayment, canCreateOrders, initialColumns 
           <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
             <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-full lg:grid lg:grid-flow-col lg:auto-cols-[minmax(17rem,1fr)] lg:overscroll-x-contain lg:pb-3">
             {columns.map((column) => (
-              <BoardColumnView activeOrder={activeOrder} canConfirmPayment={canConfirmPayment} column={column} key={column.id} paidStageId={paidStageId}>
+              <BoardColumnView activeOrder={activeOrder} canConfirmPayment={canConfirmPayment} canDeliverPaidOrders={canDeliverPaidOrders} column={column} key={column.id} paidStageId={paidStageId}>
                 {column.orders.map((order) => (
-                  <DraggableOrderCard canConfirmPayment={canConfirmPayment} columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} onQuickView={openQuickView} order={order} />
+                  <DraggableOrderCard canConfirmPayment={canConfirmPayment} canDeliverPaidOrders={canDeliverPaidOrders} columns={columns} isPending={pendingOrderIds.has(order.id)} key={order.id} onMove={requestMove} onQuickView={openQuickView} order={order} />
                 ))}
               </BoardColumnView>
             ))}

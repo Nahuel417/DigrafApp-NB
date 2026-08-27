@@ -356,7 +356,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     expect(count).toBe(0);
   });
 
-  it("mantiene move_order bloqueado en ambos sentidos de Pagado", async () => {
+  it("mantiene bloqueadas las entradas y salidas no entregadas de Pagado", async () => {
     await ensureCashOpen();
     const before = await createOrder("10.00");
     const alreadyPaid = await createOrder("10.00", "paid");
@@ -372,12 +372,21 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     const outOfPaid = await client.rpc("move_order", {
       p_order_id: alreadyPaid.id,
       p_from_stage_id: alreadyPaid.current_stage_id,
-      p_to_stage_id: stages.delivered,
+      p_to_stage_id: stages.design,
       p_expected_updated_at: alreadyPaid.updated_at,
       p_idempotency_key: `m11-move-out-paid-${randomUUID()}`,
     });
 
     expect(intoPaid.error?.message).toContain("Pagado");
-    expect(outOfPaid.error?.message).toContain("Pagado");
+    expect(outOfPaid.error?.message).toContain("entregar");
+
+    const delivered = await client.rpc("move_order", {
+      p_order_id: alreadyPaid.id,
+      p_from_stage_id: alreadyPaid.current_stage_id,
+      p_to_stage_id: stages.delivered,
+      p_expected_updated_at: alreadyPaid.updated_at,
+      p_idempotency_key: `m11-move-out-delivered-${randomUUID()}`,
+    });
+    expect(delivered.error).toBeNull();
   });
 });

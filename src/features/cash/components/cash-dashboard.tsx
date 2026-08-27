@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Ban, CircleCheck, CircleX, LockKeyhole, Pencil, RotateCcw, WalletCards } from "lucide-react";
 import { es } from "react-day-picker/locale";
-import { useActionState, useEffect, useRef, useState, type ClipboardEvent, type ComponentProps, type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ClipboardEvent, type ComponentProps, type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -15,6 +16,7 @@ import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
@@ -258,19 +260,24 @@ function MovementList({ movements, categories, writable, requiresVoidReason }: {
   return <Table><TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Detalle</TableHead><TableHead>Categoría</TableHead><TableHead>Registró</TableHead><TableHead>Hora</TableHead><TableHead className="text-right">Importe</TableHead>{writable ? <TableHead className="text-right">Acciones</TableHead> : null}</TableRow></TableHeader><TableBody>{movements.map((movement) => <TableRow key={movement.id}><TableCell><Badge variant={movement.direction === "income" ? "active" : "inactive"}>{movement.direction === "income" ? "Ingreso" : "Egreso"}</Badge></TableCell><TableCell>{movement.description ?? "Sin detalle"}</TableCell><TableCell>{movement.expenseCategoryName ?? "—"}</TableCell><TableCell>{movement.actorDisplayName}</TableCell><TableCell><time className="text-xs text-muted-foreground" dateTime={movement.createdAt}>{formatCashTime(movement.createdAt)}</time></TableCell><TableCell className="text-right font-mono tabular-nums">{movement.direction === "income" ? "+" : "−"}{formatArs(movement.amount)}</TableCell>{writable ? <TableCell><div className="flex justify-end gap-2"><MovementCorrectionDialog categories={categories} movement={movement} /><MovementVoidDialog movement={movement} requiresReason={requiresVoidReason} /></div></TableCell> : null}</TableRow>)}</TableBody></Table>;
 }
 
+function MovementLoading() {
+  return <section aria-busy="true" aria-labelledby="cash-movements-loading-title" className="min-h-[22rem] rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold" id="cash-movements-loading-title">Cargando movimientos</h2><p className="mt-1 text-sm text-muted-foreground">Consultando la fecha seleccionada.</p></div><Badge variant="outline">Cargando</Badge></div><div aria-label="Cargando movimientos" aria-live="polite" className="mt-5 flex flex-col gap-3" data-testid="cash-movement-loading" role="status"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div></section>;
+}
+
 type CashCalendarDayButtonProps = ComponentProps<typeof CalendarDayButton>;
 
 function CalendarDaySubmitButton({ day, modifiers, onClick, ...props }: CashCalendarDayButtonProps) {
   function submitDate(event: MouseEvent<HTMLButtonElement>) {
+    const button = event.currentTarget;
     onClick?.(event);
     event.preventDefault();
-    event.currentTarget.form?.requestSubmit(event.currentTarget);
+    button.form?.requestSubmit(button);
   }
 
   return <CalendarDayButton {...props} day={day} modifiers={modifiers} name="date" onClick={submitDate} type="submit" value={operationalDateFromDate(day.date)} />;
 }
 
-function MovementCalendar({ summary, closedDays, selectedHistory, tab }: { summary: CashSummary; closedDays: ClosedCashDay[]; selectedHistory: CashDaySummary | null; tab: CashTab }) {
+function MovementCalendar({ isPending, onDateSelect, summary, closedDays, selectedHistory, tab }: { isPending: boolean; onDateSelect: (day: Pick<ClosedCashDay, "cashDayId" | "operationalDate">) => void; summary: CashSummary; closedDays: ClosedCashDay[]; selectedHistory: CashDaySummary | null; tab: CashTab }) {
   const availableDays = [
     { cashDayId: summary.cashDayId, operationalDate: summary.operationalDate },
     ...closedDays,
@@ -286,7 +293,50 @@ function MovementCalendar({ summary, closedDays, selectedHistory, tab }: { summa
     return label.charAt(0).toUpperCase() + label.slice(1);
   };
 
-  return <section aria-labelledby="cash-movement-calendar-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><div><h2 className="text-base font-semibold" id="cash-movement-calendar-title">Consultar movimientos</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Elegí una fecha para revisar sus movimientos. Las fechas disponibles están marcadas en verde.</p></div><form className="mt-5" method="get"><input name="view" type="hidden" value="movements" /><input name="tab" type="hidden" value={tab} /><input name="page" type="hidden" value="1" /><input name="historyPage" type="hidden" value="1" /><div className="overflow-x-auto"><Calendar aria-label="Calendario de movimientos de caja" captionLayout="label" className="w-full max-w-[21rem] rounded-xl border border-border bg-card p-2 shadow-xs" components={{ DayButton: CalendarDaySubmitButton }} defaultMonth={selectedDate} disabled={(date) => !availableDateValues.has(operationalDateFromDate(date))} endMonth={currentDate} fixedWeeks formatters={{ formatCaption: monthLabel, formatWeekdayName: (date) => ["do", "lu", "ma", "mi", "ju", "vi", "sá"][date.getDay()] ?? "" }} locale={es} mode="single" modifiers={{ available: availableDates.map((day) => dateFromOperationalDate(day.operationalDate)) }} selected={selectedDate} showOutsideDays startMonth={firstDate} /></div></form><p className="mt-4 text-xs text-muted-foreground">Usá las flechas o las teclas de dirección para recorrer el calendario. Presioná Enter sobre una fecha habilitada para consultar.</p></section>;
+  return (
+    <section aria-busy={isPending || undefined} aria-labelledby="cash-movement-calendar-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6">
+      <div>
+        <h2 className="text-base font-semibold" id="cash-movement-calendar-title">Consultar movimientos</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Elegí una fecha para revisar sus movimientos. Las fechas disponibles están marcadas en verde.</p>
+      </div>
+      <form
+        className="mt-5"
+        method="get"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const submitter = (event.nativeEvent as SubmitEvent).submitter;
+          const operationalDate = submitter instanceof HTMLButtonElement ? submitter.value : "";
+          const day = availableDays.find((candidate) => candidate.operationalDate === operationalDate);
+          if (day) onDateSelect(day);
+        }}
+      >
+        <input name="view" type="hidden" value="movements" />
+        <input name="tab" type="hidden" value={tab} />
+        <input name="page" type="hidden" value="1" />
+        <input name="historyPage" type="hidden" value="1" />
+        <div className="overflow-x-auto">
+          <Calendar
+            aria-label="Calendario de movimientos de caja"
+            captionLayout="label"
+            className="w-full max-w-[21rem] rounded-xl border border-border bg-card p-2 shadow-xs"
+            components={{ DayButton: CalendarDaySubmitButton }}
+            defaultMonth={selectedDate}
+            disabled={(date) => isPending || !availableDateValues.has(operationalDateFromDate(date))}
+            endMonth={currentDate}
+            fixedWeeks
+            formatters={{ formatCaption: monthLabel, formatWeekdayName: (date) => ["do", "lu", "ma", "mi", "ju", "vi", "sá"][date.getDay()] ?? "" }}
+            locale={es}
+            mode="single"
+            modifiers={{ available: availableDates.map((day) => dateFromOperationalDate(day.operationalDate)) }}
+            selected={selectedDate}
+            showOutsideDays
+            startMonth={firstDate}
+          />
+        </div>
+      </form>
+      <p className="mt-4 text-xs text-muted-foreground">Usá las flechas o las teclas de dirección para recorrer el calendario. Presioná Enter sobre una fecha habilitada para consultar.</p>
+    </section>
+  );
 }
 
 function HistoryPanel({ history, movements, historyPage, totalPages, tab, page, view }: { history: CashDaySummary; movements: CashMovement[]; historyPage: number; totalPages: number; tab: CashTab; page: number; view?: CashView }) {
@@ -298,6 +348,10 @@ function HistoryAuditPanel({ history, movements }: { history: CashDaySummary; mo
 }
 
 export function CashDashboard({ canOperate, canClose = false, canReopen = false, requiresVoidReason = false, summary, closedDays = [], selectedHistory = null, tab = "income", view = "daily", page = 1, historyPage = 1, cashDay }: { canOperate: boolean; canClose?: boolean; canReopen?: boolean; requiresVoidReason?: boolean; summary: CashSummary; closedDays?: ClosedCashDay[]; selectedHistory?: CashDaySummary | null; tab?: CashTab; view?: CashView; page?: number; historyPage?: number; cashDay?: string }) {
+  const router = useRouter();
+  const [isMovementTransitionPending, startMovementTransition] = useTransition();
+  const [pendingCashDayId, setPendingCashDayId] = useState<string | null>(null);
+  const isMovementPending = (pendingCashDayId !== null && pendingCashDayId !== cashDay) || isMovementTransitionPending;
   const viewModel = buildCashDashboardViewModel(summary, canOperate, canClose);
   const total = summary.movements.length;
   const totalPages = Math.max(1, Math.ceil(total / CASH_PAGE_SIZE));
@@ -319,14 +373,22 @@ export function CashDashboard({ canOperate, canClose = false, canReopen = false,
   const movementsHref = buildArchiveHref("/cash", "page", 1, { view: "movements", tab, cashDay, historyPage: selectedHistory ? String(safeHistoryPage) : undefined });
   const incomeHref = buildArchiveHref("/cash", "page", 1, { tab: "income", cashDay, historyPage: selectedHistory ? String(safeHistoryPage) : undefined });
   const expenseHref = buildArchiveHref("/cash", "page", 1, { tab: "expense", cashDay, historyPage: selectedHistory ? String(safeHistoryPage) : undefined });
+  function selectCashDay(day: Pick<ClosedCashDay, "cashDayId" | "operationalDate">) {
+    if (isMovementPending) return;
+    const params = new URLSearchParams({ tab, page: "1", view: "movements", cashDay: day.cashDayId, historyPage: "1" });
+    startMovementTransition(() => {
+      setPendingCashDayId(day.cashDayId);
+      router.push(`/cash?${params.toString()}`, { scroll: false });
+    });
+  }
   return <div className="flex flex-col gap-6">
     <nav aria-label="Secciones de caja" className="flex gap-2 border-b border-border">
       <Link aria-current={view === "daily" ? "page" : undefined} className={sectionLinkClass(view === "daily")} href={dailyHref}>Caja diaria</Link>
       <Link aria-current={view === "movements" ? "page" : undefined} className={sectionLinkClass(view === "movements")} href={movementsHref}>Movimientos</Link>
     </nav>
     {view === "movements" ? <>
-      <MovementCalendar closedDays={closedDays} selectedHistory={selectedHistory} summary={summary} tab={tab} />
-      {selectedHistory ? <><HistoryPanel history={selectedHistory} historyPage={safeHistoryPage} movements={historyMovements} page={safePage} tab={tab} totalPages={historyTotalPages} view={view} /><HistoryAuditPanel history={selectedHistory} movements={historyMovements} /></> : <section aria-labelledby="cash-movements-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold" id="cash-movements-title">Movimientos del día</h2><p className="mt-1 text-sm text-muted-foreground">Solo se muestran registros del día operativo actual.</p></div><Badge variant="outline">{total} {total === 1 ? "movimiento" : "movimientos"}</Badge></div><div className="mt-5"><MovementList categories={viewModel.expenseCategories} movements={movements} requiresVoidReason={requiresVoidReason} writable={viewModel.canOperate} /></div><ArchivePagination ariaLabel="Paginación de movimientos de caja" basePath="/cash" extraParams={{ tab, view }} page={safePage} pageSize={CASH_PAGE_SIZE} total={total} totalPages={totalPages} /></section>}
+       <MovementCalendar closedDays={closedDays} isPending={isMovementPending} onDateSelect={selectCashDay} selectedHistory={selectedHistory} summary={summary} tab={tab} />
+       {isMovementPending ? <MovementLoading /> : selectedHistory ? <><HistoryPanel history={selectedHistory} historyPage={safeHistoryPage} movements={historyMovements} page={safePage} tab={tab} totalPages={historyTotalPages} view={view} /><HistoryAuditPanel history={selectedHistory} movements={historyMovements} /></> : <section aria-labelledby="cash-movements-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold" id="cash-movements-title">Movimientos del día</h2><p className="mt-1 text-sm text-muted-foreground">Solo se muestran registros del día operativo actual.</p></div><Badge variant="outline">{total} {total === 1 ? "movimiento" : "movimientos"}</Badge></div><div className="mt-5"><MovementList categories={viewModel.expenseCategories} movements={movements} requiresVoidReason={requiresVoidReason} writable={viewModel.canOperate} /></div><ArchivePagination ariaLabel="Paginación de movimientos de caja" basePath="/cash" extraParams={{ tab, view }} page={safePage} pageSize={CASH_PAGE_SIZE} total={total} totalPages={totalPages} /></section>}
     </> : <>
       <section aria-labelledby="cash-balance-title" className="overflow-hidden rounded-xl border border-border bg-card shadow-xs"><div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-6"><div><p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Caja del día</p><h2 className="mt-1 text-3xl font-semibold tracking-display tabular-nums sm:text-4xl" id="cash-balance-title">{formatArs(viewModel.balance)}</h2><p className="mt-2 text-sm text-muted-foreground">{viewModel.isClosed ? "Caja cerrada: no admite nuevas modificaciones." : "Saldo derivado de apertura, ingresos y egresos de hoy."}</p></div><div className="flex items-center gap-3"><Badge variant={viewModel.isClosed ? "inactive" : "active"}>{viewModel.isClosed ? <LockKeyhole aria-hidden="true" data-icon="inline-start" /> : <WalletCards aria-hidden="true" data-icon="inline-start" />}{viewModel.isClosed ? "Caja cerrada" : "Abierta"}</Badge>{viewModel.canClose ? <CloseCashDayDialog cashDayId={summary.cashDayId} /> : null}{viewModel.isClosed && canReopen ? <ReopenCashDayDialog cashDayId={summary.cashDayId} /> : null}</div></div><div className="grid gap-4 p-5 sm:grid-cols-2 sm:px-6"><div className="rounded-lg border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Saldo inicial</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums">{formatArs(viewModel.opening)}</p></div><div className="rounded-lg border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Día operativo</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums">{summary.operationalDate}</p></div></div></section>
       {viewModel.canOperate ? <><section aria-labelledby="cash-opening-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><h2 className="text-base font-semibold" id="cash-opening-title">Apertura de caja</h2><p className="mt-1 text-sm text-muted-foreground">Podés ajustar el saldo inicial; cada cambio queda auditado.</p><div className="mt-5"><OpeningForm summary={summary} /></div></section><section aria-labelledby="cash-movement-form-title" className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"><nav aria-label="Pestañas de caja" className="flex gap-2 border-b border-border"><Link aria-current={tab === "income" ? "page" : undefined} className={sectionLinkClass(tab === "income")} href={incomeHref}>Ingresos</Link><Link aria-current={tab === "expense" ? "page" : undefined} className={sectionLinkClass(tab === "expense")} href={expenseHref}>Egresos</Link></nav><div className="mt-5"><h2 className="text-base font-semibold" id="cash-movement-form-title">{tab === "income" ? "Registrar ingreso" : "Registrar egreso"}</h2><p className="mt-1 text-sm text-muted-foreground">{tab === "income" ? "Ingresá un concepto claro. Los ingresos no llevan categoría." : "Elegí una categoría activa de las disponibles."}</p><div className="mt-5"><MovementForm key={tab} categories={tab === "income" ? [] : viewModel.expenseCategories} direction={tab} /></div></div></section></> : null}

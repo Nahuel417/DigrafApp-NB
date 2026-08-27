@@ -16,6 +16,8 @@ vi.mock("../actions", () => ({
   reopenCashDayAction: vi.fn(),
 }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
+const routerPush = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPush }) }));
 
 const summary = { cashDayId: "33333333-3333-4333-8333-333333333333", categories: [{ id: "11111111-1111-4111-8111-111111111111", code: "materials", name: "Materiales/insumos" }], currentBalance: "0.00", openingBalance: "0.00", openingUpdatedAt: "2026-08-06T03:00:00.000Z", movements: [], operationalDate: "2026-08-06", closedAt: null, closedBy: null, closedByDisplayName: null, closureKind: null, closingBalance: null };
 
@@ -29,6 +31,7 @@ beforeEach(() => {
   vi.mocked(correctCashMovementAction).mockReset();
   vi.mocked(voidCashMovementAction).mockReset();
   vi.mocked(reopenCashDayAction).mockReset();
+  routerPush.mockReset();
 });
 
 afterEach(() => cleanup());
@@ -240,6 +243,29 @@ describe("cash dashboard M10 controls", () => {
     expect(screen.getByRole("heading", { name: "Consultar movimientos" })).toBeTruthy();
     expect(container.querySelector<HTMLButtonElement>('button[data-day="2026-08-06"]')?.getAttribute("data-available")).toBe("true");
     expect(container.querySelector<HTMLButtonElement>('button[data-day="2026-08-05"]')?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("shows a loading skeleton without stale movements while consulting another date", async () => {
+    const oldHistory = { ...summary, cashDayId: "old-day", operationalDate: "2026-08-01", closedAt: "2026-08-02T03:00:00.000Z", closureKind: "manual", closingBalance: "1.00", movements: [{ id: "old-movement", direction: "income" as const, amount: "1.00", description: "Historial anterior", expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-01T03:00:00.000Z" }], events: [], lifecycleEvents: [] as never[] };
+    const nextHistory = { ...oldHistory, cashDayId: "next-day", operationalDate: "2026-08-03", movements: [{ ...oldHistory.movements[0], id: "next-movement", description: "Historial nuevo", createdAt: "2026-08-03T03:00:00.000Z" }] };
+    const closedDays = [
+      { cashDayId: "old-day", operationalDate: "2026-08-01", closedAt: oldHistory.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" },
+      { cashDayId: "next-day", operationalDate: "2026-08-03", closedAt: oldHistory.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" },
+    ];
+    const { container, rerender } = render(createElement(CashDashboard, { canOperate: true, cashDay: "old-day", closedDays, selectedHistory: oldHistory, summary, view: "movements" }));
+
+    fireEvent.click(container.querySelector<HTMLButtonElement>('button[data-day="2026-08-03"]')!);
+
+    expect(screen.getByTestId("cash-movement-loading")).toBeTruthy();
+    expect(screen.queryByText("Historial anterior")).toBeNull();
+    expect(routerPush).toHaveBeenCalledWith("/cash?tab=income&page=1&view=movements&cashDay=next-day&historyPage=1", { scroll: false });
+
+    rerender(createElement(CashDashboard, { canOperate: true, cashDay: "next-day", closedDays, selectedHistory: nextHistory, summary, view: "movements" }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("cash-movement-loading")).toBeNull();
+      expect(screen.getByText("Historial nuevo")).toBeTruthy();
+    });
   });
 
   it("rejects an empty reopen reason with a localized message and accepts a valid one", () => {
