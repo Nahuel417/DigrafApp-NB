@@ -104,7 +104,7 @@ Las mediciones usan conversión OKLCH a sRGB lineal con clipping de gamut y la f
 
 | Token                    | Valor original                  | Valor aplicado                            | Par medido                       |         Original |         Aplicado | Justificación                                                                          |
 | ------------------------ | ------------------------------- | ----------------------------------------- | -------------------------------- | ---------------: | ---------------: | -------------------------------------------------------------------------------------- |
-| `background` / `sidebar` | `oklch(0.9841 0.0017 145.5622)` | `oklch(0.9771 0.0034 145.55)` (`#F6F8F6`) | Texto principal / borde de input | 16.38:1 / 3.07:1 | 16.06:1 / 3.01:1 | Reduce deslumbramiento sin volver gris el canvas; cards y popovers permanecen blancos  |
+| `background` / `sidebar` | `oklch(0.9841 0.0017 145.5622)` | `oklch(0.975 0.006 95)` (`#F8F7F2`) | Texto principal / borde de input | 16.38:1 / 3.07:1 | 15.96:1 / 2.99:1 | Reduce deslumbramiento con un matiz cálido; cards y popovers permanecen blancos  |
 | `primary`                | `oklch(0.5745 0.1033 130.8937)` | `oklch(0.54 0.1033 130.8937)`             | Blanco                           |           4.23:1 |           4.89:1 | Permite texto normal blanco con margen AA sin cambiar tono ni croma                    |
 | `border`                 | `oklch(0.9168 0.0034 145.5475)` | Sin cambio                                | Card blanco                      |           1.28:1 |           1.28:1 | Es separador estructural secundario, no única señal de un control o estado             |
 | `input`                  | `oklch(0.9168 0.0034 145.5475)` | `oklch(0.65 0.015 145.5)`                 | Blanco                           |           1.28:1 |           3.21:1 | Hace identificable el límite del control sin depender del fondo                        |
@@ -222,7 +222,7 @@ Las sombras dark originales quedan diferidas. Antes de una fase dark se debe red
 - Los destinos visibles reflejan permisos, pero no sustituyen autorización.
 - El shell autenticado usa un sidebar compacto con únicamente los destinos reales y autorizados para la sesión; en mobile conserva acceso equivalente sin ocultar información operativa.
 - Cuando la cantidad de destinos autorizados no entra en una fila mobile, la navegación puede reacomodarse en una cuadrícula compacta de dos columnas. Debe conservar todos los destinos, targets de al menos 44 px y el estado activo sin crear un drawer nuevo.
-- Canvas, sidebar y cabecera mobile comparten `background`/`sidebar` en `#F6F8F6`; la continuidad no se rompe con una sidebar blanca. Cards y popovers continúan en blanco.
+- Canvas, sidebar y cabecera mobile comparten `background`/`sidebar` en `#F8F7F2`; la continuidad no se rompe con una sidebar blanca. Cards y popovers continúan en blanco.
 
 ## Formularios
 

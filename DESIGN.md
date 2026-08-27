@@ -2,7 +2,7 @@
 name: Digraf
 description: Sistema visual operativo para la gestion interna de una grafica textil.
 colors:
-  background: "#F6F8F6"
+  background: "oklch(0.975 0.006 95)"
   card: "#FFFFFF"
   popover: "#FFFFFF"
   primary: "oklch(0.54 0.1033 130.8937)"
