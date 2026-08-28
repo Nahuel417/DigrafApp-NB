@@ -270,7 +270,7 @@ function RetireStageAction({ ordinaryStageCount, stage }: { ordinaryStageCount: 
           className="size-11 rounded-lg md:size-10"
           ref={triggerRef}
           type="button"
-          variant="outline"
+          variant="destructive-outline"
         >
           <Archive aria-hidden="true" />
           <span className="sr-only">Retirar</span>

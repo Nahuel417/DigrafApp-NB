@@ -261,7 +261,7 @@ export function OrderDesignImagePanel({
                       <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
                         <RefreshCw data-icon="inline-start" />{image.isPrimary ? "Reemplazar diseño" : `Reemplazar diseño ${index + 1}`}
                       </Button>
-                      <Button aria-label="Eliminar diseño" className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="ghost">
+                      <Button aria-label="Eliminar diseño" className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="destructive-outline">
                         <Trash2 data-icon="inline-start" />Eliminar diseño
                       </Button>
                     </div>
