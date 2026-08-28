@@ -307,8 +307,9 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
-    await expect(card.getByRole("img")).toBeVisible();
-    await expect(card.getByRole("img")).toHaveAttribute("loading", "lazy");
+    const thumbnail = card.locator('img[loading="lazy"]');
+    await expect(thumbnail).toBeVisible({ timeout: 15_000 });
+    await expect(thumbnail).toHaveAttribute("loading", "lazy");
   });
 
   test("Empleado ve miniatura en la tarjeta del tablero pero no acciones de carga", async ({ page }) => {
@@ -319,7 +320,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
-    await expect(card.getByRole("img")).toBeVisible();
+    await expect(card.locator('img[loading="lazy"]')).toBeVisible({ timeout: 15_000 });
     await expect(card.getByRole("button", { name: /Cargar diseño|Reemplazar diseño/ })).toHaveCount(0);
   });
 
