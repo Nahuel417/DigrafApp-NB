@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, Source_Code_Pro } from "next/font/google";
+import { JetBrains_Mono, Outfit } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({
+const outfit = Outfit({
   display: "swap",
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-outfit",
 });
 
-const sourceCodePro = Source_Code_Pro({
+const jetbrainsMono = JetBrains_Mono({
   display: "swap",
   subsets: ["latin"],
-  variable: "--font-source-code-pro",
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html className={`${inter.variable} ${sourceCodePro.variable}`} lang="es">
+    <html className={`${outfit.variable} ${jetbrainsMono.variable}`} lang="es">
       <body>
         {children}
         <Toaster />

@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
 
 const password = `Manager${randomUUID().replaceAll("-", "")}7`;
+
+async function openManagement(row: Locator) {
+  const manageButton = row.getByRole("button", { name: "Gestionar" });
+  if (await manageButton.isVisible()) await manageButton.click();
+}
 
 function adminClient() {
   const url = process.env.SUPABASE_URL;
@@ -53,8 +58,15 @@ test("Super admin crea un usuario desde la gestión interna", async ({ page }) =
     await expect(page.getByText("Usuario creado. Comunicá la contraseña temporal por un canal seguro.").first()).toBeVisible();
     await expect(page.getByText(newUserName).first()).toBeVisible();
     await expect(createForm.getByRole("combobox", { name: "Rol" })).toHaveText("Empleado");
+    const searchInput = page.getByRole("textbox", { name: "Buscar usuario" });
+    await searchInput.fill(newUserName);
+    await expect(page.getByText("1 perfil visible")).toBeVisible();
+    await searchInput.fill("");
 
     const row = page.getByText(newUserName).locator("xpath=ancestor::tr");
+    await expect(row.getByRole("button", { name: `Desactivar a ${newUserName}` })).toHaveCount(0);
+    await openManagement(row);
+    await expect(row.getByRole("button", { name: `Desactivar a ${newUserName}` })).toBeVisible();
     await row.getByRole("combobox", { name: `Rol de ${newUserName}` }).click();
     await page.getByRole("option", { name: "Atención" }).click();
     await row.getByRole("button", { name: `Guardar rol de ${newUserName}` }).click();
@@ -62,6 +74,7 @@ test("Super admin crea un usuario desde la gestión interna", async ({ page }) =
     await page.getByRole("button", { name: "Confirmar cambio" }).click();
     await expect(page.getByText("Rol actualizado correctamente.").first()).toBeVisible();
 
+    await openManagement(row);
     await row.getByLabel(`Nueva contraseña temporal para ${newUserName}`).fill(`Reset${randomUUID().replaceAll("-", "")}8`);
     await row.getByRole("button", { name: `Restablecer contraseña de ${newUserName}` }).click();
     await expect(page.getByRole("alertdialog", { name: "Confirmar restablecimiento" })).toBeVisible();
@@ -111,6 +124,7 @@ test("Admin visualiza otros Admin y activa o desactiva personal operativo", asyn
 
     for (const name of [attentionName, employeeName]) {
       const row = page.getByText(name).locator("xpath=ancestor::tr");
+      await openManagement(row);
       const deactivate = row.getByRole("button", { name: `Desactivar a ${name}` });
       await deactivate.click();
       await expect(page.getByRole("alertdialog", { name: "Desactivar usuario" })).toBeVisible();
@@ -122,6 +136,7 @@ test("Admin visualiza otros Admin y activa o desactiva personal operativo", asyn
       }
 
       await page.getByRole("button", { name: "Confirmar desactivación" }).click();
+      await openManagement(row);
       const activate = row.getByRole("button", { name: `Activar a ${name}` });
       await expect(activate).toBeVisible();
       await expect(activate).toBeFocused();

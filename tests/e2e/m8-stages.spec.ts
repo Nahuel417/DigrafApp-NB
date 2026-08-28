@@ -64,14 +64,14 @@ test.describe("Administración de etapas M8", () => {
 
   test("Atención no recibe navegación ni acceso a la administración de etapas", async ({ page }) => {
     await login(page, attentionEmail);
-    await expect(page.getByRole("link", { name: "Etapas" })).toHaveCount(0);
+    await expect(page.locator('nav[aria-label^="Navegación principal"] a[href="/stages"]')).toHaveCount(0);
     await page.goto("/stages");
     await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("Super admin crea, renombra, reordena y retira una etapa", async ({ page }) => {
     await login(page, managerEmail);
-    await page.getByRole("link", { name: "Etapas" }).first().click();
+    await page.getByRole("link", { name: "Etapas", exact: true }).first().click();
     await expect(page).toHaveURL(/\/stages$/);
     await expect(page.getByRole("heading", { name: "Etapas", exact: true })).toBeVisible();
     await expect(page.getByText("Pagado").first()).toBeVisible();

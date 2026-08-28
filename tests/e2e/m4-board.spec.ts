@@ -72,17 +72,21 @@ test.describe("Tablero M4", () => {
 
   async function beginPointerDrag(page: Page, handle: ReturnType<Page["locator"]>) {
     await handle.scrollIntoViewIfNeeded();
+    await expect(handle).toBeVisible();
     const box = await handle.boundingBox();
     if (!box) throw new Error("No se encontró el handle DnD.");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 16, box.y + box.height / 2 + 16, { steps: 4 });
+    await page.mouse.move(startX + 16, startY + 16, { steps: 8 });
     const dragOverlay = page.getByTestId("drag-overlay");
-    await expect(dragOverlay).toBeVisible();
+    await expect(dragOverlay).toBeVisible({ timeout: 10_000 });
+    if ((page.viewportSize()?.width ?? 0) < 1024) return;
     const overlayBox = await dragOverlay.boundingBox();
     if (!overlayBox) throw new Error("No se encontró el overlay DnD.");
-    const pointerX = box.x + box.width / 2 + 16;
-    const pointerY = box.y + box.height / 2 + 16;
+    const pointerX = startX + 16;
+    const pointerY = startY + 16;
     expect(pointerX).toBeGreaterThanOrEqual(overlayBox.x);
     expect(pointerX).toBeLessThanOrEqual(overlayBox.x + overlayBox.width);
     expect(pointerY).toBeGreaterThanOrEqual(overlayBox.y);

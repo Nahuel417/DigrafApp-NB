@@ -58,16 +58,29 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
           <Link
             aria-current={active ? "page" : undefined}
             className={cn(
-              "app-navigation-link flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+              "app-navigation-link group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
               compact && "min-h-11 justify-center text-center",
               active
-                ? "border-l-2 border-sidebar-primary-foreground/70 bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
             )}
             href={item.href}
             key={item.href}
           >
-            <Icon aria-hidden="true" className="size-[1.125rem]" />
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary transition-all duration-200",
+                active ? "opacity-100" : "scale-y-0 opacity-0",
+              )}
+            />
+            <Icon
+              aria-hidden="true"
+              className={cn(
+                "size-[1.125rem] shrink-0 transition-transform duration-200 group-hover:scale-110",
+                active && "text-primary",
+              )}
+            />
             <span className="sidebar-label">{item.label}</span>
           </Link>
         );
