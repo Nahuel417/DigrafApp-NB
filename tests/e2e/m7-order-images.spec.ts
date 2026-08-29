@@ -332,7 +332,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
      await card.getByRole("button", { name: /Vista rápida/ }).click();
-     const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+     const quickView = page.getByRole("dialog", { name: /Vista rápida de PED-/ });
      await expect(quickView).toBeVisible({ timeout: 10_000 });
      const thumbnail = quickView.getByRole("button", { name: /Abrir diseño/ });
      await thumbnail.scrollIntoViewIfNeeded();
@@ -430,7 +430,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await expect(card.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
     await card.getByRole("button", { name: /Vista rápida/ }).click();
-    const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+    const quickView = page.getByRole("dialog", { name: /Vista rápida de PED-/ });
     await expect(quickView.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
   });
 });

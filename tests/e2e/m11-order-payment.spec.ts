@@ -91,6 +91,7 @@ test.describe("Pago M11 desde Kanban", () => {
 
   async function openPaymentDialog(page: Page, order: Order) {
     const card = page.getByText(order.customerName, { exact: true }).locator("xpath=ancestor::article");
+    await card.locator("details").locator("summary").click();
     await card.getByLabel(`Mover ${publicId(order)} a`).click();
     await page.getByRole("option", { name: "Pagado", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
@@ -184,6 +185,7 @@ test.describe("Pago M11 desde Kanban", () => {
     await expect(paidColumn.getByText(authorizedOrder.customerName, { exact: true })).toBeVisible();
 
     const card = page.getByText(employeeOrder.customerName, { exact: true }).locator("xpath=ancestor::article");
+    await card.locator("details").locator("summary").click();
     const selector = card.getByLabel(`Mover ${publicId(employeeOrder)} a`);
     await selector.click();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);

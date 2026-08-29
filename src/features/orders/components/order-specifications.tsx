@@ -1,3 +1,5 @@
+import { ClipboardList, Flag, Hash, Layers, Package, Palette, Ruler, Scissors, Shield, Shirt, ShoppingBag, SlidersHorizontal, Sparkles, Tags, type LucideIcon } from "lucide-react";
+
 import type { OrderDetailCatalogs, OrderDetailLine, OrderSelection } from "../detail-queries";
 import type { OrderCatalogOption, LegacyCatalogOption } from "../queries";
 
@@ -154,6 +156,38 @@ function partSection(title: string, value: unknown, catalogs: OrderDetailCatalog
   return { items, title };
 }
 
+function specificationItemIcon(label: string, value: string, lineType: OrderDetailLine["lineType"]): LucideIcon {
+  const normalizedLabel = label.toLowerCase();
+  const normalizedValue = value.toLowerCase();
+  if (normalizedLabel === "cantidad") return Hash;
+  if (normalizedLabel === "tipo de renglón") {
+    if (normalizedValue === "bandera") return Flag;
+    if (normalizedValue === "bolso") return ShoppingBag;
+    if (normalizedValue === "escudo") return Shield;
+    return Tags;
+  }
+  if (normalizedLabel === "producto") {
+    if (lineType === "flag") return Flag;
+    if (lineType === "bag") return ShoppingBag;
+    if (lineType === "shield") return Shield;
+    return Shirt;
+  }
+  if (normalizedLabel === "color") return Palette;
+  if (normalizedLabel === "escudos") return Shield;
+  if (normalizedLabel === "cuello") return Tags;
+  if (normalizedLabel === "molde superior") return Ruler;
+  if (normalizedLabel === "molde inferior") return Scissors;
+  if (normalizedLabel === "tela") return Layers;
+  if (normalizedLabel === "extra") return Sparkles;
+  return SlidersHorizontal;
+}
+
+function specificationSectionIcon(title: string): LucideIcon {
+  if (title === "Datos del renglón") return ClipboardList;
+  if (title.includes("Opciones")) return SlidersHorizontal;
+  return Package;
+}
+
 export function buildOrderSpecificationSections(line: OrderDetailLine, catalogs: OrderDetailCatalogs, selections: OrderSelection[] = []): SpecificationSection[] {
   const snapshot = isRecord(line.configurationSnapshot) ? line.configurationSnapshot : {};
   const configuration = isRecord(snapshot.configuration) ? { ...snapshot, ...snapshot.configuration } : snapshot;
@@ -190,19 +224,31 @@ export function OrderSpecifications({ catalogs, line, selections = [] }: { catal
   const sections = buildOrderSpecificationSections(line, catalogs, selections);
   return (
     <div className="mt-3 flex min-w-0 flex-col gap-3" data-order-specifications>
-      {sections.map((section) => (
-        <section className="min-w-0 rounded-lg border border-border bg-background/70 p-3" key={section.title}>
-          <h4 className="text-xs font-semibold tracking-label text-muted-foreground">{section.title}</h4>
-          <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            {section.items.map((item, index) => (
-              <div className="min-w-0 rounded-md border border-border bg-card p-3" key={`${section.title}-${item.label}-${index}`}>
-                <dt className="text-xs text-muted-foreground">{item.label}</dt>
-                <dd className="mt-1 break-words text-sm font-medium">{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
+      {sections.map((section) => {
+        const SectionIcon = specificationSectionIcon(section.title);
+        return (
+          <section className="min-w-0 rounded-xl border border-border bg-background/70 p-3.5 shadow-xs" key={section.title}>
+            <h4 className="flex items-center gap-2 text-xs font-semibold tracking-label text-muted-foreground">
+              <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><SectionIcon aria-hidden="true" className="size-3.5" /></span>
+              {section.title}
+            </h4>
+            <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+              {section.items.map((item, index) => {
+                const ItemIcon = specificationItemIcon(item.label, item.value, line.lineType);
+                return (
+                  <div className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-xs" key={`${section.title}-${item.label}-${index}`}>
+                    <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-muted text-primary"><ItemIcon aria-hidden="true" className="size-3.5" /></span>
+                      <span className="min-w-0 truncate">{item.label}</span>
+                    </dt>
+                    <dd className="mt-2 break-words pl-8 text-sm font-medium">{item.value}</dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -102,7 +102,7 @@ test.describe("Reversión de pago M12", () => {
     const trigger = card.getByRole("button", { name: `Vista rápida de ${publicId(target)}` });
     await trigger.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
     await trigger.click();
-    const panel = page.getByRole("complementary", { name: publicId(target) });
+    const panel = page.getByRole("dialog", { name: `Vista rápida de ${publicId(target)}` });
     await expect(panel).toBeVisible();
     return panel;
   }

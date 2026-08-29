@@ -45,7 +45,7 @@ function productOptions(product: OrderCatalogProduct | undefined, selections: Ca
     onChange(next);
   }
 
-  return <div className="mt-3 grid gap-3 md:grid-cols-2">
+  return <div className="mt-3 grid min-w-0 gap-3 @lg/line-editor:grid-cols-2">
       {product.options.map((option) => option.selectionMode === "single" ? (
         <Field key={option.id}>
           <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={`option-${option.id}`}>{option.name} <span className="font-normal text-muted-foreground">(opcional)</span></FieldLabel>
@@ -97,7 +97,7 @@ function LegacyOptions({ catalogs, id, needsLower, needsUpper, options, onChange
   const update = (patch: Partial<LegacyLineOptions>) => onChange({ ...options, ...patch });
   return <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-3.5 sm:p-4">
     <p className="mb-4 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-label text-muted-foreground"><Scissors aria-hidden="true" className="size-3 text-primary" />Opciones existentes</p>
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid min-w-0 gap-4 @lg/line-editor:grid-cols-2">
       {needsUpper ? <LegacySelect id={`${id}-neckline`} label="Cuello" onChange={(value) => update({ neckline_id: value })} options={catalogs.necklines} value={options.neckline_id ?? ""} /> : null}
       {needsUpper ? <LegacySelect id={`${id}-upper-pattern`} label="Molde superior" onChange={(value) => update({ upper_pattern_id: value })} options={catalogs.upperPatterns} value={options.upper_pattern_id ?? ""} /> : null}
       {needsLower ? <LegacySelect id={`${id}-lower-pattern`} label="Molde de short/pollera" onChange={(value) => update({ lower_pattern_id: value })} options={catalogs.lowerPatterns} value={options.lower_pattern_id ?? ""} /> : null}
@@ -131,7 +131,7 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
       : [];
   const hasLegacyOptions = legacyOptionLists.some((options) => options.length > 0);
 
-  return <article className="group/r overflow-hidden rounded-2xl border border-border bg-card shadow-none transition-colors duration-200 hover:border-primary/30">
+  return <article className="group/r min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-none transition-colors duration-200 hover:border-primary/30">
     <div className="grid-paper flex min-h-12 flex-wrap items-center gap-3 border-b border-border px-3 py-2.5 sm:px-4">
       <span className="grid size-7 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 font-mono text-[11px] font-semibold text-primary">{index + 1}</span>
       <div className="min-w-0 flex-1"><p className="text-[10px] font-medium uppercase tracking-label text-muted-foreground">Renglón</p><h3 className="truncate text-sm font-semibold tracking-tight">{lineTypeLabels[item.line_type]}</h3></div>
@@ -142,7 +142,7 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
       </div>
     </div>
     <div className="flex flex-col gap-4 p-3.5 sm:p-4">
-      <div className="grid items-end gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
+      <div className="grid min-w-0 items-end gap-4 @lg/line-editor:grid-cols-[minmax(0,1fr)_13rem]">
       <Field>
         <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={`line-type-${item.key}`}>Tipo de renglón</FieldLabel>
         <Select onValueChange={(value) => onChange({ ...line(), key: item.key, line_type: value as OrderLineType, quantity: item.quantity, color: item.color })} value={item.line_type}>
@@ -164,7 +164,7 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
       </Field>
     {item.line_type !== "set" ? <div className="min-w-0"><ProductSelect id={`line-product-${item.key}`} label="Producto de catálogo" onChange={(productId) => update({ product_id: productId, options: [], configuration: { ...item.configuration, legacy_options: {} } })} products={products} value={item.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={product} selections={item.options} onChange={(options) => update({ options })} />{hasNoConfiguredOptions(product, hasLegacyOptions) ? <p className="mt-2 text-sm text-muted-foreground">Este producto no tiene opciones configuradas.</p> : null}</div> : null}
     {item.line_type === "set" ? <>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid min-w-0 gap-4 @lg/line-editor:grid-cols-2">
       <div><ProductSelect id={`line-upper-${item.key}`} label="Parte superior" onChange={(productId) => update({ configuration: { ...item.configuration, upper: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "upper")} value={item.configuration?.upper?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={upperProduct} selections={item.configuration?.upper?.options} onChange={(options) => update({ configuration: { ...item.configuration, upper: { product_id: item.configuration?.upper?.product_id ?? "", options } } })} /></div>
       <div><ProductSelect id={`line-lower-${item.key}`} label="Parte inferior" onChange={(productId) => update({ configuration: { ...item.configuration, lower: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "lower")} value={item.configuration?.lower?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={lowerProduct} selections={item.configuration?.lower?.options} onChange={(options) => update({ configuration: { ...item.configuration, lower: { product_id: item.configuration?.lower?.product_id ?? "", options } } })} /></div>
       </div>
@@ -191,7 +191,7 @@ export function OrderLineEditor({ catalogs, initialLines = [], name = "lines", o
   function replace(index: number, value: EditableLine) { setLines((current) => current.map((item, itemIndex) => itemIndex === index ? value : item)); }
   function move(index: number, direction: -1 | 1) { setLines((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target]!, next[index]!]; return next; }); }
 
-  return <FieldSet className="gap-0 rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5">
+  return <FieldSet className="@container/line-editor min-w-0 gap-0 rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Layers aria-hidden="true" className="size-4" /></span>

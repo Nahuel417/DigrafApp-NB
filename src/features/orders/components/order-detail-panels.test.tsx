@@ -37,4 +37,21 @@ describe("order payment timeline", () => {
     expect(screen.getByText("Admin")).toBeTruthy();
     expect(screen.queryByText(/100/)).toBeNull();
   });
+
+  it("shows the four latest events and collapses older events", () => {
+    render(<Timeline events={Array.from({ length: 5 }, (_, index) => ({
+      id: `event-${index}`,
+      type: "stage_moved",
+      actor: "Admin",
+      occurredAt: `2026-08-${String(20 - index).padStart(2, "0")}T19:02:00.000Z`,
+      body: null,
+      changeNote: null,
+      fromStageName: "Diseño",
+      toStageName: `Etapa ${index + 1}`,
+      details: {},
+    }))} />);
+
+    expect(Array.from(document.querySelectorAll("ol")).some((list) => list.querySelectorAll("li").length === 4)).toBe(true);
+    expect(screen.getByText("Ver 1 movimientos anteriores").closest("details")?.hasAttribute("open")).toBe(false);
+  });
 });

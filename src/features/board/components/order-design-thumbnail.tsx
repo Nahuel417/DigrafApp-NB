@@ -107,7 +107,7 @@ export function OrderDesignThumbnail({
 
     if (visibleState === 'empty') {
         return (
-            <div aria-label="No hay diseño principal" className={`flex flex-col items-center justify-center gap-2 overflow-hidden rounded-md border border-dashed border-border bg-muted/50 p-3 text-center text-xs text-muted-foreground ${className ?? 'aspect-[4/3]'}`} role="img">
+        <div aria-label="No hay diseño principal" className={`flex flex-col items-center justify-center gap-2 overflow-hidden rounded-md border border-dashed border-border bg-surface-muted p-3 text-center text-xs text-muted-foreground ${className ?? 'aspect-[4/3]'}`} role="img">
                 <FileImage aria-hidden="true" />
                 <span>Sin diseño principal</span>
             </div>

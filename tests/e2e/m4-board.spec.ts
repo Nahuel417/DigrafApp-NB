@@ -114,6 +114,14 @@ test.describe("Tablero M4", () => {
     await page.mouse.up();
   }
 
+  async function openMoveSelector(card: ReturnType<Page["locator"]>, publicOrderId: string) {
+    const disclosure = card.locator("details");
+    if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
+    const selector = card.getByLabel(`Mover ${publicOrderId} a`);
+    await expect(selector).toBeVisible();
+    return selector;
+  }
+
   test.beforeAll(async () => {
     const { data: auth, error: authError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (authError || !auth.user) throw authError ?? new Error("No se creó el Super admin E2E M4.");
@@ -162,10 +170,10 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(8);
-    await expect(page.getByLabel("Tablero de pedidos").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
 
     const successCard = page.getByText(names.success).locator("xpath=ancestor::article");
-    await successCard.getByLabel(`Mover ${publicId(successOrder)} a`).click();
+    await (await openMoveSelector(successCard, publicId(successOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await successCard.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -179,7 +187,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const conflictCard = page.getByText(names.conflict).locator("xpath=ancestor::article");
-    await conflictCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toBeVisible();
     await page.getByRole("option", { name: "Pagado", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
@@ -194,7 +202,7 @@ test.describe("Tablero M4", () => {
       .eq("id", conflictOrder.id);
     if (updateError) throw updateError;
 
-    await conflictCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "El pedido cambió en otra sesión" })).toBeVisible();
@@ -202,7 +210,7 @@ test.describe("Tablero M4", () => {
     const cutColumn = page.getByRole("heading", { name: "Corte", exact: true }).locator("xpath=ancestor::section");
     await expect(cutColumn.getByText(names.conflict)).toBeVisible();
     const reconciledCard = cutColumn.getByText(names.conflict).locator("xpath=ancestor::article");
-    await reconciledCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(reconciledCard, publicId(conflictOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await reconciledCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("heading", { name: "Diseño", exact: true }).locator("xpath=ancestor::section").getByText(names.conflict)).toBeVisible();
@@ -252,7 +260,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const selectorCard = page.getByText(names.paidSelector).locator("xpath=ancestor::article");
-    await selectorCard.getByLabel(`Mover ${publicId(paidSelectorOrder)} a`).click();
+    await (await openMoveSelector(selectorCard, publicId(paidSelectorOrder))).click();
     await expect(page.getByRole("option", { name: "Entregado", exact: true })).toBeVisible();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);
     await page.getByRole("option", { name: "Entregado", exact: true }).click();
@@ -328,7 +336,7 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.network).locator("xpath=ancestor::article");
-    await card.getByLabel(`Mover ${publicId(networkOrder)} a`).click();
+    await (await openMoveSelector(card, publicId(networkOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -364,7 +372,7 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.unconfirmed).locator("xpath=ancestor::article");
-    await card.getByLabel(`Mover ${publicId(unconfirmedOrder)} a`).click();
+    await (await openMoveSelector(card, publicId(unconfirmedOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -397,6 +405,8 @@ test.describe("Tablero M4", () => {
       await page.setViewportSize(viewport);
       await page.goto("/orders");
       await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+      await expect(page.locator("details summary").first()).toBeVisible();
+      await page.locator("details summary").first().click();
       await expect(page.getByLabel(/Mover PED-\d{6} a/).first()).toBeVisible();
       expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
     }
