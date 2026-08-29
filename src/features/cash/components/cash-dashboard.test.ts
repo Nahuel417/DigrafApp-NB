@@ -62,6 +62,15 @@ describe("cash dashboard view model", () => {
     expect(buildCashDashboardViewModel({ ...summary, movements: [{ id: "1", direction: "income", amount: "1.00", description: null, expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-06T03:00:00.000Z" }] }, true).movementState).toBe("populated");
   });
 
+  it("derives income and expense totals in integer cents", () => {
+    const movements = [
+      { id: "1", direction: "income" as const, amount: "120000.00", description: null, expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-06T03:00:00.000Z" },
+      { id: "2", direction: "expense" as const, amount: "323232.00", description: null, expenseCategoryId: null, expenseCategoryCode: null, expenseCategoryName: null, actorId: "2", actorDisplayName: "Operador", createdAt: "2026-08-06T04:00:00.000Z" },
+    ];
+
+    expect(buildCashDashboardViewModel({ ...summary, movements }, true)).toMatchObject({ income: "120000.00", expense: "323232.00" });
+  });
+
   it("exposes no mutation actions to an unauthorized profile", () => {
     expect(buildCashDashboardViewModel(summary, false).actions).toEqual([]);
   });
@@ -112,6 +121,8 @@ describe("cash dashboard M10 controls", () => {
 
     await waitFor(() => expect(openingAction).not.toHaveBeenCalled());
     expect(screen.getByText("Usá un importe con hasta dos decimales.")).toBeTruthy();
+    expect(amount.classList.contains("cash-input-error")).toBe(true);
+    expect(amount.classList.contains("border-destructive")).toBe(true);
     expect(container.querySelector("form")?.checkValidity()).toBe(false);
   });
 
@@ -149,20 +160,31 @@ describe("cash dashboard M10 controls", () => {
     expect(formatCashTime("2026-08-07T03:00:00.000Z")).toBe("00:00");
   });
 
-  it("shows the selected movement form and keeps both cash tabs linked", () => {
-    const { container, rerender } = render(createElement(CashDashboard, { canOperate: true, cashDay: "closed-day", summary, tab: "income" }));
+  it("switches income and expense locally without navigation or server actions", () => {
+    const { container } = render(createElement(CashDashboard, { canOperate: true, cashDay: "closed-day", summary, tab: "income" }));
 
     const movementKey = () => container.querySelectorAll<HTMLInputElement>('input[name="idempotencyKey"]')[1]?.value;
     const incomeKey = movementKey();
-    rerender(createElement(CashDashboard, { canOperate: true, cashDay: "closed-day", summary, tab: "expense" }));
+    const initialUrl = window.location.href;
+    const initialHistoryLength = window.history.length;
+
+    expect(screen.getByRole("tab", { name: "Ingresos" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Egresos" }));
 
     expect(screen.getByRole("heading", { name: "Registrar egreso" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Registrar ingreso" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Egresos" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Ingresos" }).getAttribute("tabindex")).toBe("-1");
     expect(movementKey()).toBeTruthy();
     expect(movementKey()).not.toBe(incomeKey);
-    expect(screen.getByRole("link", { name: "Ingresos" }).getAttribute("href")).toBe("/cash?tab=income&page=1&cashDay=closed-day");
-    expect(screen.getByRole("link", { name: "Egresos" }).getAttribute("href")).toBe("/cash?tab=expense&page=1&cashDay=closed-day");
-    expect(screen.getByRole("link", { name: "Egresos" }).getAttribute("aria-current")).toBe("page");
+    expect(window.location.href).toBe(initialUrl);
+    expect(window.history.length).toBe(initialHistoryLength);
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(movementAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Ingresos" }));
+    expect(screen.getByRole("heading", { name: "Registrar ingreso" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Registrar egreso" })).toBeNull();
   });
 
   it("shows the latest ten movements and reuses archive pagination", () => {
@@ -186,7 +208,7 @@ describe("cash dashboard M10 controls", () => {
     expect(screen.queryByText("Movimiento 0")).toBeNull();
   });
 
-  it("keeps the open cash visible while paginating a selected closed day", () => {
+  it("paginates a selected closed day inside Movimientos", () => {
     const movements = Array.from({ length: 11 }, (_, index) => ({
       id: `history-${index}`,
       direction: "income" as const,
@@ -200,14 +222,40 @@ describe("cash dashboard M10 controls", () => {
       createdAt: `2026-08-${String(index + 1).padStart(2, "0")}T03:00:00.000Z`,
     }));
     const history = { ...summary, cashDayId: "closed-day", operationalDate: "2026-08-01", closedAt: "2026-08-02T03:00:00.000Z", closureKind: "manual", closingBalance: "1.00", movements, events: [], lifecycleEvents: [] as never[] };
-    render(createElement(CashDashboard, { canOperate: true, cashDay: "closed-day", closedDays: [{ cashDayId: "closed-day", operationalDate: "2026-08-01", closedAt: history.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" }], historyPage: 1, selectedHistory: history, summary, tab: "expense" }));
+    render(createElement(CashDashboard, { canOperate: true, cashDay: "closed-day", closedDays: [{ cashDayId: "closed-day", operationalDate: "2026-08-01", closedAt: history.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" }], historyPage: 1, selectedHistory: history, summary, tab: "expense", view: "movements" }));
 
-    expect(screen.getByText("Caja del día")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Consulta histórica" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Registrar egreso" })).toBeTruthy();
-    expect(screen.getByText("Historial 10")).toBeTruthy();
+    expect(screen.queryByText("Caja del día")).toBeNull();
+    expect(screen.getAllByText("Historial 10").length).toBeGreaterThan(0);
     expect(screen.queryByText("Historial 0")).toBeNull();
-    expect(screen.getByRole("navigation", { name: "Paginación del historial de caja" }).querySelector<HTMLAnchorElement>('a[aria-label="Siguiente"]')?.getAttribute("href")).toBe("/cash?tab=expense&historyPage=2&page=1&cashDay=closed-day");
+    expect(screen.getByRole("navigation", { name: "Paginación del historial de caja" }).querySelector<HTMLAnchorElement>('a[aria-label="Siguiente"]')?.getAttribute("href")).toBe("/cash?tab=expense&historyPage=2&page=1&cashDay=closed-day&view=movements");
+  });
+
+  it("keeps daily cash focused on current-day movements", () => {
+    const history = { ...summary, cashDayId: "closed-day", operationalDate: "2026-08-01", closedAt: "2026-08-02T03:00:00.000Z", closureKind: "manual", closingBalance: "1.00", movements: [], events: [], lifecycleEvents: [] as never[] };
+    render(createElement(CashDashboard, { canOperate: true, closedDays: [], selectedHistory: history, summary, view: "daily" }));
+
+    expect(screen.getByRole("heading", { name: "Movimientos de hoy" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Consulta histórica" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Trazabilidad del día cerrado" })).toBeNull();
+  });
+
+  it("clears a stale movement loading state after returning without a selected day", async () => {
+    const history = { ...summary, cashDayId: "old-day", operationalDate: "2026-08-01", closedAt: "2026-08-02T03:00:00.000Z", closureKind: "manual", closingBalance: "1.00", movements: [], events: [], lifecycleEvents: [] as never[] };
+    const closedDays = [
+      { cashDayId: "old-day", operationalDate: "2026-08-01", closedAt: history.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" },
+      { cashDayId: "next-day", operationalDate: "2026-08-03", closedAt: history.closedAt, closedBy: null, closedByDisplayName: null, closureKind: "manual", closingBalance: "1.00" },
+    ];
+    const { container, rerender } = render(createElement(CashDashboard, { canOperate: true, cashDay: "old-day", closedDays, selectedHistory: history, summary, view: "movements" }));
+
+    fireEvent.click(container.querySelector<HTMLButtonElement>('button[data-day="2026-08-03"]')!);
+    rerender(createElement(CashDashboard, { canOperate: true, closedDays, selectedHistory: null, summary, view: "daily" }));
+    rerender(createElement(CashDashboard, { canOperate: true, closedDays, selectedHistory: null, summary, view: "movements" }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("cash-movement-loading")).toBeNull();
+      expect(screen.getByRole("heading", { name: "Movimientos del día" })).toBeTruthy();
+    });
   });
 
   it("renders the upper cash tabs and the Spanish date calendar", () => {
@@ -264,7 +312,7 @@ describe("cash dashboard M10 controls", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("cash-movement-loading")).toBeNull();
-      expect(screen.getByText("Historial nuevo")).toBeTruthy();
+      expect(screen.getAllByText("Historial nuevo").length).toBeGreaterThan(0);
     });
   });
 
@@ -365,17 +413,17 @@ describe("cash form idempotency", () => {
     await waitFor(() => expect(receivedKeys).toHaveLength(1));
     const initialKey = receivedKeys[0]!;
     expect(initialKey).toBe(keyInput.value);
-    await screen.findByText("error");
+    expect(screen.queryByText("error")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar apertura" }));
     await waitFor(() => expect(receivedKeys).toHaveLength(2));
     expect(receivedKeys[1]).toBe(initialKey);
-    await screen.findByText("ambiguous");
+    expect(screen.queryByText("ambiguous")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar apertura" }));
     await waitFor(() => expect(receivedKeys).toHaveLength(3));
     expect(receivedKeys[2]).toBe(initialKey);
-    await screen.findByText("ok");
+    expect(screen.queryByText("ok")).toBeNull();
     await waitFor(() => expect(keyInput.value).toBe("confirmed-key"));
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar apertura" }));

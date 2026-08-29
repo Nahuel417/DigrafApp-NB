@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { LockKeyhole, Sparkles, WalletCards } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { CashDashboard, type CashTab, type CashView } from "@/features/cash/components/cash-dashboard";
 import { getCashDaySummary, getCurrentCash, listClosedCashDays, shouldLoadCashHistory } from "@/features/cash/queries";
 import { requireActiveProfile } from "@/lib/auth/guards";
@@ -51,7 +53,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
     if (!cashDay && requestedDate && requestedDate !== summary.operationalDate) {
       cashDay = closedDays.find((day) => day.operationalDate === requestedDate)?.cashDayId;
     }
-    if (shouldLoadCashHistory(cashDay, summary)) {
+    if (view === "movements" && shouldLoadCashHistory(cashDay, summary)) {
       try {
         selectedHistory = await getCashDaySummary(cashDay);
       } catch {
@@ -60,7 +62,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
     }
   } catch {
     return (
-      <main className="mx-auto flex w-full max-w-[72rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
         <Alert variant="destructive"><AlertTitle>No se pudo cargar la caja</AlertTitle><AlertDescription>Actualizá la pantalla e intentá nuevamente. Si el problema continúa, avisá a administración.</AlertDescription></Alert>
       </main>
     );
@@ -74,19 +76,23 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const viewInvalid = rawView !== undefined && rawView !== view;
   const pageInvalid = rawPage !== undefined && rawPage !== String(safePage);
   const historyPageInvalid = rawHistoryPage !== undefined && rawHistoryPage !== String(safeHistoryPage);
-  if (tabInvalid || viewInvalid || pageInvalid || historyPageInvalid || rawDate !== undefined) {
+  const dailyHistoryContext = view === "daily" && (rawCashDay !== undefined || rawHistoryPage !== undefined);
+  if (tabInvalid || viewInvalid || pageInvalid || (view === "movements" && historyPageInvalid) || dailyHistoryContext || rawDate !== undefined) {
     const params = new URLSearchParams({ tab, page: String(safePage), view });
-    if (cashDay !== undefined) params.set("cashDay", cashDay);
-    if (cashDay !== undefined) params.set("historyPage", String(safeHistoryPage));
+    if (view === "movements" && cashDay !== undefined) params.set("cashDay", cashDay);
+    if (view === "movements" && cashDay !== undefined) params.set("historyPage", String(safeHistoryPage));
     redirect(`/cash?${params.toString()}`);
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-      <header>
-        <p className="text-sm text-muted-foreground">Operaciones</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-display sm:text-3xl">{view === "movements" ? "Movimientos" : "Caja diaria"}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{view === "movements" ? "Consultá los movimientos de caja por día operativo." : "Consultá el saldo de hoy y registrá movimientos manuales trazables."}</p>
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-label text-muted-foreground"><Sparkles aria-hidden="true" className="size-3" />Operaciones</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-display">{view === "movements" ? "Movimientos" : "Caja diaria"}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{view === "movements" ? "Consultá los movimientos de caja por día operativo." : "Consultá el saldo de hoy y registrá movimientos manuales trazables."}</p>
+        </div>
+        {view === "daily" ? <Badge className={summary.closedAt ? "rounded-full border-destructive/25 bg-destructive/10 px-3 py-1.5 text-destructive" : "rounded-full border-success-foreground/20 bg-success/10 px-3 py-1.5 text-success-foreground"} variant="outline">{summary.closedAt ? <LockKeyhole aria-hidden="true" data-icon="inline-start" /> : <WalletCards aria-hidden="true" data-icon="inline-start" />}{summary.closedAt ? "Caja cerrada" : "Caja abierta"}</Badge> : null}
       </header>
        {historyError ? <Alert variant="destructive"><AlertTitle>No se pudo cargar el historial</AlertTitle><AlertDescription>La caja de hoy sigue disponible. Elegí nuevamente un día cerrado para reintentar la consulta.</AlertDescription></Alert> : null}
        <CashDashboard canClose={canCloseCash(profile.role)} canOperate={canOperate} canReopen={canReopenCash(profile.role)} cashDay={cashDay} closedDays={closedDays} historyPage={safeHistoryPage} page={safePage} requiresVoidReason={profile.role === "attention"} selectedHistory={selectedHistory} summary={summary} tab={tab} view={view} />
