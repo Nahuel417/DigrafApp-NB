@@ -32,6 +32,10 @@ describe("remote bootstrap configuration", () => {
     expect(() => ensureAllowedEnvironment(productionUrl, productionProjectRef, true)).not.toThrow();
   });
 
+  it("allows the real production environment without a project id variable", () => {
+    expect(() => ensureAllowedEnvironment(productionUrl, undefined, true)).not.toThrow();
+  });
+
   it("requires explicit confirmation for every remote project", () => {
     expect(() => ensureAllowedEnvironment(stagingUrl, stagingProjectRef, false)).toThrow(
       "--confirm-remote",
