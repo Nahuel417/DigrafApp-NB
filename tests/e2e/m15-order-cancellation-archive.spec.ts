@@ -164,10 +164,10 @@ test.describe("Anulación, Archivo y restauración M15", () => {
     await expect(archiveCard).toHaveCount(0);
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByRole("button", { name: "Anular pedido" })).toBeVisible();
-    await page.getByRole("tab", { name: "Editar", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByText("Se restauró el pedido", { exact: true })).toBeVisible();
     await expect(page.locator("[data-order-specifications]").getByText("Prenda histórica E2E", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Eliminar diseño" })).toBeVisible();
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
   });
 });
