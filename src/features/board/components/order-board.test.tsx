@@ -27,6 +27,7 @@ const order = {
   teamName: "Equipo M11",
   quantity: 1,
   orderType: "individual" as const,
+  productName: "SUP1",
   promisedDeliveryDate: "2026-08-13",
   currentStageId: receivedId,
   updatedAt: "2026-08-12T19:00:00.000Z",
@@ -52,6 +53,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 function choosePaid() {
+  fireEvent.click(within(getOrderCard()).getByText("Mostrar movimiento"));
   const trigger = screen.getByRole("combobox", { name: "Mover PED-000007 a" });
   fireEvent.click(trigger);
   fireEvent.click(screen.getByRole("option", { name: "Pagado" }));
@@ -146,6 +148,7 @@ describe("order board payment confirmation", () => {
   it("does not offer Pagado as an Employee destination", () => {
     render(<OrderBoard canConfirmPayment={false} canDeliverPaidOrders={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, totalAmount: null }] }, columns[1], columns[2]]} />);
 
+    fireEvent.click(within(getOrderCard()).getByText("Mostrar movimiento"));
     const trigger = screen.getByRole("combobox", { name: "Mover PED-000007 a" });
     fireEvent.click(trigger);
 
@@ -160,6 +163,7 @@ describe("order board payment confirmation", () => {
     const paidOrder = { ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" };
     render(<OrderBoard canConfirmPayment canDeliverPaidOrders canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [paidOrder] }, columns[2]]} />);
 
+    fireEvent.click(within(getOrderCard()).getByText("Mostrar movimiento"));
     fireEvent.click(screen.getByRole("combobox", { name: "Mover PED-000007 a" }));
 
     expect(screen.getByRole("option", { name: "Entregado" })).toBeTruthy();
@@ -181,12 +185,30 @@ describe("order board payment confirmation", () => {
 
 describe("order board payment reversal", () => {
   it("requires confirmation, keeps cancellation side-effect free, and blocks duplicate submits", async () => {
-    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pagado", stageCode: "paid", expectedUpdatedAt: "2026-08-12T19:01:00.000Z", canReversePayment: true, paymentId: "44444444-4444-4444-8444-444444444444", canEditDescription: false, canEditSensitive: true, lastMovement: null, comments: [] } });
+    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pagado", stageCode: "paid", expectedUpdatedAt: "2026-08-12T19:01:00.000Z", canReversePayment: true, paymentId: "44444444-4444-4444-8444-444444444444", canEditDescription: false, canEditSensitive: true, lastMovement: null, comments: [
+      { actor: "Último actor", body: "Comentario actual", occurredAt: "2026-08-12T19:01:00.000Z", id: "comment-1" },
+      { actor: "Actor anterior", body: "Comentario anterior", occurredAt: "2026-08-11T19:01:00.000Z", id: "comment-2" },
+    ] } });
     let resolveAction!: (value: Awaited<ReturnType<typeof reverseOrderPaymentAction>>) => void;
     vi.mocked(reverseOrderPaymentAction).mockReturnValue(new Promise((resolve) => { resolveAction = resolve; }));
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [{ ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" }] }]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Vista rápida de PED-000007" }));
+    const quickViewTrigger = screen.getByRole("button", { name: "Vista rápida de PED-000007" });
+    fireEvent.click(quickViewTrigger);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Revertir pago" })).toBeTruthy());
+    const quickView = screen.getByRole("dialog", { name: "Vista rápida de PED-000007" });
+    expect(quickView).toBeTruthy();
+    expect(within(quickView).getByRole("heading", { name: "Equipo M11" }).tagName).toBe("H2");
+    expect(within(quickView).getByText("SUP1")).toBeTruthy();
+    expect(within(quickView).getByText("Último actor")).toBeTruthy();
+    expect(within(quickView).getByText("Comentario actual")).toBeTruthy();
+    expect(within(quickView).queryByText("Comentario anterior")).toBeNull();
+    expect(within(quickView).getByRole("heading", { name: "Último comentario" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar vista rápida" }));
+    await waitFor(() => expect(document.activeElement).toBe(quickViewTrigger));
+    expect(screen.queryByRole("dialog", { name: "Vista rápida de PED-000007" })).toBeNull();
+
+    fireEvent.click(quickViewTrigger);
     await waitFor(() => expect(screen.getByRole("button", { name: "Revertir pago" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Revertir pago" }));
     expect(screen.getByRole("alertdialog")).toBeTruthy();

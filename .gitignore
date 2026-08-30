@@ -9,6 +9,7 @@ out/
 .env*
 !.env.example
 .env.bootstrap.local
+.env.bootstrap.production.local
 
 # Testing
 coverage/

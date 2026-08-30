@@ -14,6 +14,7 @@
   --secondary-foreground: oklch(0.2235 0.0049 145.4099);
   --muted: oklch(0.9621 0.0034 145.5491);
   --muted-foreground: oklch(0.4913 0.014 145.3581);
+  --surface-muted: oklch(0.968 0.008 100);
   --accent: oklch(0.922 0.0223 123.6501);
   --accent-foreground: oklch(0.3182 0.0361 127.993);
   --destructive: oklch(0.5771 0.2152 27.325);
@@ -34,7 +35,7 @@
   --chart-3: oklch(0.675 0.0501 127.5916);
   --chart-4: oklch(0.7948 0.0453 127.2415);
   --chart-5: oklch(0.8939 0.0277 129.8292);
-  --sidebar: var(--background);
+  --sidebar: oklch(0.985 0.006 95);
   --sidebar-foreground: oklch(0.2235 0.0049 145.4099);
   --sidebar-primary: oklch(0.54 0.1033 130.8937);
   --sidebar-primary-foreground: oklch(1 0 0);
@@ -66,6 +67,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-surface-muted: var(--surface-muted);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -174,6 +176,16 @@
     linear-gradient(to right, color-mix(in srgb, var(--border) 65%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--border) 65%, transparent) 1px, transparent 1px);
   background-size: 24px 24px;
+}
+
+@keyframes cash-input-error {
+  0%, 100% { transform: translateX(0); }
+  35% { transform: translateX(-3px); }
+  70% { transform: translateX(3px); }
+}
+
+.cash-input-error {
+  animation: cash-input-error 220ms ease-in-out;
 }
 
 @media (min-width: 64rem) {

@@ -338,7 +338,7 @@ export async function getOrderQuickViewAction(orderId: string): Promise<{ data?:
       } : null,
       comments: timeline
         .filter((event) => event.type === "commented" && event.commentBody)
-        .slice(0, 3)
+        .slice(0, 1)
         .map((event) => ({ actor: event.actorDisplayName, body: event.commentBody!, occurredAt: event.occurredAt, id: event.id })),
     },
   };

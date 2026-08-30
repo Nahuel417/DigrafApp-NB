@@ -213,7 +213,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     const link = card.getByRole("link", { name: `Super admin M5 M6 ${runId}` });
     await link.click();
     await expect(page).toHaveURL(/\/orders\//);
-    await expect(page.getByRole("heading", { level: 1, name: publicId(superAdminOrder) })).toBeVisible();
+    await expect(page.getByText(publicId(superAdminOrder), { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Volver al tablero" })).toHaveAttribute("href", "/orders");
   });
 
@@ -222,11 +222,11 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await page.goto("/orders");
     const card = page.getByText(`Empleado M5 M6 ${runId}`).locator("xpath=ancestor::article");
     await card.getByRole("button", { name: `Vista rápida de ${publicId(employeeOrder)}` }).click();
-    const quickView = page.locator("aside", { has: page.getByRole("heading", { name: `Empleado M5 M6 ${runId}` }) });
+    const quickView = page.getByRole("dialog", { name: `Vista rápida de ${publicId(employeeOrder)}` });
     await expect(quickView).toBeVisible();
-    await expect(quickView.getByRole("heading", { name: `Empleado M5 M6 ${runId}` })).toBeVisible();
+    await expect(quickView.getByRole("heading", { name: `Equipo Empleado M5 M6 ${runId}` })).toBeVisible();
     await expect(quickView.getByText("Último movimiento")).toBeVisible();
-    await expect(quickView.getByText("Comentarios recientes")).toBeVisible();
+    await expect(quickView.getByRole("heading", { name: "Último comentario" })).toBeVisible();
     await expect(quickView.getByText("Total")).toHaveCount(0);
     await quickView.getByRole("button", { name: "Cerrar vista rápida" }).click();
     await expect(quickView).toHaveCount(0);
@@ -235,12 +235,14 @@ test.describe("Detalle y colaboración M5/M6", () => {
   test("Super admin y Admin ven el formulario de edición completa", async ({ page }) => {
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
 
     await page.getByRole("button", { name: "Salir" }).click();
     await login(page, identities[1]!);
     await navigateToDetail(page, adminOrder);
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
   });
@@ -248,6 +250,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
   test("Atención puede editar y Empleado no recibe ese permiso", async ({ page }) => {
     await login(page, identities[2]!);
     await navigateToDetail(page, attentionOrder);
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
 
@@ -264,7 +267,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { name: "Importes" })).toHaveCount(0);
     await expect(page.getByText("Total")).toHaveCount(0);
     await expect(page.getByText("Seña")).toHaveCount(0);
-    await expect(page.getByText("Saldo visible")).toHaveCount(0);
+    await expect(page.getByText("Saldo pendiente")).toHaveCount(0);
   });
 
   test("todos los roles pueden editar la descripción", async ({ page }) => {
@@ -290,7 +293,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     }
   });
 
-  test("todos los roles pueden crear comentarios y aparecen en el timeline", async ({ page }) => {
+  test("todos los roles pueden crear comentarios y aparecen en Comentarios", async ({ page }) => {
     for (const identity of identities) {
       const order = identity.role === "super_admin" ? superAdminOrder : employeeOrder;
 
@@ -307,15 +310,16 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
-    await expect(timeline).toBeVisible();
-    await expect(timeline.getByText("Comentario", { exact: true }).first()).toBeVisible();
+    const comments = page.getByRole("heading", { name: "Comentarios" }).locator("xpath=ancestor::section");
+    await expect(comments).toBeVisible();
+    await expect(comments.getByText(`Comentario de super_admin ${runId}`, { exact: true })).toBeVisible();
   });
 
   test("Super admin puede editar campos sensibles y ve el cambio en el timeline", async ({ page }) => {
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
 
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
     const updatedCustomer = `Equipo actualizado ${runId}`;
@@ -329,9 +333,10 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await confirmation.getByRole("button", { name: "Confirmar cambios" }).click();
     await expect(page.getByLabel("Notifications alt+T")).toContainText("Pedido actualizado.");
 
-    const orderData = page.getByRole("heading", { name: "Datos del pedido" }).locator("xpath=ancestor::section");
+    await page.getByRole("tab", { name: "Detalles", exact: true }).click();
+    const orderData = page.getByRole("heading", { name: "Datos generales" }).locator("xpath=ancestor::section");
     await expect(orderData.getByText(updatedCustomer)).toBeVisible();
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
+    const timeline = page.getByRole("heading", { name: "Historial de etapas" }).locator("xpath=ancestor::section");
     await expect(timeline.getByText("Se actualizó el pedido", { exact: true }).first()).toBeVisible();
     await expect(timeline.getByText("Se actualizó la fecha prometida", { exact: true })).toBeVisible();
   });
@@ -340,6 +345,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await login(page, identities[0]!);
     await navigateToDetail(page, conflictOrder);
 
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
     await expect(editSection).toBeVisible();
@@ -392,6 +398,25 @@ test.describe("Detalle y colaboración M5/M6", () => {
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
+      await page.getByRole("tab", { name: "Editar", exact: true }).click();
+      await expect(page.locator("#edit-order")).toBeVisible();
+      expect(await page.evaluate(() => window.location.hash)).toBe("");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+      if (viewport.width >= 1024) {
+        const scrollMetrics = await page.locator("#main-content").locator("..").evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+          return {
+            clientHeight: element.clientHeight,
+            scrollHeight: element.scrollHeight,
+            scrollTop: element.scrollTop,
+          };
+        });
+        expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+        expect(scrollMetrics.scrollTop).toBeGreaterThan(0);
+        expect(Math.abs(scrollMetrics.scrollHeight - scrollMetrics.clientHeight - scrollMetrics.scrollTop)).toBeLessThanOrEqual(1);
+      }
+
       await page.getByRole("button", { name: "Salir" }).click();
     }
   });
@@ -417,6 +442,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
 
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     const editSection = page.locator("#edit-order");
     await editSection.scrollIntoViewIfNeeded();
     const customerField = editSection.locator("#edit-client-name");
@@ -432,7 +458,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
 
-    await expect(page.getByRole("heading", { level: 1, name: publicId(superAdminOrder) })).toBeVisible();
+    await expect(page.getByText(publicId(superAdminOrder), { exact: true })).toBeVisible();
     await expect(page.getByText("Pedido recibido", { exact: true })).toBeVisible();
   });
 
@@ -455,7 +481,8 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(financials).toBeVisible();
     await expect(financials.getByText("Total", { exact: true })).toBeVisible();
     await expect(financials.getByText("Seña", { exact: true })).toBeVisible();
-    await expect(financials.getByText("Saldo visible", { exact: true })).toBeVisible();
+    await expect(financials.getByText("Saldo pendiente", { exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
   });
 });

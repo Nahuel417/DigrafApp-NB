@@ -216,21 +216,21 @@ export function OrderDesignImagePanel({
   const imageCountLabel = images.length === 1 ? "1 imagen" : `${images.length} imágenes`;
 
   return (
-    <section aria-busy={pending} aria-labelledby="order-design-heading" className="min-w-0 rounded-xl border border-border bg-card p-5 shadow-xs">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section aria-busy={pending} aria-labelledby="order-design-heading" className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+      <div className="grid-paper flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <p className="font-mono text-xs tracking-label text-muted-foreground">ARCHIVO VISUAL</p>
-          <h2 className="mt-1 text-base font-semibold" id="order-design-heading">Diseño vigente</h2>
+          <h2 className="mt-1 flex items-center gap-2 text-sm font-semibold tracking-tight" id="order-design-heading"><FileImage aria-hidden="true" className="size-4 text-primary" />Diseño vigente</h2>
         </div>
         {images.length ? <span className="rounded-full border border-border bg-muted px-2.5 py-1 font-mono text-xs text-muted-foreground">{imageCountLabel}</span> : null}
       </div>
 
-      <div className="mt-4 flex flex-col gap-4">
+      <div className="flex flex-col gap-4 p-5">
         {images.length ? (
           <div aria-label="Galería de diseños del pedido" className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4" role="list">
             {images.map((image, index) => (
-              <figure className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30" data-design-image="true" key={image.id} role="listitem">
-                <div className="relative min-w-0 overflow-hidden aspect-[4/3] bg-muted">
+              <figure className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface-muted/40" data-design-image="true" key={image.id} role="listitem">
+                <div className="relative aspect-[4/3] min-w-0 overflow-hidden bg-surface-muted">
                   {/* Signed URLs are short-lived and must bypass image optimization caches. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -242,7 +242,7 @@ export function OrderDesignImagePanel({
                     src={image.signedUrl}
                   />
                 </div>
-                <figcaption className="flex min-w-0 flex-col gap-3 border-t border-border px-3 py-3">
+                <figcaption className="flex min-w-0 flex-col gap-2 border-t border-border px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-medium text-muted-foreground">{image.isPrimary ? "Principal" : `Diseño ${index + 1}`}</span>
                     {image.isPrimary ? <Star aria-label="Imagen principal" className="text-primary" /> : null}
@@ -250,18 +250,18 @@ export function OrderDesignImagePanel({
                   {canManage ? (
                     <div className="grid min-w-0 gap-2">
                       {image.isPrimary ? (
-                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
+                        <Button className="h-9 min-w-0 w-full rounded-xl px-3 py-1.5 text-xs shadow-none" disabled={pending} onClick={() => mutateImage("clear_primary")} size="sm" type="button" variant="outline">
                           <StarOff data-icon="inline-start" />Quitar como principal
                         </Button>
                       ) : (
-                        <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
+                        <Button className="h-9 min-w-0 w-full rounded-xl px-3 py-1.5 text-xs shadow-none" disabled={pending} onClick={() => mutateImage("set_primary", image.id)} size="sm" type="button" variant="outline">
                           <Star data-icon="inline-start" />Seleccionar como principal
                         </Button>
                       )}
-                      <Button className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
+                      <Button className="h-9 min-w-0 w-full rounded-xl px-3 py-1.5 text-xs shadow-none" disabled={pending} onClick={() => submitImage(image.id)} size="sm" type="button" variant="outline">
                         <RefreshCw data-icon="inline-start" />{image.isPrimary ? "Reemplazar diseño" : `Reemplazar diseño ${index + 1}`}
                       </Button>
-                      <Button aria-label="Eliminar diseño" className="min-w-0 w-full whitespace-normal text-center" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="destructive-outline">
+                      <Button aria-label="Eliminar diseño" className="h-9 min-w-0 w-full rounded-xl px-3 py-1.5 text-xs shadow-none" disabled={pending} onClick={() => setDeleteImageId(image.id)} size="sm" type="button" variant="destructive-outline">
                         <Trash2 data-icon="inline-start" />Eliminar diseño
                       </Button>
                     </div>
@@ -271,7 +271,7 @@ export function OrderDesignImagePanel({
             ))}
           </div>
         ) : (
-          <div className="flex min-h-44 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/25 p-5 text-center">
+          <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted/40 p-5 text-center">
             <FileImage aria-hidden="true" className="text-muted-foreground" />
             <p className="mt-3 text-sm font-medium">Todavía no hay un diseño cargado.</p>
             <p className="mt-1 max-w-xs text-sm leading-5 text-muted-foreground">
@@ -281,7 +281,7 @@ export function OrderDesignImagePanel({
         )}
 
         {images.length > 0 && !primaryImage ? (
-          <div className="flex min-h-28 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/25 p-5 text-center">
+          <div className="flex min-h-28 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted/40 p-5 text-center">
             <FileImage aria-hidden="true" className="text-muted-foreground" />
             <p className="mt-2 text-sm font-medium">No hay un diseño principal seleccionado.</p>
             <p className="mt-1 text-sm text-muted-foreground">Elegí una imagen de la galería para mostrarla en el tablero.</p>
@@ -299,7 +299,7 @@ export function OrderDesignImagePanel({
         ) : null}
 
         {primaryImage ? (
-          <Button className="w-full" disabled={pending} onClick={() => renewPreview()} type="button" variant="outline">
+          <Button className="h-9 w-full rounded-xl px-3 text-xs shadow-none" disabled={pending} onClick={() => renewPreview()} type="button" variant="outline">
             {operation === "renewing" ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : <RefreshCw aria-hidden="true" data-icon="inline-start" />}
             {operation === "renewing" ? "Renovando vista..." : "Renovar vista"}
           </Button>
@@ -307,23 +307,24 @@ export function OrderDesignImagePanel({
 
         {canManage ? (
           <div className="border-t border-border pt-4">
-            <Field data-invalid={Boolean(fieldError)}>
-              <FieldLabel htmlFor={`order-design-file-${orderId}`}>Archivo de diseño</FieldLabel>
+            <Field className="gap-2" data-invalid={Boolean(fieldError)}>
+              <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={`order-design-file-${orderId}`}>Archivo de diseño</FieldLabel>
               <Input
                 accept="image/jpeg,image/png,image/webp"
                 aria-describedby={`order-design-help-${orderId}${fieldError ? ` order-design-error-${orderId}` : ""}`}
                 aria-invalid={Boolean(fieldError)}
                 disabled={pending}
                 id={`order-design-file-${orderId}`}
+                className="h-9 rounded-xl bg-surface-muted px-2 text-xs shadow-none file:mr-2 file:rounded-lg file:border-0 file:bg-card file:px-2 file:py-1 file:text-xs"
                 ref={fileInputRef}
                 type="file"
               />
-              <FieldDescription id={`order-design-help-${orderId}`}>JPEG, PNG o WebP. Máximo 10 MiB. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
+              <FieldDescription className="text-[11px] leading-5" id={`order-design-help-${orderId}`}>JPEG, PNG o WebP. Máximo 10 MiB. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
               {fieldError ? <FieldError id={`order-design-error-${orderId}`}>{fieldError}</FieldError> : null}
             </Field>
             <div className="mt-3 flex flex-wrap justify-end gap-2">
               {images.length < 3 ? (
-                <Button disabled={pending} onClick={() => submitImage(null)} type="button">
+                <Button className="h-9 rounded-xl px-3 text-xs shadow-xs" disabled={pending} onClick={() => submitImage(null)} size="sm" type="button">
                   {operation === "uploading" ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : images.length ? <ImagePlus aria-hidden="true" data-icon="inline-start" /> : <Upload aria-hidden="true" data-icon="inline-start" />}
                   {operation === "uploading" ? "Procesando diseño..." : images.length ? "Agregar diseño" : "Cargar diseño"}
                 </Button>
