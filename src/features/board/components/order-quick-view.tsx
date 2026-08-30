@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { Activity, ArrowRight, CalendarDays, FileText, Layers3, MessageSquareText, Package, RotateCcw, Shirt, X } from "lucide-react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,7 +30,17 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Cordoba" }).format(new Date(value));
 }
 
-function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void }) {
+function openModal(dialog: HTMLDialogElement) {
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeModal(dialog: HTMLDialogElement) {
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+function ReversePaymentDialog({ data, onReconciled, portalContainer }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void; portalContainer: HTMLElement | null }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [state, setState] = useState<ReverseOrderPaymentActionState>({});
@@ -65,7 +76,7 @@ function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; on
           Revertir pago
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}>
+      <AlertDialogContent container={portalContainer} onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}>
         <AlertDialogHeader>
           <AlertDialogTitle>Revertir pago</AlertDialogTitle>
           <AlertDialogDescription>
@@ -90,23 +101,42 @@ function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; on
   );
 }
 
-export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "primaryDesignImage">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
+export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "primaryDesignImage" | "productName">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const quickViewDialogRef = useRef<HTMLDialogElement>(null);
+  const expandedDialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [quickViewPortalContainer, setQuickViewPortalContainer] = useState<HTMLDialogElement | null>(null);
+  const portalRoot = typeof document === "undefined" ? null : document.body;
   const detailPath = `/orders/${data.id}`;
-  const editPath = `${detailPath}#${data.canEditSensitive ? "edit-order" : "order-description"}`;
+  const editPath = data.canEditSensitive ? `${detailPath}?view=edit` : `${detailPath}#order-description`;
   const movement = data.lastMovement
     ? `Movido de ${data.lastMovement.fromStageId ? stageNames[data.lastMovement.fromStageId] ?? "una etapa no disponible" : "inicio"} a ${data.lastMovement.toStageId ? stageNames[data.lastMovement.toStageId] ?? "una etapa no disponible" : "una etapa no disponible"}`
     : "Todavía no hay movimientos registrados.";
 
+  const setQuickViewDialogRef = useCallback((dialog: HTMLDialogElement | null) => {
+    quickViewDialogRef.current = dialog;
+    setQuickViewPortalContainer(dialog);
+  }, []);
+
   useEffect(() => {
-    const dialog = dialogRef.current;
+    const dialog = quickViewDialogRef.current;
     if (!dialog) return;
-    if (isExpanded && expandedUrl && !dialog.open) dialog.showModal();
-    if (!isExpanded && dialog.open) dialog.close();
+    openModal(dialog);
+    window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      if (dialog.open) closeModal(dialog);
+    };
+  }, []);
+
+  useEffect(() => {
+    const dialog = expandedDialogRef.current;
+    if (!dialog) return;
+    if (isExpanded && expandedUrl && !dialog.open) openModal(dialog);
+    if (!isExpanded && dialog.open) closeModal(dialog);
   }, [expandedUrl, isExpanded]);
 
   function closeExpandedImage() {
@@ -115,46 +145,73 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
   }
 
   return (
-    <aside aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`} className="rounded-xl border border-border bg-card p-5 shadow-xs lg:max-h-full lg:overflow-y-auto">
-      <div className="flex items-start justify-between gap-4">
+    <>
+      <dialog
+      aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`}
+      className="m-auto max-h-[90dvh] w-[min(94vw,54rem)] overflow-hidden rounded-2xl border border-border bg-card p-0 text-foreground shadow-lg backdrop:bg-foreground/25 backdrop:backdrop-blur-[2px]"
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+        ref={setQuickViewDialogRef}
+    >
+      <article className="flex max-h-[90dvh] min-h-0 flex-col">
+      <header className="grid-paper flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6 sm:py-5">
         <div className="min-w-0">
-          <p className="font-mono text-xs font-semibold tracking-data text-muted-foreground">{formatOrderNumber(data.publicNumber)}</p>
-           <h2 className="mt-1 break-words text-lg font-semibold">{data.customerName ?? "Cliente histórico"}</h2>
-           <p className="mt-1 text-sm text-muted-foreground">{data.teamName ?? "Equipo sin completar"}</p>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-label text-muted-foreground">Vista rápida · {formatOrderNumber(data.publicNumber)}</p>
+          <h2 className="mt-1 break-words text-xl font-semibold tracking-display">{data.teamName ?? "Equipo sin completar"}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{data.customerName ?? "Cliente histórico"}</p>
         </div>
-        <Button aria-label="Cerrar vista rápida" data-no-drag="true" onClick={onClose} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
+        <Button aria-label="Cerrar vista rápida" data-no-drag="true" onClick={onClose} ref={closeButtonRef} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="grid min-w-0 gap-5 md:grid-cols-[13rem_minmax(0,1fr)]">
+          <OrderDesignThumbnail
+            alt={`Diseño de ${data.customerName}`}
+            className="h-40 w-full rounded-xl md:h-44"
+            imageUpdatedAt={data.primaryDesignImage?.updatedAt ?? null}
+            key={data.primaryDesignImage?.updatedAt ?? "empty"}
+            onActivate={(trigger) => {
+              triggerRef.current = trigger;
+              setIsExpanded(true);
+            }}
+            onUrlReady={handleUrlReady}
+            orderId={data.id}
+          />
+          <div className="min-w-0">
+            <Badge className="gap-1.5 rounded-full border-primary/25 bg-primary/10 text-primary" variant="outline"><Layers3 aria-hidden="true" className="size-3" />{data.stageName}</Badge>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
+              <div className="rounded-xl border border-border bg-surface-muted/50 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Package aria-hidden="true" className="size-3.5" />Cantidad</dt><dd className="mt-1 font-mono text-sm font-medium tabular-nums">{data.quantity} u.</dd></div>
+              <div className="rounded-xl border border-border bg-surface-muted/50 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Shirt aria-hidden="true" className="size-3.5" />Producto</dt><dd className="mt-1 break-words text-sm font-medium">{data.productName ?? "Sin producto"}</dd></div>
+              <div className="rounded-xl border border-border bg-surface-muted/50 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5" />Entrega</dt><dd className="mt-1 font-mono text-sm font-medium tabular-nums">{formatDate(data.promisedDeliveryDate)}</dd></div>
+            </dl>
+            <section className="mt-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><FileText aria-hidden="true" className="size-4 text-primary" />Descripción</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{data.description?.trim() || "Sin descripción."}</p>
+            </section>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <section className="rounded-xl border border-border p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Activity aria-hidden="true" className="size-4 text-primary" />Último movimiento</h3>
+            <p className="mt-3 text-sm leading-6">{movement}</p>
+            {data.lastMovement ? <p className="mt-1 text-xs text-muted-foreground">{data.lastMovement.actor} · {formatDateTime(data.lastMovement.occurredAt)}</p> : null}
+          </section>
+          <section className="rounded-xl border border-border p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><MessageSquareText aria-hidden="true" className="size-4 text-primary" />Último comentario</h3>
+            {data.comments.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Todavía no hay comentarios.</p> : <div className="mt-3 text-sm"><p className="font-medium">{data.comments[0].actor} <span className="font-mono text-xs font-normal text-muted-foreground">{formatDateTime(data.comments[0].occurredAt)}</span></p><p className="mt-1 whitespace-pre-wrap leading-5 text-muted-foreground">{data.comments[0].body}</p></div>}
+          </section>
+        </div>
       </div>
-      <OrderDesignThumbnail
-        alt={`Diseño de ${data.customerName}`}
-        className="mt-3 h-24 w-32 sm:h-28 sm:w-40"
-        imageUpdatedAt={data.primaryDesignImage?.updatedAt ?? null}
-        key={data.primaryDesignImage?.updatedAt ?? "empty"}
-        onActivate={(trigger) => {
-          triggerRef.current = trigger;
-          setIsExpanded(true);
-        }}
-        onUrlReady={handleUrlReady}
-        orderId={data.id}
-      />
-      <div className="mt-4 flex flex-wrap items-center gap-2"><Badge variant="outline">{data.stageName}</Badge><span className="text-sm text-muted-foreground">{data.quantity} unidades · {data.orderType === "set" ? "Conjunto" : "Prenda individual"}</span></div>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div><dt className="text-xs text-muted-foreground">Entrega prometida</dt><dd className="mt-1 font-mono text-sm font-medium">{formatDate(data.promisedDeliveryDate)}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Descripción</dt><dd className="mt-1 text-sm">{data.description?.trim() || "Sin descripción."}</dd></div>
-      </dl>
-      <section className="mt-5 border-t border-border pt-4">
-        <h3 className="text-sm font-semibold">Último movimiento</h3>
-        <p className="mt-2 text-sm">{movement}</p>
-        {data.lastMovement ? <p className="mt-1 text-xs text-muted-foreground">{data.lastMovement.actor} · {formatDateTime(data.lastMovement.occurredAt)}</p> : null}
-      </section>
-      <section className="mt-5 border-t border-border pt-4">
-        <h3 className="text-sm font-semibold">Comentarios recientes</h3>
-        {data.comments.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Todavía no hay comentarios.</p> : <ul className="mt-3 flex flex-col gap-3">{data.comments.map((comment) => <li className="text-sm" key={comment.id}><p className="font-medium">{comment.actor} <span className="font-mono text-xs font-normal text-muted-foreground">{formatDateTime(comment.occurredAt)}</span></p><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{comment.body}</p></li>)}</ul>}
-      </section>
-      <div className="mt-5 flex flex-wrap gap-3 border-t border-border pt-4">
+
+      <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-muted/35 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
         <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
         {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath}>Editar pedido</Link></Button> : null}
-        {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} /> : null}
-      </div>
+        {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} portalContainer={quickViewPortalContainer} /> : null}
+      </footer>
+      </article>
+      </dialog>
+      {portalRoot ? createPortal(
       <dialog
         aria-labelledby={`expanded-design-heading-${data.id}`}
         className="m-auto max-h-[90vh] max-w-[min(92vw,56rem)] rounded-xl border border-border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/70"
@@ -163,7 +220,7 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
           closeExpandedImage();
         }}
         onClose={closeExpandedImage}
-        ref={dialogRef}
+        ref={expandedDialogRef}
       >
         <div className="flex max-h-[90vh] flex-col gap-4 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-4">
@@ -178,7 +235,9 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
             <img alt={`Diseño ampliado de ${data.customerName}`} className="max-h-[72vh] w-full object-contain" referrerPolicy="no-referrer" src={expandedUrl} />
           ) : <p className="text-sm text-muted-foreground">Preparando la vista ampliada...</p>}
         </div>
-      </dialog>
-    </aside>
+      </dialog>,
+      portalRoot,
+      ) : null}
+    </>
   );
 }

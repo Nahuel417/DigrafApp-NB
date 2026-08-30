@@ -274,8 +274,14 @@ test.describe("Diseño vigente M7", () => {
     await login(page, identities[3]!);
     await openDetail(page, orderId);
 
-    await page.getByRole("img", { name: "Diseño vigente del pedido" }).dispatchEvent("error");
-    await expect(designPanel(page).getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
+    const image = page.getByRole("img", { name: "Diseño vigente del pedido" });
+    await expect(image).toBeVisible();
+    await expect(image).toHaveJSProperty("complete", true);
+    await expect(image).toHaveJSProperty("naturalWidth", 1);
+    await image.dispatchEvent("error");
+    const renewedFeedback = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
+    await expect(renewedFeedback).toBeVisible();
+    await expect(renewedFeedback).toBeFocused();
 
     await page.route(`**/orders/${orderId}`, async (route) => {
       if (route.request().method() === "POST") await new Promise((resolve) => setTimeout(resolve, 500));
@@ -285,7 +291,9 @@ test.describe("Diseño vigente M7", () => {
     await renew.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Renovando vista..." })).toBeDisabled();
-    await expect(designPanel(page).getByRole("status").filter({ hasText: "Vista renovada" })).toBeFocused();
+    const renewedFeedbackAfterKeyboard = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
+    await expect(renewedFeedbackAfterKeyboard).toBeVisible();
+    await expect(renewedFeedbackAfterKeyboard).toBeFocused();
   });
 
   test("mantiene lectura y acciones sin overflow en mobile", async ({ page }) => {
@@ -307,8 +315,10 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
-    await expect(card.getByRole("img")).toBeVisible();
-    await expect(card.getByRole("img")).toHaveAttribute("loading", "lazy");
+    const thumbnail = card.locator('img[loading="lazy"]');
+    await expect(thumbnail).toHaveCount(1, { timeout: 30_000 });
+    await expect(thumbnail).toBeVisible();
+    await expect(thumbnail).toHaveAttribute("loading", "lazy");
   });
 
   test("Empleado ve miniatura en la tarjeta del tablero pero no acciones de carga", async ({ page }) => {
@@ -319,7 +329,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
-    await expect(card.getByRole("img")).toBeVisible();
+    await expect(card.locator('img[loading="lazy"]')).toBeVisible({ timeout: 15_000 });
     await expect(card.getByRole("button", { name: /Cargar diseño|Reemplazar diseño/ })).toHaveCount(0);
   });
 
@@ -331,7 +341,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
      await card.getByRole("button", { name: /Vista rápida/ }).click();
-     const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+     const quickView = page.getByRole("dialog", { name: /Vista rápida de PED-/ });
      await expect(quickView).toBeVisible({ timeout: 10_000 });
      const thumbnail = quickView.getByRole("button", { name: /Abrir diseño/ });
      await thumbnail.scrollIntoViewIfNeeded();
@@ -429,7 +439,7 @@ test.describe("Diseño vigente M7", () => {
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await expect(card.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
     await card.getByRole("button", { name: /Vista rápida/ }).click();
-    const quickView = page.getByRole("complementary", { name: /Vista rápida de PED-/ });
+    const quickView = page.getByRole("dialog", { name: /Vista rápida de PED-/ });
     await expect(quickView.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
   });
 });

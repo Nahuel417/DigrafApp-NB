@@ -1,6 +1,7 @@
 "use client";
 
 import { SubmitButton } from "@/components/submit-button";
+import { ArrowRight } from "lucide-react";
 
 type AuthSubmitButtonProps = {
   idleLabel: string;
@@ -13,11 +14,12 @@ export function AuthSubmitButton({
 }: AuthSubmitButtonProps) {
   return (
     <SubmitButton
-      className="w-full"
+      className="w-full font-sans"
       pendingLabel={pendingLabel}
       size="lg"
     >
       {idleLabel}
+      <ArrowRight aria-hidden="true" data-icon="inline-end" />
     </SubmitButton>
   );
 }

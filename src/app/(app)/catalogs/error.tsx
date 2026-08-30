@@ -1,23 +1,25 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Layers } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export default function CatalogsError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
-    <main className="mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+    <main className="mx-auto w-full max-w-6xl px-6 py-10 lg:px-10">
       <header>
-        <p className="text-sm text-muted-foreground">Administración</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-display sm:text-3xl">Catálogos</h1>
+        <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <Layers aria-hidden="true" className="size-3" /> Administración
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-display">Catálogos</h1>
       </header>
-      <Alert variant="destructive">
+      <Alert className="mt-8 rounded-2xl" variant="destructive">
         <AlertCircle aria-hidden="true" />
         <AlertTitle>No pudimos cargar los catálogos</AlertTitle>
         <AlertDescription>
           <p>Reintentá la operación. Si el problema continúa, verificá tu conexión antes de seguir.</p>
-          <Button className="mt-4" onClick={reset} type="button" variant="outline">Reintentar</Button>
+          <Button className="mt-4 rounded-xl" onClick={reset} type="button" variant="outline">Reintentar</Button>
         </AlertDescription>
       </Alert>
     </main>

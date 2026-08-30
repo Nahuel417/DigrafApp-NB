@@ -101,11 +101,12 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     await expect(page.locator('dt:has-text("Teléfono") + dd')).toHaveText("+54 351 5550199");
     const specifications = page.getByRole("heading", { name: "Especificaciones", exact: true }).locator("xpath=ancestor::section[1]");
     await expect(specifications.getByText("Renglón 1", { exact: true })).toBeVisible();
-    await page.getByLabel("Equipo").last().fill(`Equipo editado PR1B ${runId}`);
-     await page.getByRole("button", { name: "Guardar cambios" }).click();
-     await page.getByRole("button", { name: "Confirmar cambios" }).click();
-      await expect(page.getByLabel("Notifications alt+T").getByRole("listitem").filter({ hasText: "Pedido actualizado." })).toBeVisible();
-     await page.goto(`/orders?search=${encodeURIComponent(`Equipo editado PR1B ${runId}`)}`);
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
+    await page.locator("#edit-order").getByLabel("Equipo").fill(`Equipo editado PR1B ${runId}`);
+    await page.getByRole("button", { name: "Guardar cambios" }).click();
+    await page.getByRole("button", { name: "Confirmar cambios" }).click();
+    await expect(page.getByLabel("Notifications alt+T").getByRole("listitem").filter({ hasText: "Pedido actualizado." })).toBeVisible();
+    await page.goto(`/orders?search=${encodeURIComponent(`Equipo editado PR1B ${runId}`)}`);
     await expect(page.getByText(`Equipo editado PR1B ${runId}`, { exact: true })).toBeVisible();
   } finally {
     if (orderId) {

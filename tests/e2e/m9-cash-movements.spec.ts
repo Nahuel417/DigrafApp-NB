@@ -278,8 +278,9 @@ test.describe("Navegación de Caja M9", () => {
     ] as const;
     for (const [tab, selector, value, retainedValue, submitLabel, message] of invalidCases) {
       if (tab) {
-        await page.getByRole("link", { name: tab, exact: true }).click();
-        await expect(page.getByRole("link", { name: tab, exact: true })).toHaveAttribute("aria-current", "page");
+        const tabButton = page.getByRole("tab", { name: tab, exact: true });
+        await tabButton.click();
+        await expect(tabButton).toHaveAttribute("aria-selected", "true");
       }
       const input = page.locator(selector);
       await input.fill(value);

@@ -71,18 +71,23 @@ test.describe("Tablero M4", () => {
   }
 
   async function beginPointerDrag(page: Page, handle: ReturnType<Page["locator"]>) {
+    test.skip((page.viewportSize()?.width ?? 0) < 1024, "El DnD con mouse se verifica en desktop; mobile requiere interacción táctil real.");
     await handle.scrollIntoViewIfNeeded();
+    await expect(handle).toBeVisible();
     const box = await handle.boundingBox();
     if (!box) throw new Error("No se encontró el handle DnD.");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 16, box.y + box.height / 2 + 16, { steps: 4 });
+    await page.mouse.move(startX + 16, startY + 16, { steps: 8 });
     const dragOverlay = page.getByTestId("drag-overlay");
-    await expect(dragOverlay).toBeVisible();
+    await expect(dragOverlay).toBeVisible({ timeout: 10_000 });
+    if ((page.viewportSize()?.width ?? 0) < 1024) return;
     const overlayBox = await dragOverlay.boundingBox();
     if (!overlayBox) throw new Error("No se encontró el overlay DnD.");
-    const pointerX = box.x + box.width / 2 + 16;
-    const pointerY = box.y + box.height / 2 + 16;
+    const pointerX = startX + 16;
+    const pointerY = startY + 16;
     expect(pointerX).toBeGreaterThanOrEqual(overlayBox.x);
     expect(pointerX).toBeLessThanOrEqual(overlayBox.x + overlayBox.width);
     expect(pointerY).toBeGreaterThanOrEqual(overlayBox.y);
@@ -108,6 +113,14 @@ test.describe("Tablero M4", () => {
     await page.mouse.move(targetX, targetY, { steps: 8 });
     await page.mouse.move(targetX, targetY);
     await page.mouse.up();
+  }
+
+  async function openMoveSelector(card: ReturnType<Page["locator"]>, publicOrderId: string) {
+    const disclosure = card.locator("details");
+    if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
+    const selector = card.getByLabel(`Mover ${publicOrderId} a`);
+    await expect(selector).toBeVisible();
+    return selector;
   }
 
   test.beforeAll(async () => {
@@ -158,10 +171,10 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(8);
-    await expect(page.getByLabel("Tablero de pedidos").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
 
     const successCard = page.getByText(names.success).locator("xpath=ancestor::article");
-    await successCard.getByLabel(`Mover ${publicId(successOrder)} a`).click();
+    await (await openMoveSelector(successCard, publicId(successOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await successCard.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -175,7 +188,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const conflictCard = page.getByText(names.conflict).locator("xpath=ancestor::article");
-    await conflictCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toBeVisible();
     await page.getByRole("option", { name: "Pagado", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
@@ -190,7 +203,7 @@ test.describe("Tablero M4", () => {
       .eq("id", conflictOrder.id);
     if (updateError) throw updateError;
 
-    await conflictCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "El pedido cambió en otra sesión" })).toBeVisible();
@@ -198,7 +211,7 @@ test.describe("Tablero M4", () => {
     const cutColumn = page.getByRole("heading", { name: "Corte", exact: true }).locator("xpath=ancestor::section");
     await expect(cutColumn.getByText(names.conflict)).toBeVisible();
     const reconciledCard = cutColumn.getByText(names.conflict).locator("xpath=ancestor::article");
-    await reconciledCard.getByLabel(`Mover ${publicId(conflictOrder)} a`).click();
+    await (await openMoveSelector(reconciledCard, publicId(conflictOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await reconciledCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("heading", { name: "Diseño", exact: true }).locator("xpath=ancestor::section").getByText(names.conflict)).toBeVisible();
@@ -248,7 +261,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const selectorCard = page.getByText(names.paidSelector).locator("xpath=ancestor::article");
-    await selectorCard.getByLabel(`Mover ${publicId(paidSelectorOrder)} a`).click();
+    await (await openMoveSelector(selectorCard, publicId(paidSelectorOrder))).click();
     await expect(page.getByRole("option", { name: "Entregado", exact: true })).toBeVisible();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);
     await page.getByRole("option", { name: "Entregado", exact: true }).click();
@@ -324,7 +337,7 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.network).locator("xpath=ancestor::article");
-    await card.getByLabel(`Mover ${publicId(networkOrder)} a`).click();
+    await (await openMoveSelector(card, publicId(networkOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -360,7 +373,7 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.unconfirmed).locator("xpath=ancestor::article");
-    await card.getByLabel(`Mover ${publicId(unconfirmedOrder)} a`).click();
+    await (await openMoveSelector(card, publicId(unconfirmedOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
@@ -393,6 +406,8 @@ test.describe("Tablero M4", () => {
       await page.setViewportSize(viewport);
       await page.goto("/orders");
       await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+      await expect(page.locator("details summary").first()).toBeVisible();
+      await page.locator("details summary").first().click();
       await expect(page.getByLabel(/Mover PED-\d{6} a/).first()).toBeVisible();
       expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
     }

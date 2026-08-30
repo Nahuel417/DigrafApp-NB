@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { KeyRound, Mail, UserPlus } from "lucide-react";
 
 import { SubmitButton } from "@/components/submit-button";
 import {
@@ -59,50 +60,67 @@ export function CreateUserForm() {
   return (
     <form
       action={formAction}
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-xs"
+      className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-xs"
       id={formId}
       noValidate
       ref={formRef}
     >
-      <div className="border-b border-border px-5 py-4">
-        <h2 className="text-base font-semibold">Nuevo usuario</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          La contraseña temporal se comunica fuera de Digraf.
-        </p>
+      <div className="grid-paper flex items-center gap-3 border-b border-border/60 px-5 py-5 sm:px-6">
+        <span aria-hidden="true" className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+          <UserPlus className="size-[18px]" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight">Nuevo usuario</h2>
+          <p className="text-xs text-muted-foreground">
+            La contraseña temporal se comunica fuera de Digraf.
+          </p>
+        </div>
       </div>
 
-      <div className="p-5">
-        <FieldGroup className="grid gap-4 md:grid-cols-2">
+      <div className="p-5 sm:p-6">
+        <FieldGroup className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={Boolean(displayNameErrors?.length)}>
-            <FieldLabel htmlFor="displayName">Nombre descriptivo</FieldLabel>
+            <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="displayName">
+              Nombre descriptivo
+            </FieldLabel>
             <Input
               aria-describedby={displayNameErrors?.length ? "display-name-error" : undefined}
               aria-invalid={Boolean(displayNameErrors?.length)}
               id="displayName"
               name="displayName"
+              placeholder="Ej. Taller · Estampado"
               required
+              className="rounded-xl bg-muted/30 shadow-none transition-all duration-200 focus-visible:bg-card"
             />
             <FieldError errors={displayNameErrors} id="display-name-error" />
           </Field>
           <Field data-invalid={Boolean(emailErrors?.length)}>
-            <FieldLabel htmlFor="new-user-email">Email</FieldLabel>
+            <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="new-user-email">
+              <Mail aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+              Email
+            </FieldLabel>
             <Input
               aria-describedby={emailErrors?.length ? "new-user-email-error" : undefined}
               aria-invalid={Boolean(emailErrors?.length)}
               autoComplete="off"
               id="new-user-email"
               name="email"
+              placeholder="nombre@digraf.local"
               required
               type="email"
+              className="rounded-xl bg-muted/30 shadow-none transition-all duration-200 focus-visible:bg-card"
             />
             <FieldError errors={emailErrors} id="new-user-email-error" />
           </Field>
           <Field data-invalid={Boolean(roleErrors?.length)}>
-            <FieldLabel htmlFor="new-user-role">Rol</FieldLabel>
+            <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="new-user-role">
+              Rol
+            </FieldLabel>
             <Select defaultValue="employee" key={state.resetKey ?? "initial"} name="role">
               <SelectTrigger
                 aria-describedby={roleErrors?.length ? "new-user-role-error" : undefined}
                 aria-invalid={Boolean(roleErrors?.length)}
+                className="h-11 rounded-xl bg-muted/30 shadow-none transition-all duration-200 focus:bg-card md:h-10"
                 id="new-user-role"
               >
                 <SelectValue />
@@ -118,7 +136,10 @@ export function CreateUserForm() {
             <FieldError errors={roleErrors} id="new-user-role-error" />
           </Field>
           <Field data-invalid={Boolean(passwordErrors?.length)}>
-            <FieldLabel htmlFor="temporary-password">Contraseña temporal</FieldLabel>
+            <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="temporary-password">
+              <KeyRound aria-hidden="true" className="size-3.5" data-icon="inline-start" />
+              Contraseña temporal
+            </FieldLabel>
             <Input
               aria-describedby={passwordErrors?.length ? "temporary-password-error" : undefined}
               aria-invalid={Boolean(passwordErrors?.length)}
@@ -126,8 +147,10 @@ export function CreateUserForm() {
               id="temporary-password"
               minLength={8}
               name="password"
+              placeholder="••••••••"
               required
               type="password"
+              className="rounded-xl bg-muted/30 shadow-none transition-all duration-200 focus-visible:bg-card"
             />
             <FieldError errors={passwordErrors} id="temporary-password-error" />
           </Field>
@@ -147,7 +170,7 @@ export function CreateUserForm() {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <SubmitButton
-              className="mt-5 min-h-11 md:min-h-10"
+              className="group mt-5 min-h-11 rounded-xl shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.98] md:min-h-10"
               onClick={(event) => {
                 if (!formRef.current?.reportValidity()) {
                   event.preventDefault();
@@ -161,6 +184,7 @@ export function CreateUserForm() {
               ref={triggerRef}
               type="button"
             >
+              <UserPlus aria-hidden="true" data-icon="inline-start" />
               Crear usuario
             </SubmitButton>
           </AlertDialogTrigger>
