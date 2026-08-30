@@ -12,6 +12,11 @@ const displayNameSchema = z.string().trim().min(2).max(100);
 const role = "super_admin";
 const stagingProjectRef = "saajtpvsttiedthuhxou";
 const stagingHost = `${stagingProjectRef}.supabase.co`;
+const productionProjectRef = "bvqxbwgkshtjyuhaxghf";
+const allowedRemoteProjectRefs = new Set([
+  stagingProjectRef,
+  productionProjectRef,
+]);
 const syntheticRoleDefinitions = [
   { role: "super_admin", envPrefix: "BOOTSTRAP_SUPER_ADMIN" },
   { role: "admin", envPrefix: "BOOTSTRAP_ADMIN" },
@@ -73,13 +78,13 @@ export function ensureAllowedEnvironment(url, projectRef, remoteConfirmed = hasA
 
   if (
     parsedUrl.protocol !== "https:"
-    || hostname !== stagingHost
+    || !allowedRemoteProjectRefs.has(projectRef)
+    || hostname !== `${projectRef}.supabase.co`
     || !["", "/"].includes(parsedUrl.pathname)
     || parsedUrl.search
     || parsedUrl.hash
-    || projectRef !== stagingProjectRef
   ) {
-    throw new Error("El bootstrap remoto solo permite el proyecto digraf-staging.");
+    throw new Error("El bootstrap remoto solo permite los proyectos digraf-staging y digraf-production.");
   }
 
   if (!remoteConfirmed) {
