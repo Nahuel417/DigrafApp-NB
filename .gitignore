@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment variables
+.env*
+!.env.example
+.env.bootstrap.local
+.env.bootstrap.production.local
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+
+# Tooling and operating system
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+dev-server.log
+
+guia-opencode-go-gpt-plus.md
+guia-ahorro-tokens-opencode.md

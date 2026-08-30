@@ -1,0 +1,1 @@
+-- Local synthetic fixtures will be added with the vertical slice that owns them.

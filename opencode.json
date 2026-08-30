@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "trello": {
+      "type": "remote",
+      "url": "https://mcp.trello.com/v1",
+      "oauth": {},
+      "enabled": true
+    }
+  },
+  "plugin": [
+    "context-mode",
+    "@dietrichgebert/ponytail"
+  ]
+}
