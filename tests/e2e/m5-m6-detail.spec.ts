@@ -482,6 +482,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(financials.getByText("Total", { exact: true })).toBeVisible();
     await expect(financials.getByText("Seña", { exact: true })).toBeVisible();
     await expect(financials.getByText("Saldo pendiente", { exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Editar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
   });
 });

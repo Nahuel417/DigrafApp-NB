@@ -71,6 +71,7 @@ test.describe("Tablero M4", () => {
   }
 
   async function beginPointerDrag(page: Page, handle: ReturnType<Page["locator"]>) {
+    test.skip((page.viewportSize()?.width ?? 0) < 1024, "El DnD con mouse se verifica en desktop; mobile requiere interacción táctil real.");
     await handle.scrollIntoViewIfNeeded();
     await expect(handle).toBeVisible();
     const box = await handle.boundingBox();

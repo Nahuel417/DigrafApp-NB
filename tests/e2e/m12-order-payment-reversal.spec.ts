@@ -101,7 +101,8 @@ test.describe("Reversión de pago M12", () => {
     const card = page.getByText(target.customerName, { exact: true }).locator("xpath=ancestor::article");
     const trigger = card.getByRole("button", { name: `Vista rápida de ${publicId(target)}` });
     await trigger.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
-    await trigger.click();
+    await trigger.focus();
+    await page.keyboard.press("Enter");
     const panel = page.getByRole("dialog", { name: `Vista rápida de ${publicId(target)}` });
     await expect(panel).toBeVisible();
     return panel;
@@ -144,7 +145,7 @@ test.describe("Reversión de pago M12", () => {
   test("Admin descubre, cancela y confirma la reversión con etapa e historial actualizados", async ({ page }) => {
     await login(page, admin);
     await page.goto("/orders");
-    let panel = await openQuickView(page);
+    const panel = await openQuickView(page);
     await expect(panel.getByRole("button", { name: "Revertir pago", exact: true })).toBeVisible();
 
     await panel.getByRole("button", { name: "Revertir pago", exact: true }).click();
@@ -158,7 +159,6 @@ test.describe("Reversión de pago M12", () => {
     expect(unchanged?.current_stage_id).toBe(paidStage?.id);
     expect(activePayment?.reversed_at).toBeNull();
 
-    panel = await openQuickView(page);
     await panel.getByRole("button", { name: "Revertir pago", exact: true }).click();
     await page.getByRole("alertdialog", { name: "Revertir pago" }).getByRole("button", { name: "Revertir pago", exact: true }).click();
     await expect(page.locator('[data-drop-stage="received"]').getByText(order.customerName, { exact: true })).toBeVisible();

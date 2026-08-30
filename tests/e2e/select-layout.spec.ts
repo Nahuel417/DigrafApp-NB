@@ -123,6 +123,10 @@ test.describe("Select compartido", () => {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       const triggerScope = route.startsWith("/orders/") && route !== "/orders/new" ? "#edit-order " : "";
+      if (triggerScope) {
+        await page.getByRole("tab", { name: "Editar", exact: true }).click();
+        await expect(page.locator("#edit-order")).toBeVisible();
+      }
       const sharedTrigger = page.locator(`${triggerScope}[role="combobox"]`).first();
       await expect(sharedTrigger).toBeVisible();
       await sharedTrigger.scrollIntoViewIfNeeded();
