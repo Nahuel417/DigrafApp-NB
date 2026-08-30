@@ -8,6 +8,8 @@ import {
 
 const stagingUrl = "https://saajtpvsttiedthuhxou.supabase.co";
 const stagingProjectRef = "saajtpvsttiedthuhxou";
+const productionUrl = "https://bvqxbwgkshtjyuhaxghf.supabase.co";
+const productionProjectRef = "bvqxbwgkshtjyuhaxghf";
 
 const environment = {
   BOOTSTRAP_SUPER_ADMIN_EMAIL: "superadmin@example.test",
@@ -24,17 +26,36 @@ const environment = {
   BOOTSTRAP_EMPLOYEE_PASSWORD: "SyntheticEmployee1",
 };
 
-describe("staging bootstrap configuration", () => {
-  it("allows only the configured staging project for confirmed remote runs", () => {
+describe("remote bootstrap configuration", () => {
+  it("allows the configured staging and production projects for confirmed remote runs", () => {
     expect(() => ensureAllowedEnvironment(stagingUrl, stagingProjectRef, true)).not.toThrow();
+    expect(() => ensureAllowedEnvironment(productionUrl, productionProjectRef, true)).not.toThrow();
+  });
+
+  it("requires explicit confirmation for every remote project", () => {
     expect(() => ensureAllowedEnvironment(stagingUrl, stagingProjectRef, false)).toThrow(
       "--confirm-remote",
     );
+    expect(() => ensureAllowedEnvironment(productionUrl, productionProjectRef, false)).toThrow(
+      "--confirm-remote",
+    );
+  });
+
+  it("rejects unknown projects and mismatched project references", () => {
     expect(() => ensureAllowedEnvironment("https://other.supabase.co", stagingProjectRef, true)).toThrow(
       "digraf-staging",
     );
     expect(() => ensureAllowedEnvironment(stagingUrl, "other-project", true)).toThrow(
       "digraf-staging",
+    );
+    expect(() => ensureAllowedEnvironment(productionUrl, stagingProjectRef, true)).toThrow(
+      "digraf-staging",
+    );
+    expect(() => ensureAllowedEnvironment(stagingUrl, productionProjectRef, true)).toThrow(
+      "digraf-production",
+    );
+    expect(() => ensureAllowedEnvironment("https://bvqxbwgkshtjyuhaxghf.supabase.co.example.com", productionProjectRef, true)).toThrow(
+      "digraf-production",
     );
   });
 
