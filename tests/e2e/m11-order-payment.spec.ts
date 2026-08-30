@@ -171,7 +171,7 @@ test.describe("Pago M11 desde Kanban", () => {
     await paidColumn.getByRole("link", { name: authorizedOrder.customerName, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/orders/${authorizedOrder.id}$`));
 
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
+    const timeline = page.getByRole("heading", { name: "Historial de etapas" }).locator("xpath=ancestor::section");
     const paymentEvent = timeline.getByText("Pago confirmado", { exact: true }).locator("xpath=ancestor::li");
     await expect(paymentEvent).toBeVisible();
     await expect(paymentEvent.getByText(authorized.displayName, { exact: true })).toBeVisible();

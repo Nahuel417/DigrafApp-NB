@@ -224,9 +224,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await card.getByRole("button", { name: `Vista rápida de ${publicId(employeeOrder)}` }).click();
     const quickView = page.getByRole("dialog", { name: `Vista rápida de ${publicId(employeeOrder)}` });
     await expect(quickView).toBeVisible();
-    await expect(quickView.getByRole("heading", { name: `Empleado M5 M6 ${runId}` })).toBeVisible();
+    await expect(quickView.getByRole("heading", { name: `Equipo Empleado M5 M6 ${runId}` })).toBeVisible();
     await expect(quickView.getByText("Último movimiento")).toBeVisible();
-    await expect(quickView.getByText("Comentarios recientes")).toBeVisible();
+    await expect(quickView.getByRole("heading", { name: "Último comentario" })).toBeVisible();
     await expect(quickView.getByText("Total")).toHaveCount(0);
     await quickView.getByRole("button", { name: "Cerrar vista rápida" }).click();
     await expect(quickView).toHaveCount(0);
@@ -267,7 +267,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { name: "Importes" })).toHaveCount(0);
     await expect(page.getByText("Total")).toHaveCount(0);
     await expect(page.getByText("Seña")).toHaveCount(0);
-    await expect(page.getByText("Saldo visible")).toHaveCount(0);
+    await expect(page.getByText("Saldo pendiente")).toHaveCount(0);
   });
 
   test("todos los roles pueden editar la descripción", async ({ page }) => {
@@ -293,7 +293,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     }
   });
 
-  test("todos los roles pueden crear comentarios y aparecen en el timeline", async ({ page }) => {
+  test("todos los roles pueden crear comentarios y aparecen en Comentarios", async ({ page }) => {
     for (const identity of identities) {
       const order = identity.role === "super_admin" ? superAdminOrder : employeeOrder;
 
@@ -310,9 +310,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
 
     await login(page, identities[0]!);
     await navigateToDetail(page, superAdminOrder);
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
-    await expect(timeline).toBeVisible();
-    await expect(timeline.getByText("Comentario", { exact: true }).first()).toBeVisible();
+    const comments = page.getByRole("heading", { name: "Comentarios" }).locator("xpath=ancestor::section");
+    await expect(comments).toBeVisible();
+    await expect(comments.getByText(`Comentario de super_admin ${runId}`, { exact: true })).toBeVisible();
   });
 
   test("Super admin puede editar campos sensibles y ve el cambio en el timeline", async ({ page }) => {
@@ -334,9 +334,9 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByLabel("Notifications alt+T")).toContainText("Pedido actualizado.");
 
     await page.getByRole("tab", { name: "Detalles", exact: true }).click();
-    const orderData = page.getByRole("heading", { name: "Datos del pedido" }).locator("xpath=ancestor::section");
+    const orderData = page.getByRole("heading", { name: "Datos generales" }).locator("xpath=ancestor::section");
     await expect(orderData.getByText(updatedCustomer)).toBeVisible();
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
+    const timeline = page.getByRole("heading", { name: "Historial de etapas" }).locator("xpath=ancestor::section");
     await expect(timeline.getByText("Se actualizó el pedido", { exact: true }).first()).toBeVisible();
     await expect(timeline.getByText("Se actualizó la fecha prometida", { exact: true })).toBeVisible();
   });
@@ -481,7 +481,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(financials).toBeVisible();
     await expect(financials.getByText("Total", { exact: true })).toBeVisible();
     await expect(financials.getByText("Seña", { exact: true })).toBeVisible();
-    await expect(financials.getByText("Saldo visible", { exact: true })).toBeVisible();
+    await expect(financials.getByText("Saldo pendiente", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
   });
 });

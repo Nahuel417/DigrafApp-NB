@@ -2,6 +2,7 @@
 
 import { Activity, ArrowRight, CalendarDays, FileText, Layers3, MessageSquareText, Package, RotateCcw, Shirt, X } from "lucide-react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,7 +40,7 @@ function closeModal(dialog: HTMLDialogElement) {
   else dialog.removeAttribute("open");
 }
 
-function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void }) {
+function ReversePaymentDialog({ data, onReconciled, portalContainer }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void; portalContainer: HTMLElement | null }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [state, setState] = useState<ReverseOrderPaymentActionState>({});
@@ -75,7 +76,7 @@ function ReversePaymentDialog({ data, onReconciled }: { data: OrderQuickView; on
           Revertir pago
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}>
+      <AlertDialogContent container={portalContainer} onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}>
         <AlertDialogHeader>
           <AlertDialogTitle>Revertir pago</AlertDialogTitle>
           <AlertDialogDescription>
@@ -108,11 +109,18 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
   const expandedDialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [quickViewPortalContainer, setQuickViewPortalContainer] = useState<HTMLDialogElement | null>(null);
+  const portalRoot = typeof document === "undefined" ? null : document.body;
   const detailPath = `/orders/${data.id}`;
   const editPath = data.canEditSensitive ? `${detailPath}?view=edit` : `${detailPath}#order-description`;
   const movement = data.lastMovement
     ? `Movido de ${data.lastMovement.fromStageId ? stageNames[data.lastMovement.fromStageId] ?? "una etapa no disponible" : "inicio"} a ${data.lastMovement.toStageId ? stageNames[data.lastMovement.toStageId] ?? "una etapa no disponible" : "una etapa no disponible"}`
     : "Todavía no hay movimientos registrados.";
+
+  const setQuickViewDialogRef = useCallback((dialog: HTMLDialogElement | null) => {
+    quickViewDialogRef.current = dialog;
+    setQuickViewPortalContainer(dialog);
+  }, []);
 
   useEffect(() => {
     const dialog = quickViewDialogRef.current;
@@ -137,12 +145,13 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
   }
 
   return (
-    <dialog
+    <>
+      <dialog
       aria-label={`Vista rápida de ${formatOrderNumber(data.publicNumber)}`}
       className="m-auto max-h-[90dvh] w-[min(94vw,54rem)] overflow-hidden rounded-2xl border border-border bg-card p-0 text-foreground shadow-lg backdrop:bg-foreground/25 backdrop:backdrop-blur-[2px]"
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      ref={quickViewDialogRef}
+        ref={setQuickViewDialogRef}
     >
       <article className="flex max-h-[90dvh] min-h-0 flex-col">
       <header className="grid-paper flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6 sm:py-5">
@@ -198,9 +207,11 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
       <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-muted/35 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
         <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
         {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath}>Editar pedido</Link></Button> : null}
-        {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} /> : null}
+        {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} portalContainer={quickViewPortalContainer} /> : null}
       </footer>
       </article>
+      </dialog>
+      {portalRoot ? createPortal(
       <dialog
         aria-labelledby={`expanded-design-heading-${data.id}`}
         className="m-auto max-h-[90vh] max-w-[min(92vw,56rem)] rounded-xl border border-border bg-card p-0 text-foreground shadow-lg backdrop:bg-black/70"
@@ -224,7 +235,9 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
             <img alt={`Diseño ampliado de ${data.customerName}`} className="max-h-[72vh] w-full object-contain" referrerPolicy="no-referrer" src={expandedUrl} />
           ) : <p className="text-sm text-muted-foreground">Preparando la vista ampliada...</p>}
         </div>
-      </dialog>
-    </dialog>
+      </dialog>,
+      portalRoot,
+      ) : null}
+    </>
   );
 }

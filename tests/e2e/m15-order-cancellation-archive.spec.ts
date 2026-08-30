@@ -125,7 +125,7 @@ test.describe("Anulación, Archivo y restauración M15", () => {
     await expect(archiveCard.getByRole("button", { name: "Restaurar pedido" })).toBeVisible();
     await archiveCard.getByRole("link", { name: `PED-${String(order.publicNumber).padStart(6, "0")}` }).click();
     await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
-    await expect(page.getByRole("heading", { name: `PED-${String(order.publicNumber).padStart(6, "0")}` })).toBeVisible();
+    await expect(page.getByText(`PED-${String(order.publicNumber).padStart(6, "0")}`, { exact: true })).toBeVisible();
     const specifications = page.locator("[data-order-specifications]");
     await expect(specifications.getByText("Prenda histórica E2E", { exact: true })).toBeVisible();
     await expect(specifications.getByText("Escudo histórico E2E", { exact: true })).toBeVisible();

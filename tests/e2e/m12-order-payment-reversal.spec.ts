@@ -165,7 +165,7 @@ test.describe("Reversión de pago M12", () => {
 
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByText("Pedido recibido", { exact: true }).first()).toBeVisible();
-    const timeline = page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section");
+    const timeline = page.getByRole("heading", { name: "Historial de etapas" }).locator("xpath=ancestor::section");
     await expect(timeline.getByText("Pago revertido", { exact: true })).toBeVisible();
   });
 
@@ -180,6 +180,6 @@ test.describe("Reversión de pago M12", () => {
     await expect(page.locator('[data-drop-stage="received"]').getByText(attentionOrder.customerName, { exact: true })).toBeVisible();
     await page.goto(`/orders/${attentionOrder.id}`);
     await expect(page.getByText("Pedido recibido", { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Historial" }).locator("xpath=ancestor::section").getByText("Pago revertido", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Historial de etapas" }).locator("xpath=ancestor::section").getByText("Pago revertido", { exact: true })).toBeVisible();
   });
 });
