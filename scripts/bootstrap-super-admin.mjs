@@ -76,10 +76,12 @@ export function ensureAllowedEnvironment(url, projectRef, remoteConfirmed = hasA
 
   if (isLocal) return;
 
+  const resolvedProjectRef = projectRef ?? hostname.replace(/\.supabase\.co$/, "");
+
   if (
     parsedUrl.protocol !== "https:"
-    || !allowedRemoteProjectRefs.has(projectRef)
-    || hostname !== `${projectRef}.supabase.co`
+    || !allowedRemoteProjectRefs.has(resolvedProjectRef)
+    || hostname !== `${resolvedProjectRef}.supabase.co`
     || !["", "/"].includes(parsedUrl.pathname)
     || parsedUrl.search
     || parsedUrl.hash
