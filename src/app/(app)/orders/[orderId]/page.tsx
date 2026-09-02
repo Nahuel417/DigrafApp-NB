@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BadgeDollarSign, CalendarDays, CheckCircle2, ClipboardList, History, Info, Package, PencilLine, Phone, Scissors, Sparkles, UserRound, UsersRound, type LucideIcon } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderLifecycle, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
+import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderDesignImages, canManageOrderLifecycle, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
 import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
@@ -44,7 +44,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const isCancelled = order.lifecycleState === "cancelled";
   const isArchivedDelivered = order.lifecycleState === "archived_delivered";
   const isReadOnly = isCancelled || isArchivedDelivered;
-  const canManageDesignImage = !isReadOnly && (profile.role === "super_admin" || profile.role === "admin" || profile.role === "attention");
+  const canManageDesignImage = !isReadOnly && canManageOrderDesignImages(profile.role);
   const balance = canReadFinances ? visibleBalanceString(financials) : null;
 
   const timelineItems = timelineEvents.map((event) => ({

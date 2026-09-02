@@ -73,6 +73,25 @@ function getOrderCard() {
 }
 
 describe("order board payment confirmation", () => {
+  it("selects one stage and supports arrow-key navigation", () => {
+    render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(columns.length);
+    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("mobile-stage-panel-received").classList.contains("block")).toBe(true);
+    expect(screen.getByTestId("mobile-stage-panel-paid").classList.contains("hidden")).toBe(true);
+
+    fireEvent.click(tabs[1]);
+    expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("mobile-stage-panel-received").classList.contains("hidden")).toBe(true);
+    expect(screen.getByTestId("mobile-stage-panel-paid").classList.contains("block")).toBe(true);
+
+    fireEvent.keyDown(tabs[1], { key: "ArrowRight" });
+    expect(tabs[2]?.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(tabs[2]);
+  });
+
   it("opens the confirmation dialog without moving the card", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
 

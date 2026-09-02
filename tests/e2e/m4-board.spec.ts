@@ -410,11 +410,43 @@ test.describe("Tablero M4", () => {
       await page.locator("details summary").first().click();
       await expect(page.getByLabel(/Mover PED-\d{6} a/).first()).toBeVisible();
       expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+      if (viewport.width < 1024) {
+        await expect(page.getByRole("tab").first()).toBeVisible();
+        await expect(page.getByRole("button", { name: /Arrastrar PED-/ })).toHaveCount(0);
+      } else {
+        await expect(page.getByRole("button", { name: /Arrastrar PED-/ }).first()).toBeVisible();
+      }
     }
 
     await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
     expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.getByRole("button", { name: /Arrastrar PED-/ }).first()).toBeVisible();
+  });
+
+  test("muestra una sola etapa navegable en mobile y conserva todas en desktop", async ({ page }) => {
+    await login(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/orders");
+
+    const tabs = page.getByRole("tab");
+    const stageCount = await page.locator("[data-drop-stage]").count();
+    await expect(tabs).toHaveCount(stageCount);
+    await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(1);
+
+    const paidTab = page.getByRole("tab", { name: /Pagado/ });
+    await paidTab.click();
+    await expect(paidTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator('[data-drop-stage="paid"]')).toBeVisible();
+    await expect(page.locator('[data-drop-stage="received"]')).toBeHidden();
+
+    await page.keyboard.press("Home");
+    await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(stageCount);
     await expect(page.getByRole("button", { name: /Arrastrar PED-/ }).first()).toBeVisible();
   });
 
