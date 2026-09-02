@@ -56,7 +56,7 @@ export function canEditOrderSensitive(role: AppRole) {
 }
 
 export function canManageOrderDesignImages(role: AppRole) {
-  return role === "super_admin" || role === "admin" || role === "attention";
+  return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }
 
 export function canEditOrderDescription(role: AppRole) {

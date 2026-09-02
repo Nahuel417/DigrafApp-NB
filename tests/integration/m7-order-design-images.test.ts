@@ -200,25 +200,43 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     });
   });
 
-  it("permite a Super admin, Admin y Atención cargar y confirmar una única imagen vigente", async () => {
-    for (const role of ["super_admin", "admin", "attention"] as const) {
+  it("permite a los cuatro roles agregar, reemplazar y gestionar la imagen principal", async () => {
+    for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
       const identity = identities.find((candidate) => candidate.role === role)!;
       const client = await signedClient(identity);
       const order = await createOrder();
-      const path = objectPath(order.id);
+      const firstPath = objectPath(order.id);
 
-      expect((await upload(client, path)).error).toBeNull();
-      const confirmed = await finalize(identity, order, path, null);
-      expect(confirmed.error).toBeNull();
-      expect(confirmed.data?.[0]).toMatchObject({ order_id: order.id, object_path: path, previous_object_path: null });
+      expect((await upload(client, firstPath)).error).toBeNull();
+      const first = await finalize(identity, order, firstPath, null);
+      expect(first.error).toBeNull();
+      expect(first.data?.[0]).toMatchObject({ order_id: order.id, object_path: firstPath, previous_object_path: null });
+
+      const firstImage = (await images(order)).data?.[0];
+      if (!firstImage?.id || !firstImage.updated_at) throw new Error("La carga inicial no devolvió metadata completa.");
+      expect((await mutate(identity, order, "clear_primary")).error).toBeNull();
+      expect((await mutate(identity, order, "set_primary", { imageId: firstImage.id })).error).toBeNull();
+
+      const replacementPath = objectPath(order.id, "webp");
+      expect((await upload(client, replacementPath, "image/webp")).error).toBeNull();
+      const replacement = await finalize(identity, order, replacementPath, firstImage.updated_at);
+      expect(replacement.error).toBeNull();
+      expect(replacement.data?.[0]).toMatchObject({ order_id: order.id, object_path: replacementPath, previous_object_path: firstPath });
+
+      const replacementImage = (await images(order)).data?.[0];
+      if (!replacementImage?.id) throw new Error("El reemplazo no devolvió el identificador de imagen.");
+      expect((await mutate(identity, order, "clear_primary")).error).toBeNull();
+      expect((await mutate(identity, order, "set_primary", { imageId: replacementImage.id })).error).toBeNull();
+      expect((await mutate(identity, order, "delete", { imageId: replacementImage.id })).error).toBeNull();
+      expect((await images(order)).data).toHaveLength(0);
 
       const { data: image, error } = await service
         .from("order_design_images")
         .select("object_path, content_type, byte_size, uploaded_by")
         .eq("order_id", order.id)
-        .single();
+        .maybeSingle();
       expect(error).toBeNull();
-      expect(image).toMatchObject({ object_path: path, content_type: "image/png", byte_size: 1024, uploaded_by: identities.find((identity) => identity.role === role)!.id });
+      expect(image).toBeNull();
     }
   });
 
@@ -230,13 +248,15 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     expect((await upload(attention, objectPath(order.id), "image/png", maximumBytes + 1)).error).not.toBeNull();
   });
 
-  it("rechaza a Empleado, sesiones inválidas y escrituras directas de metadata", async () => {
+  it("rechaza sesiones inválidas y escrituras directas de metadata", async () => {
     const superAdmin = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
-    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    const inactive = await signedClient(identities[4]!);
+    const requiredChange = await signedClient(identities[5]!);
     const order = await createOrder();
     const path = objectPath(order.id);
 
-    expect((await upload(employee, path)).error).not.toBeNull();
+    expect((await upload(inactive, path)).error).not.toBeNull();
+    expect((await upload(requiredChange, objectPath(order.id))).error).not.toBeNull();
     expect((await superAdmin.from("order_design_images").insert({
       order_id: order.id,
       object_path: path,
@@ -251,7 +271,6 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
       p_idempotency_key: randomUUID(),
     });
     expect(directRpc.error).not.toBeNull();
-    expect((await finalize(identities[3]!, order, path, null)).error?.message).toContain("permiso");
     expect((await finalize(identities[4]!, order, path, null)).error?.message).toContain("permiso");
     expect((await finalize(identities[5]!, order, path, null)).error?.message).toContain("permiso");
   });
@@ -504,13 +523,14 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     expect(plan.deletableObjectPaths).toHaveLength(1);
   }, 20000);
 
-  it("deniega escrituras directas, preserva lectura operativa y limita la gestión por rol", async () => {
+  it("deniega escrituras directas y conserva la lectura operativa con Empleado autorizado", async () => {
     const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
-    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    const employeeIdentity = identities.find((identity) => identity.role === "employee")!;
+    const employee = await signedClient(employeeIdentity);
     const order = await createOrder();
     const path = objectPath(order.id);
 
-    expect((await employee.storage.from(bucketId).upload(path, new Blob([new Uint8Array(1024)], { type: "image/png" }), { contentType: "image/png", upsert: false })).error).not.toBeNull();
+    expect((await upload(employee, path)).error).toBeNull();
     expect((await admin.from("order_design_images").insert({
       order_id: order.id,
       object_path: path,
@@ -520,7 +540,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     })).error).not.toBeNull();
     expect((await employee.from("order_design_images").select("order_id").eq("order_id", order.id)).error).toBeNull();
     const directRpc = await employee.rpc("mutate_order_design_image" as never, {
-      p_actor_id: identities.find((identity) => identity.role === "employee")!.id,
+      p_actor_id: employeeIdentity.id,
       p_order_id: order.id,
       p_action: "add",
       p_image_id: null,
@@ -529,6 +549,6 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
       p_idempotency_key: randomUUID(),
     } as never) as unknown as { error: { message: string } | null };
     expect(directRpc.error?.message).toContain("permission denied");
-    expect((await mutate(identities.find((identity) => identity.role === "employee")!, order, "add", { objectPath: path })).error?.message).toContain("permiso");
+    expect((await mutate(employeeIdentity, order, "add", { objectPath: path })).error).toBeNull();
   });
 });
