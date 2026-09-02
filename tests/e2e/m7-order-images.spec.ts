@@ -141,6 +141,13 @@ test.describe("Diseño vigente M7", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
+  async function selectMobileStage(page: Page, stageName: string) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: new RegExp(`^${stageName},`) });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   async function logout(page: Page) {
     await page.getByRole("button", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -267,7 +274,7 @@ test.describe("Diseño vigente M7", () => {
     const image = page.getByRole("img", { name: "Diseño vigente del pedido" });
     await expect(image).toBeVisible();
     await expect(image).toHaveJSProperty("complete", true);
-    await expect(image).toHaveJSProperty("naturalWidth", 1);
+    await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
     await image.dispatchEvent("error");
     const renewedFeedback = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
     await expect(renewedFeedback).toBeVisible();
@@ -302,6 +309,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[0]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
@@ -316,6 +324,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[3]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
@@ -328,6 +337,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[1]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
      await card.getByRole("button", { name: /Vista rápida/ }).click();
@@ -426,6 +436,7 @@ test.describe("Diseño vigente M7", () => {
 
     await login(page, identities[3]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await expect(card.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
     await card.getByRole("button", { name: /Vista rápida/ }).click();

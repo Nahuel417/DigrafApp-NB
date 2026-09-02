@@ -481,6 +481,7 @@ export function OrderBoard({
             try {
                 const result = await confirmOrderPaymentAction({}, formData);
                 if (result.status === 'success') {
+                    setMobileStageId(result.reconciledOrder?.currentStageId ?? paidStageId ?? source.currentStageId);
                     setColumns((current) =>
                         result.reconciledOrder
                             ? replaceBoardOrder(current, result.reconciledOrder)
@@ -490,7 +491,10 @@ export function OrderBoard({
                     setPaymentRequest(null);
                     setAnnouncement(result.message ?? `${orderId(order.publicNumber)} quedó confirmado como Pagado.`);
                 } else {
-                    if (result.reconciledOrder) setColumns((current) => replaceBoardOrder(current, result.reconciledOrder!));
+                    if (result.reconciledOrder) {
+                        setMobileStageId(result.reconciledOrder.currentStageId);
+                        setColumns((current) => replaceBoardOrder(current, result.reconciledOrder!));
+                    }
                     setErrorMessage(result.message ?? 'No se pudo confirmar el cobro. Intentá nuevamente.');
                     setMutationState(result);
                     setPaymentRequest(null);
@@ -499,6 +503,7 @@ export function OrderBoard({
             } catch {
                 const canonicalOrder = await reconcileOrderAction(order.id);
                 if (canonicalOrder) {
+                    setMobileStageId(canonicalOrder.currentStageId);
                     setColumns((current) => moveBoardOrder(current, order.id, canonicalOrder.currentStageId, canonicalOrder.updatedAt));
                     const message = `Estado actualizado: ${orderId(order.publicNumber)} permanece en ${stageName(canonicalOrder.currentStageId)}.`;
                     setErrorMessage(message);
@@ -555,6 +560,7 @@ export function OrderBoard({
 
         setErrorMessage(null);
         setPendingOrderIds((current) => new Set(current).add(source.id));
+        setMobileStageId(targetStageId);
         setColumns((current) => moveBoardOrder(current, source.id, targetStageId));
         setAnnouncement(`Moviendo ${orderId(order.publicNumber)} de ${sourceName} a ${targetName}.`);
 
@@ -562,6 +568,7 @@ export function OrderBoard({
             try {
                 const result = await moveOrderAction({}, formData);
                 if (result.status === 'success' && result.movedOrder) {
+                    setMobileStageId(result.movedOrder.toStageId);
                     const message = `${orderId(order.publicNumber)} se movió de ${sourceName} a ${targetName}.`;
                     setColumns((current) => moveBoardOrder(current, source.id, result.movedOrder!.toStageId, result.movedOrder!.updatedAt));
                     setMutationState({ ...result, message });
@@ -569,6 +576,7 @@ export function OrderBoard({
                 } else {
                     const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
                     const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
+                    setMobileStageId(canonicalStageId);
                     setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
                     setErrorMessage(result.message ?? 'No se pudo mover el pedido. Intentá nuevamente.');
                     setMutationState(result);
@@ -578,6 +586,7 @@ export function OrderBoard({
                 try {
                     const canonicalOrder = await reconcileOrderAction(source.id);
                     if (canonicalOrder) {
+                        setMobileStageId(canonicalOrder.currentStageId);
                         const canonicalStageName = stageName(canonicalOrder.currentStageId);
                         const confirmed = canonicalOrder.currentStageId === targetStageId;
                         const message = confirmed
@@ -768,7 +777,10 @@ export function OrderBoard({
                         data={quickView}
                         onClose={closeQuickView}
                         onReconciled={(reconciledOrder) => {
-                            if (reconciledOrder) setColumns((current) => replaceBoardOrder(current, reconciledOrder));
+                            if (reconciledOrder) {
+                                setMobileStageId(reconciledOrder.currentStageId);
+                                setColumns((current) => replaceBoardOrder(current, reconciledOrder));
+                            }
                             closeQuickView();
                         }}
                         stageNames={Object.fromEntries(columns.map((column) => [column.id, column.name]))}

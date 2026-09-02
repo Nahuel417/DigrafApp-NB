@@ -62,6 +62,13 @@ test.describe("Tablero M4", () => {
     return `PED-${String(order.publicNumber).padStart(6, "0")}`;
   }
 
+  async function selectMobileStage(page: Page, stageName: string) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: new RegExp(`^${stageName},`) });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   async function login(page: Page) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
@@ -115,7 +122,10 @@ test.describe("Tablero M4", () => {
     await page.mouse.up();
   }
 
-  async function openMoveSelector(card: ReturnType<Page["locator"]>, publicOrderId: string) {
+  async function openMoveSelector(page: Page, card: ReturnType<Page["locator"]>, publicOrderId: string, stageName = "Pedido recibido") {
+    if ((page.viewportSize()?.width ?? 0) < 1024) {
+      await selectMobileStage(page, stageName);
+    }
     const disclosure = card.locator("details");
     if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
     const selector = card.getByLabel(`Mover ${publicOrderId} a`);
@@ -170,14 +180,15 @@ test.describe("Tablero M4", () => {
     await login(page);
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(8);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount((page.viewportSize()?.width ?? 0) < 1024 ? 1 : 8);
     await expect(page.getByRole("main").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
 
     const successCard = page.getByText(names.success).locator("xpath=ancestor::article");
-    await (await openMoveSelector(successCard, publicId(successOrder))).click();
+    await (await openMoveSelector(page, successCard, publicId(successOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await successCard.getByRole("button", { name: "Mover pedido" }).click();
 
+    await selectMobileStage(page, "Diseño");
     const designColumn = page.getByRole("heading", { name: "Diseño", exact: true }).locator("xpath=ancestor::section");
     await expect(designColumn.getByText(names.success)).toBeVisible();
     await expect(page.getByText(names.success, { exact: true })).toHaveCount(1);
@@ -188,7 +199,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const conflictCard = page.getByText(names.conflict).locator("xpath=ancestor::article");
-    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
+    await (await openMoveSelector(page, conflictCard, publicId(conflictOrder))).click();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toBeVisible();
     await page.getByRole("option", { name: "Pagado", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
@@ -203,15 +214,16 @@ test.describe("Tablero M4", () => {
       .eq("id", conflictOrder.id);
     if (updateError) throw updateError;
 
-    await (await openMoveSelector(conflictCard, publicId(conflictOrder))).click();
+    await (await openMoveSelector(page, conflictCard, publicId(conflictOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await conflictCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "El pedido cambió en otra sesión" })).toBeVisible();
 
+    await selectMobileStage(page, "Corte");
     const cutColumn = page.getByRole("heading", { name: "Corte", exact: true }).locator("xpath=ancestor::section");
     await expect(cutColumn.getByText(names.conflict)).toBeVisible();
     const reconciledCard = cutColumn.getByText(names.conflict).locator("xpath=ancestor::article");
-    await (await openMoveSelector(reconciledCard, publicId(conflictOrder))).click();
+    await (await openMoveSelector(page, reconciledCard, publicId(conflictOrder), "Corte")).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await reconciledCard.getByRole("button", { name: "Mover pedido" }).click();
     await expect(page.getByRole("heading", { name: "Diseño", exact: true }).locator("xpath=ancestor::section").getByText(names.conflict)).toBeVisible();
@@ -261,7 +273,7 @@ test.describe("Tablero M4", () => {
     await page.goto("/orders");
 
     const selectorCard = page.getByText(names.paidSelector).locator("xpath=ancestor::article");
-    await (await openMoveSelector(selectorCard, publicId(paidSelectorOrder))).click();
+    await (await openMoveSelector(page, selectorCard, publicId(paidSelectorOrder), "Pagado")).click();
     await expect(page.getByRole("option", { name: "Entregado", exact: true })).toBeVisible();
     await expect(page.getByRole("option", { name: "Pagado", exact: true })).toHaveCount(0);
     await page.getByRole("option", { name: "Entregado", exact: true }).click();
@@ -337,11 +349,12 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.network).locator("xpath=ancestor::article");
-    await (await openMoveSelector(card, publicId(networkOrder))).click();
+    await (await openMoveSelector(page, card, publicId(networkOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
     await expect(page.getByTestId("board-announcement")).toContainText(/se confirmó en Diseño|se movió de Pedido recibido a Diseño/);
+    await selectMobileStage(page, "Diseño");
     await expect(page.locator('[data-drop-stage="design"]').getByText(names.network)).toBeVisible();
     expect(reconciliationRequested).toBe(true);
     const { data: events, error: eventsError } = await admin
@@ -373,7 +386,7 @@ test.describe("Tablero M4", () => {
     });
 
     const card = page.getByText(names.unconfirmed).locator("xpath=ancestor::article");
-    await (await openMoveSelector(card, publicId(unconfirmedOrder))).click();
+    await (await openMoveSelector(page, card, publicId(unconfirmedOrder))).click();
     await page.getByRole("option", { name: "Diseño", exact: true }).click();
     await card.getByRole("button", { name: "Mover pedido" }).click();
 
