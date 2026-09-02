@@ -81,12 +81,14 @@ describe("payment permissions", () => {
 });
 
 describe("PR2 approved order authority", () => {
-  it("grants Attention approved order and image management without unrelated administration", () => {
+  it("grants every operational role the same image management without unrelated administration", () => {
     expect(canEditOrderSensitive("attention")).toBe(true);
     expect(canManageOrderDesignImages("attention")).toBe(true);
     expect(canManageCatalogs("attention")).toBe(false);
     expect(canManageStages("attention")).toBe(false);
-    expect(canManageOrderDesignImages("employee")).toBe(false);
+    for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
+      expect(canManageOrderDesignImages(role)).toBe(true);
+    }
     expect(canEditOrderSensitive("employee")).toBe(false);
   });
 });
