@@ -117,9 +117,9 @@ Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super ad
 
 Los productos, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
-Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción; Super admin, Admin y Atención pueden gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
+Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción y gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
 
-Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. No recibe autoridad administrativa no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja; Empleado permanece rechazado para esas operaciones. El servidor y RLS son la frontera final de autorización.
+Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. Empleado recibe la misma autoridad operativa sobre imágenes, sin permisos para la edición sensible ni administración no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja. El servidor y RLS son la frontera final de autorización.
 
 - El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primaria es opcional; tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
 
@@ -158,7 +158,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 
 ## Comentarios, imágenes y auditoría
 
-Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; Super admin, Admin y Atención pueden gestionar la colección y los demás roles conservan únicamente la lectura interna autorizada.
+Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; los cuatro roles internos pueden gestionar la colección y conservar la lectura interna autorizada.
 
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 

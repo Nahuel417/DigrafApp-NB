@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/core';
 import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, GripVertical, Package, PackageOpen, Shirt } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { startTransition, useRef, useState, useTransition } from 'react';
+import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -198,6 +198,7 @@ function DraggableOrderCard({
     canConfirmPayment,
     canDeliverPaidOrders,
     columns,
+    disableDragOnMobile,
     isPending,
     onMove,
     onQuickView,
@@ -206,13 +207,14 @@ function DraggableOrderCard({
     canConfirmPayment: boolean;
     canDeliverPaidOrders?: boolean;
     columns: BoardColumn[];
+    disableDragOnMobile: boolean;
     isPending: boolean;
     onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
     onQuickView: (orderId: string, trigger: HTMLButtonElement) => void;
     order: BoardOrder;
 }) {
     const paidStageId = columns.find((column) => column.code === 'paid')?.id;
-    const dragDisabled = isPending || (order.currentStageId === paidStageId && !canDeliverPaidOrders);
+    const dragDisabled = disableDragOnMobile || isPending || (order.currentStageId === paidStageId && !canDeliverPaidOrders);
     const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } = useDraggable({
         id: order.id,
         disabled: dragDisabled,
@@ -235,7 +237,7 @@ function DraggableOrderCard({
                         {...attributes}
                         aria-label={dragDisabled ? `No se puede arrastrar ${orderId(order.publicNumber)}` : `Arrastrar ${orderId(order.publicNumber)}`}
                         aria-pressed={isDragging}
-                        className="size-7 touch-none cursor-grab text-muted-foreground opacity-100 transition-[background-color,color,opacity] duration-200 ease-out active:cursor-grabbing forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 [&_svg]:size-3.5"
+                        className="hidden size-7 touch-none cursor-grab text-muted-foreground transition-[background-color,color,opacity] duration-200 ease-out active:cursor-grabbing forced-colors:outline forced-colors:outline-2 forced-colors:outline-transparent lg:inline-flex lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 [&_svg]:size-3.5"
                         data-drag-handle={order.id}
                         disabled={dragDisabled}
                         ref={setActivatorNodeRef}
@@ -313,6 +315,7 @@ function BoardColumnView({
             }`}
             data-drop-stage={column.code}
             data-drop-valid={isValidTarget ? 'true' : 'false'}
+            id={`stage-panel-${column.id}`}
             ref={setNodeRef}>
             <header className="flex items-center justify-between gap-3 px-4 py-3.5">
                 <div className="min-w-0 flex-1">
@@ -350,7 +353,9 @@ export function OrderBoard({
     initialColumns: BoardColumn[];
 }) {
     const [columns, setColumns] = useState(initialColumns);
+    const [mobileStageId, setMobileStageId] = useState(() => initialColumns[0]?.id ?? '');
     const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
+    const [isMobileBoard, setIsMobileBoard] = useState(false);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [dragPreviewAnchor, setDragPreviewAnchor] = useState<{ x: number; y: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -365,7 +370,17 @@ export function OrderBoard({
     const allOrders = columns.flatMap((column) => column.orders);
     const activeOrder = activeDragId ? (allOrders.find((order) => order.id === activeDragId) ?? null) : null;
     const paidStageId = columns.find((column) => column.code === 'paid')?.id;
+    const selectedMobileStageId = columns.some((column) => column.id === mobileStageId) ? mobileStageId : columns[0]?.id ?? '';
     useMutationToast(mutationState);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const mediaQuery = window.matchMedia('(max-width: 1023px)');
+        const updateMobileState = () => setIsMobileBoard(mediaQuery.matches);
+        updateMobileState();
+        mediaQuery.addEventListener('change', updateMobileState);
+        return () => mediaQuery.removeEventListener('change', updateMobileState);
+    }, []);
 
     function stageName(stageId: string) {
         return columns.find((column) => column.id === stageId)?.name ?? 'la etapa seleccionada';
@@ -373,6 +388,21 @@ export function OrderBoard({
 
     function findOrder(orderIdValue: string) {
         return columns.flatMap((column) => column.orders).find((order) => order.id === orderIdValue);
+    }
+
+    function handleMobileStageKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+        if (!columns.length) return;
+        let nextIndex: number | null = null;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % columns.length;
+        if (event.key === 'ArrowLeft') nextIndex = (index - 1 + columns.length) % columns.length;
+        if (event.key === 'Home') nextIndex = 0;
+        if (event.key === 'End') nextIndex = columns.length - 1;
+        if (nextIndex === null) return;
+
+        event.preventDefault();
+        const nextColumn = columns[nextIndex];
+        setMobileStageId(nextColumn.id);
+        document.getElementById(`mobile-stage-tab-${nextColumn.id}`)?.focus();
     }
 
     function focusOrderControl(orderIdValue: string, method: MovementMethod) {
@@ -451,6 +481,7 @@ export function OrderBoard({
             try {
                 const result = await confirmOrderPaymentAction({}, formData);
                 if (result.status === 'success') {
+                    setMobileStageId(result.reconciledOrder?.currentStageId ?? paidStageId ?? source.currentStageId);
                     setColumns((current) =>
                         result.reconciledOrder
                             ? replaceBoardOrder(current, result.reconciledOrder)
@@ -460,7 +491,10 @@ export function OrderBoard({
                     setPaymentRequest(null);
                     setAnnouncement(result.message ?? `${orderId(order.publicNumber)} quedó confirmado como Pagado.`);
                 } else {
-                    if (result.reconciledOrder) setColumns((current) => replaceBoardOrder(current, result.reconciledOrder!));
+                    if (result.reconciledOrder) {
+                        setMobileStageId(result.reconciledOrder.currentStageId);
+                        setColumns((current) => replaceBoardOrder(current, result.reconciledOrder!));
+                    }
                     setErrorMessage(result.message ?? 'No se pudo confirmar el cobro. Intentá nuevamente.');
                     setMutationState(result);
                     setPaymentRequest(null);
@@ -469,6 +503,7 @@ export function OrderBoard({
             } catch {
                 const canonicalOrder = await reconcileOrderAction(order.id);
                 if (canonicalOrder) {
+                    setMobileStageId(canonicalOrder.currentStageId);
                     setColumns((current) => moveBoardOrder(current, order.id, canonicalOrder.currentStageId, canonicalOrder.updatedAt));
                     const message = `Estado actualizado: ${orderId(order.publicNumber)} permanece en ${stageName(canonicalOrder.currentStageId)}.`;
                     setErrorMessage(message);
@@ -525,6 +560,7 @@ export function OrderBoard({
 
         setErrorMessage(null);
         setPendingOrderIds((current) => new Set(current).add(source.id));
+        setMobileStageId(targetStageId);
         setColumns((current) => moveBoardOrder(current, source.id, targetStageId));
         setAnnouncement(`Moviendo ${orderId(order.publicNumber)} de ${sourceName} a ${targetName}.`);
 
@@ -532,6 +568,7 @@ export function OrderBoard({
             try {
                 const result = await moveOrderAction({}, formData);
                 if (result.status === 'success' && result.movedOrder) {
+                    setMobileStageId(result.movedOrder.toStageId);
                     const message = `${orderId(order.publicNumber)} se movió de ${sourceName} a ${targetName}.`;
                     setColumns((current) => moveBoardOrder(current, source.id, result.movedOrder!.toStageId, result.movedOrder!.updatedAt));
                     setMutationState({ ...result, message });
@@ -539,6 +576,7 @@ export function OrderBoard({
                 } else {
                     const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
                     const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
+                    setMobileStageId(canonicalStageId);
                     setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
                     setErrorMessage(result.message ?? 'No se pudo mover el pedido. Intentá nuevamente.');
                     setMutationState(result);
@@ -548,6 +586,7 @@ export function OrderBoard({
                 try {
                     const canonicalOrder = await reconcileOrderAction(source.id);
                     if (canonicalOrder) {
+                        setMobileStageId(canonicalOrder.currentStageId);
                         const canonicalStageName = stageName(canonicalOrder.currentStageId);
                         const confirmed = canonicalOrder.currentStageId === targetStageId;
                         const message = confirmed
@@ -738,16 +777,46 @@ export function OrderBoard({
                         data={quickView}
                         onClose={closeQuickView}
                         onReconciled={(reconciledOrder) => {
-                            if (reconciledOrder) setColumns((current) => replaceBoardOrder(current, reconciledOrder));
+                            if (reconciledOrder) {
+                                setMobileStageId(reconciledOrder.currentStageId);
+                                setColumns((current) => replaceBoardOrder(current, reconciledOrder));
+                            }
                             closeQuickView();
                         }}
                         stageNames={Object.fromEntries(columns.map((column) => [column.id, column.name]))}
                     />
                 ) : null}
                 <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
+                    <div aria-label="Etapas del tablero" className="mb-3 flex min-w-0 gap-2 overflow-x-auto pb-1 lg:hidden" data-testid="mobile-stage-selector" role="tablist">
+                        {columns.map((column, index) => {
+                            const isSelected = column.id === selectedMobileStageId;
+                            const orderLabel = column.orders.length === 1 ? 'pedido' : 'pedidos';
+                            return (
+                                <button
+                                    aria-controls={`stage-panel-${column.id}`}
+                                    aria-label={`${column.name}, ${column.orders.length} ${orderLabel}`}
+                                    aria-selected={isSelected}
+                                    className={`flex min-h-11 min-w-[10rem] shrink-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none ${
+                                        isSelected
+                                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                                            : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/10'
+                                    }`}
+                                    id={`mobile-stage-tab-${column.id}`}
+                                    key={column.id}
+                                    onClick={() => setMobileStageId(column.id)}
+                                    onKeyDown={(event) => handleMobileStageKeyDown(event, index)}
+                                    role="tab"
+                                    tabIndex={isSelected ? 0 : -1}
+                                    type="button">
+                                    <span className="min-w-0 truncate">{column.name}</span>
+                                    <span className="rounded-full border border-current px-2 py-0.5 font-mono text-[11px] tabular-nums">{column.orders.length}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                     <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-full lg:w-max lg:max-w-none lg:flex-row lg:overscroll-x-contain lg:pb-3">
                         {columns.map((column) => (
-                            <div className="lg:w-[18.75rem] lg:shrink-0" key={column.id}>
+                            <div className={`${column.id === selectedMobileStageId ? 'block' : 'hidden'} lg:block lg:w-[18.75rem] lg:shrink-0`} data-testid={`mobile-stage-panel-${column.code}`} key={column.id}>
                                 <BoardColumnView
                                     activeOrder={activeOrder}
                                     canConfirmPayment={canConfirmPayment}
@@ -759,6 +828,7 @@ export function OrderBoard({
                                             canConfirmPayment={canConfirmPayment}
                                             canDeliverPaidOrders={canDeliverPaidOrders}
                                             columns={columns}
+                                            disableDragOnMobile={isMobileBoard}
                                             isPending={pendingOrderIds.has(order.id)}
                                             key={order.id}
                                             onMove={requestMove}

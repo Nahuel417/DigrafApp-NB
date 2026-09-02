@@ -97,7 +97,15 @@ test.describe("Reversión de pago M12", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
+  async function selectMobileStage(page: Page, stageName: string) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: new RegExp(`^${stageName},`) });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   async function openQuickView(page: Page, target: Order = order) {
+    await selectMobileStage(page, "Pagado");
     const card = page.getByText(target.customerName, { exact: true }).locator("xpath=ancestor::article");
     const trigger = card.getByRole("button", { name: `Vista rápida de ${publicId(target)}` });
     await trigger.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));

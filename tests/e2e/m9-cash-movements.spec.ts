@@ -142,7 +142,7 @@ test.describe("Navegación de Caja M9", () => {
     for (let index = 0; index < Math.abs(offset); index += 1) {
       await calendar.getByRole("button", { name: direction, exact: true }).click();
     }
-    const day = calendar.locator(`button[name="date"][value="${operationalDate}"]`);
+    const day = calendar.locator(`button[data-day="${operationalDate}"]`);
     await expect(day).toHaveCount(1);
     await expect(day).toBeEnabled();
     await day.click();

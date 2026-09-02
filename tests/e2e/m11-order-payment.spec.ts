@@ -89,7 +89,15 @@ test.describe("Pago M11 desde Kanban", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
+  async function selectMobileStage(page: Page, stageName: string) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: new RegExp(`^${stageName},`) });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   async function openPaymentDialog(page: Page, order: Order) {
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.getByText(order.customerName, { exact: true }).locator("xpath=ancestor::article");
     await card.locator("details").locator("summary").click();
     await card.getByLabel(`Mover ${publicId(order)} a`).click();
@@ -181,9 +189,11 @@ test.describe("Pago M11 desde Kanban", () => {
     await login(page, employee);
     await page.goto("/orders");
 
+    await selectMobileStage(page, "Pagado");
     const paidColumn = page.locator('[data-drop-stage="paid"]');
     await expect(paidColumn.getByText(authorizedOrder.customerName, { exact: true })).toBeVisible();
 
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.getByText(employeeOrder.customerName, { exact: true }).locator("xpath=ancestor::article");
     await card.locator("details").locator("summary").click();
     const selector = card.getByLabel(`Mover ${publicId(employeeOrder)} a`);
