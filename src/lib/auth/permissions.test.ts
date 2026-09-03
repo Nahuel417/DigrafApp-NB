@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canConfirmPayment, canCreateManualOrder, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderLabels, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
 import { canArchiveDeliveredOrder, canEditOrderSensitive, canManageOrderDesignImages, canPurgeCancelledOrder } from "./permissions";
 
 describe("M3 permissions", () => {
@@ -19,6 +19,12 @@ describe("M3 permissions", () => {
   it("allows every active operational role to request a non-financial movement", () => {
     for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
       expect(canMoveOrder(role)).toBe(true);
+    }
+  });
+
+  it("allows every active operational role to edit order labels", () => {
+    for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
+      expect(canEditOrderLabels(role)).toBe(true);
     }
   });
 });
@@ -81,12 +87,14 @@ describe("payment permissions", () => {
 });
 
 describe("PR2 approved order authority", () => {
-  it("grants Attention approved order and image management without unrelated administration", () => {
+  it("grants every operational role the same image management without unrelated administration", () => {
     expect(canEditOrderSensitive("attention")).toBe(true);
     expect(canManageOrderDesignImages("attention")).toBe(true);
     expect(canManageCatalogs("attention")).toBe(false);
     expect(canManageStages("attention")).toBe(false);
-    expect(canManageOrderDesignImages("employee")).toBe(false);
+    for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
+      expect(canManageOrderDesignImages(role)).toBe(true);
+    }
     expect(canEditOrderSensitive("employee")).toBe(false);
   });
 });

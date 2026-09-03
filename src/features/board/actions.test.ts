@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { confirmOrderPaymentAction, reverseOrderPaymentAction } from "./actions";
+import { confirmOrderPaymentAction, reverseOrderPaymentAction, setOrderLabelAction } from "./actions";
 import { getOrderBoardSnapshot } from "./queries";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -32,6 +32,12 @@ const validReversalForm = () => form({
   expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
   idempotencyKey: "reversal-key",
   reason: "Corrección solicitada",
+});
+
+const validLabelForm = () => form({
+  orderId: "11111111-1111-4111-8111-111111111111",
+  label: "urgent",
+  expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
 });
 
 describe("confirm order payment action", () => {
@@ -98,6 +104,7 @@ describe("confirm order payment action", () => {
       teamName: "Equipo",
       quantity: 1,
       orderType: "individual" as const,
+      label: null,
       promisedDeliveryDate: "2026-08-13",
       currentStageId: "22222222-2222-4222-8222-222222222222",
       updatedAt: "2026-08-12T19:02:00.000Z",
@@ -170,5 +177,70 @@ describe("reverse order payment action", () => {
 
     expect(result).toMatchObject({ status: "error", code: "cash_closed", message: "La caja está cerrada y no admite reversiones." });
     expect(result.reconciledOrder?.id).toBe("11111111-1111-4111-8111-111111111111");
+  });
+});
+
+describe("set order label action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentProfile).mockResolvedValue(activeProfile);
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never);
+    rpc.mockResolvedValue({ data: [{ label: "urgent", updated_at: "2026-08-12T19:01:00.000Z" }], error: null });
+  });
+
+  it("rejects malformed input before auth or RPC", async () => {
+    const result = await setOrderLabelAction({}, form({ orderId: "invalid", label: "urgent" }));
+
+    expect(result).toMatchObject({ status: "error", code: "invalid_request" });
+    expect(getCurrentProfile).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("calls the secure RPC without an idempotency key and accepts removal for an authorized role", async () => {
+    const result = await setOrderLabelAction({}, form({
+      orderId: "11111111-1111-4111-8111-111111111111",
+      label: "",
+      expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
+    }));
+
+    expect(result.status).toBe("success");
+    expect(rpc).toHaveBeenCalledWith("set_order_label", {
+      p_order_id: "11111111-1111-4111-8111-111111111111",
+      p_label: null,
+      p_expected_updated_at: "2026-08-12T19:00:00.000Z",
+    });
+  });
+
+  it.each(["super_admin", "admin", "attention", "employee"] as const)("allows %s through the server action", async (role) => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeProfile, role });
+
+    const result = await setOrderLabelAction({}, validLabelForm());
+
+    expect(result.status).toBe("success");
+  });
+
+  it("reconciles the canonical order after a version conflict", async () => {
+    const snapshot = {
+      id: "11111111-1111-4111-8111-111111111111",
+      publicNumber: 7,
+      customerName: "Equipo",
+      teamName: "Equipo",
+      quantity: 1,
+      orderType: "individual" as const,
+      label: "returned" as const,
+      promisedDeliveryDate: "2026-08-13",
+      currentStageId: "22222222-2222-4222-8222-222222222222",
+      updatedAt: "2026-08-12T19:02:00.000Z",
+      primaryDesignImage: null,
+      totalAmount: 100,
+      paymentConfirmedAt: null,
+    };
+    vi.mocked(getOrderBoardSnapshot).mockResolvedValue(snapshot);
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "version_conflict" } });
+
+    const result = await setOrderLabelAction({}, validLabelForm());
+
+    expect(result).toMatchObject({ status: "error", code: "version_conflict", reconciledOrder: snapshot });
+    expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id, "attention");
   });
 });

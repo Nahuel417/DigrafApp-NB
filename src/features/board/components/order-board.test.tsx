@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, reverseOrderPaymentAction } from "../actions";
+import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, reconcileOrderLabelAction, reverseOrderPaymentAction, setOrderLabelAction } from "../actions";
 import { OrderBoard } from "./order-board";
 
 vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
@@ -15,7 +15,9 @@ vi.mock("../actions", () => ({
   getOrderQuickViewAction: vi.fn(),
   moveOrderAction: vi.fn(),
   reconcileOrderAction: vi.fn(),
+  reconcileOrderLabelAction: vi.fn(),
   reverseOrderPaymentAction: vi.fn(),
+  setOrderLabelAction: vi.fn(),
 }));
 const receivedId = "11111111-1111-4111-8111-111111111111";
 const paidId = "22222222-2222-4222-8222-222222222222";
@@ -27,6 +29,7 @@ const order = {
   teamName: "Equipo M11",
   quantity: 1,
   orderType: "individual" as const,
+  label: null,
   productName: "SUP1",
   promisedDeliveryDate: "2026-08-13",
   currentStageId: receivedId,
@@ -47,7 +50,9 @@ beforeEach(() => {
   vi.mocked(getOrderQuickViewAction).mockReset();
   vi.mocked(moveOrderAction).mockReset();
   vi.mocked(reconcileOrderAction).mockReset();
+  vi.mocked(reconcileOrderLabelAction).mockReset();
   vi.mocked(reverseOrderPaymentAction).mockReset();
+  vi.mocked(setOrderLabelAction).mockReset();
 });
 
 afterEach(() => cleanup());
@@ -73,6 +78,25 @@ function getOrderCard() {
 }
 
 describe("order board payment confirmation", () => {
+  it("selects one stage and supports arrow-key navigation", () => {
+    render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(columns.length);
+    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("mobile-stage-panel-received").classList.contains("block")).toBe(true);
+    expect(screen.getByTestId("mobile-stage-panel-paid").classList.contains("hidden")).toBe(true);
+
+    fireEvent.click(tabs[1]);
+    expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("mobile-stage-panel-received").classList.contains("hidden")).toBe(true);
+    expect(screen.getByTestId("mobile-stage-panel-paid").classList.contains("block")).toBe(true);
+
+    fireEvent.keyDown(tabs[1], { key: "ArrowRight" });
+    expect(tabs[2]?.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(tabs[2]);
+  });
+
   it("opens the confirmation dialog without moving the card", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
 
@@ -237,5 +261,64 @@ describe("delivered order archive", () => {
 
     expect(screen.queryByRole("button", { name: "Archivar entregado" })).toBeNull();
     expect(within(getColumn("Entregado")).getByRole("link", { name: "Entregado M16" })).toBeTruthy();
+  });
+});
+
+describe("order labels", () => {
+  it("shows the quick view selector and persists an assigned label without a success notification", async () => {
+    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pedido recibido", stageCode: "received", expectedUpdatedAt: order.updatedAt, canReversePayment: false, paymentId: null, canEditDescription: false, canEditSensitive: false, lastMovement: null, comments: [] } });
+    vi.mocked(setOrderLabelAction).mockResolvedValue({
+      status: "success",
+      message: "La etiqueta del pedido fue actualizada.",
+      toastId: "label-success",
+      updatedOrder: { label: "urgent", updatedAt: "2026-08-12T19:01:00.000Z" },
+    });
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={columns} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vista rápida de PED-000007" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Etiqueta de PED-000007" })).toBeTruthy());
+    expect(within(getOrderCard()).queryByRole("combobox", { name: "Etiqueta de PED-000007" })).toBeNull();
+    fireEvent.click(screen.getByRole("combobox", { name: "Etiqueta de PED-000007" }));
+    const quickView = screen.getByRole("dialog", { name: "Vista rápida de PED-000007" });
+    expect(within(quickView).getByRole("option", { name: "Urgente" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: "Urgente" }));
+
+    await waitFor(() => expect(setOrderLabelAction).toHaveBeenCalledTimes(1));
+    expect((vi.mocked(setOrderLabelAction).mock.calls[0]?.[1] as FormData).get("label")).toBe("urgent");
+    expect((vi.mocked(setOrderLabelAction).mock.calls[0]?.[1] as FormData).get("idempotencyKey")).toBeNull();
+    await waitFor(() => expect(screen.getByLabelText("Etiqueta Urgente")).toBeTruthy());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("filters the board by label without putting an assignment control on the card", () => {
+    const urgentOrder = { ...order, id: "77777777-7777-4777-8777-777777777777", publicNumber: 8, customerName: "Urgente", label: "urgent" as const };
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [order, urgentOrder] }, columns[1], columns[2]]} />);
+
+    fireEvent.click(screen.getByText("Etiqueta", { exact: true }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrar pedidos por etiqueta" }));
+    fireEvent.click(screen.getByRole("option", { name: "Urgente" }));
+
+    expect(screen.getByTestId("board-count").textContent).toContain("1 pedido en seguimiento");
+    expect(screen.getByRole("link", { name: "Urgente" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Equipo M11" })).toBeNull();
+    const urgentCard = screen.getByRole("button", { name: "Vista rápida de PED-000008" }).closest("article");
+    expect(urgentCard).toBeInstanceOf(HTMLElement);
+    expect(within(urgentCard as HTMLElement).queryByRole("combobox", { name: "Etiqueta de PED-000008" })).toBeNull();
+  });
+
+  it("filters the board by an inclusive delivery date range", () => {
+    const laterOrder = { ...order, id: "88888888-8888-4888-8888-888888888888", publicNumber: 9, customerName: "Fecha posterior", promisedDeliveryDate: "2026-08-20" };
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [order, laterOrder] }, columns[1], columns[2]]} />);
+
+    fireEvent.click(screen.getByText("Entrega", { exact: true }));
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-08-14" } });
+    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-08-20" } });
+
+    expect(screen.getByTestId("board-count").textContent).toContain("1 pedido en seguimiento");
+    expect(screen.getByRole("link", { name: "Fecha posterior" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Equipo M11" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    expect(screen.getByTestId("board-count").textContent).toContain("2 pedidos en seguimiento");
   });
 });

@@ -67,10 +67,14 @@ const SelectScrollDownButton = React.forwardRef<
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
+type SelectContentProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+  container?: React.ComponentProps<typeof SelectPrimitive.Portal>["container"]
+}
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => {
+  SelectContentProps
+>(({ className, children, container, position = "popper", ...props }, ref) => {
   const [isPositioned, setIsPositioned] = React.useState(true)
   const setContentRef = React.useCallback((node: HTMLDivElement | null) => {
     if (node?.getAttribute("data-state") === "open") {
@@ -83,7 +87,7 @@ const SelectContent = React.forwardRef<
   }, [ref])
 
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         ref={setContentRef}
         className={cn(

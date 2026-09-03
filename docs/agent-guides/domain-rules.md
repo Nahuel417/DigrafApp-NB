@@ -117,9 +117,9 @@ Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super ad
 
 Los productos, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
-Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción; Super admin, Admin y Atención pueden gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
+Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción y gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
 
-Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. No recibe autoridad administrativa no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja; Empleado permanece rechazado para esas operaciones. El servidor y RLS son la frontera final de autorización.
+Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. Empleado recibe la misma autoridad operativa sobre imágenes, sin permisos para la edición sensible ni administración no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja. El servidor y RLS son la frontera final de autorización.
 
 - El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primaria es opcional; tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
 
@@ -143,7 +143,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 
 ## Caja diaria
 
-- Cada día operativo tiene una caja en `America/Argentina/Cordoba`.
+- Cada día operativo tiene como máximo una sesión de caja abierta en `America/Argentina/Cordoba`; las sesiones cerradas del mismo día se conservan como historial.
 - Admin/Atención cargan el saldo inicial y pueden editarlo mientras la caja está abierta.
 - La edición de saldo inicial requiere auditoría de valor anterior, valor nuevo, actor y timestamp; incluir motivo cuando corresponda.
 - Saldo final = saldo inicial + ingresos válidos − egresos válidos.
@@ -152,13 +152,14 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 - Movimientos manuales se editan solo con caja abierta.
 - Cualquiera de los dos Admin puede cerrar caja manualmente. Atención no puede cerrarla.
 - Al iniciar el día siguiente, la caja anterior se cierra automáticamente si sigue abierta.
+- Si la caja del día está cerrada, un cobro positivo crea una nueva sesión abierta con saldo inicial `0`; la sesión cerrada no se reabre ni se modifica.
 - La caja cerrada bloquea toda edición y debe mostrar un mensaje claro.
 - Los movimientos anulados se conservan con actor y timestamp de anulación.
 - El historial diferencia ingresos por pedido, ingresos manuales y egresos manuales.
 
 ## Comentarios, imágenes y auditoría
 
-Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; Super admin, Admin y Atención pueden gestionar la colección y los demás roles conservan únicamente la lectura interna autorizada.
+Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; los cuatro roles internos pueden gestionar la colección y conservar la lectura interna autorizada.
 
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 

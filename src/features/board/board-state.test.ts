@@ -10,6 +10,7 @@ const first: BoardOrder = {
   teamName: "Equipo primero",
   quantity: 1,
   orderType: "individual",
+  label: null,
   promisedDeliveryDate: "2026-08-02",
   currentStageId: "received",
   updatedAt: "2026-07-29T03:00:00.000Z",

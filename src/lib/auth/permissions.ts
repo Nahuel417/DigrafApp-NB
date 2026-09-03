@@ -51,12 +51,16 @@ export function canMoveOrder(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }
 
+export function canEditOrderLabels(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
+}
+
 export function canEditOrderSensitive(role: AppRole) {
   return role === "super_admin" || role === "admin" || role === "attention";
 }
 
 export function canManageOrderDesignImages(role: AppRole) {
-  return role === "super_admin" || role === "admin" || role === "attention";
+  return role === "super_admin" || role === "admin" || role === "attention" || role === "employee";
 }
 
 export function canEditOrderDescription(role: AppRole) {

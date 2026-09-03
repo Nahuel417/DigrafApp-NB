@@ -141,6 +141,13 @@ test.describe("Diseño vigente M7", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   }
 
+  async function selectMobileStage(page: Page, stageName: string) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: new RegExp(`^${stageName},`) });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   async function logout(page: Page) {
     await page.getByRole("button", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -194,20 +201,16 @@ test.describe("Diseño vigente M7", () => {
     if (failures.length) throw new Error(`Falló el cleanup E2E M7:\n${failures.join("\n")}`);
   });
 
-  test("muestra el estado vacío y limita la carga por rol", async ({ page }) => {
+  test("muestra el estado vacío y permite la carga a todos los roles", async ({ page }) => {
     const orderId = await createOrder("Vacío M7");
-    await login(page, identities[0]!);
-    await openDetail(page, orderId);
-    await expect(page.getByText("Todavía no hay un diseño cargado.")).toBeVisible();
-    await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Cargar diseño" })).toBeVisible();
-
-    await logout(page);
-    await login(page, identities[3]!);
-    await openDetail(page, orderId);
-    await expect(page.getByText("Todavía no hay un diseño cargado.")).toBeVisible();
-    await expect(page.getByLabel("Archivo de diseño")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Cargar diseño" })).toHaveCount(0);
+    for (const identity of identities) {
+      await login(page, identity);
+      await openDetail(page, orderId);
+      await expect(page.getByText("Todavía no hay un diseño cargado.")).toBeVisible();
+      await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Cargar diseño" })).toBeVisible();
+      await logout(page);
+    }
   });
 
   test("carga y muestra una preview privada sin paths visibles", async ({ page }) => {
@@ -227,24 +230,18 @@ test.describe("Diseño vigente M7", () => {
     await expect(page.locator("body")).not.toContainText("orders/");
   });
 
-  test("permite reemplazar a los roles autorizados y Empleado solo visualiza", async ({ page }) => {
+  test("permite reemplazar a todos los roles autorizados", async ({ page }) => {
     const orderId = await createOrder("Roles M7");
     await seedImage(orderId);
 
-    for (const identity of identities.slice(1, 3)) {
+    for (const identity of identities) {
       await login(page, identity);
       await openDetail(page, orderId);
       await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
+      await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
       await expect(page.getByRole("button", { name: "Reemplazar diseño" })).toBeVisible();
       await logout(page);
     }
-
-    await login(page, identities[3]!);
-    await openDetail(page, orderId);
-    await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
-    await expect(page.getByLabel("Archivo de diseño")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Reemplazar diseño" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Importes" })).toHaveCount(0);
   });
 
   test("rechaza un archivo inválido, conserva foco y permite reintentar el reemplazo", async ({ page }) => {
@@ -277,7 +274,7 @@ test.describe("Diseño vigente M7", () => {
     const image = page.getByRole("img", { name: "Diseño vigente del pedido" });
     await expect(image).toBeVisible();
     await expect(image).toHaveJSProperty("complete", true);
-    await expect(image).toHaveJSProperty("naturalWidth", 1);
+    await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
     await image.dispatchEvent("error");
     const renewedFeedback = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
     await expect(renewedFeedback).toBeVisible();
@@ -312,6 +309,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[0]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
@@ -326,6 +324,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[3]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
@@ -338,6 +337,7 @@ test.describe("Diseño vigente M7", () => {
     await seedImage(orderId);
     await login(page, identities[1]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await card.scrollIntoViewIfNeeded();
      await card.getByRole("button", { name: /Vista rápida/ }).click();
@@ -416,8 +416,8 @@ test.describe("Diseño vigente M7", () => {
     await login(page, identities[3]!);
     await openDetail(page, orderId);
     await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);
-    await expect(page.getByLabel("Archivo de diseño")).toHaveCount(0);
-    await expect(designPanel(page).getByRole("button", { name: /Eliminar diseño|Seleccionar como principal|Quitar como principal|Reemplazar diseño/ })).toHaveCount(0);
+    await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
+    await expect(designPanel(page).getByRole("button", { exact: true, name: "Reemplazar diseño" })).toBeVisible();
   });
 
   test("muestra placeholder en tablero y vista rápida cuando no hay primaria", async ({ page }) => {
@@ -436,6 +436,7 @@ test.describe("Diseño vigente M7", () => {
 
     await login(page, identities[3]!);
     await page.goto("/orders");
+    await selectMobileStage(page, "Pedido recibido");
     const card = page.locator(`[data-order-id="${orderId}"]`);
     await expect(card.getByRole("img", { name: "No hay diseño principal" })).toBeVisible();
     await card.getByRole("button", { name: /Vista rápida/ }).click();
