@@ -1,6 +1,7 @@
 import { CheckCircle2 } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { BrandLockup } from "@/components/brand-lockup";
 import { MutationNotice } from "@/components/mutation-notice";
 import { AuthBrandPanel } from "@/features/auth/components/auth-brand-panel";
 import { LoginForm } from "@/features/auth/components/login-form";
@@ -20,16 +21,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="relative flex w-full shrink-0 flex-col justify-center px-6 py-12 lg:w-1/2 lg:px-16 xl:px-24">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-success to-primary/40" />
         <div className="mx-auto w-full max-w-md">
-          <div className="flex items-center gap-3">
-            <div className="relative grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-              <span className="text-base font-semibold">D</span>
-              <span aria-hidden="true" className="absolute -right-1 -top-1 size-3 rounded-full bg-success ring-2 ring-background" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold tracking-tight">Digraf</p>
-              <p className="text-[11px] text-muted-foreground">Impresión textil · Operaciones internas</p>
-            </div>
-          </div>
+          <BrandLockup tagline="Impresión textil · Operaciones internas" />
 
           <div className="mt-10">
             <h1 className="text-3xl font-semibold tracking-display text-foreground">Ingresar</h1>

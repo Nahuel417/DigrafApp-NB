@@ -1,6 +1,6 @@
 # Sistema de diseño — Digraf
 
-Estado: fundaciones light aprobadas e implementadas. Dark mode y el logo oficial quedan diferidos.
+Estado: fundaciones light y logo oficial aprobados e implementados. Dark mode queda diferido.
 
 Esta guía es la fuente canónica para cambios visuales. Debe leerse antes de crear o modificar pantallas, componentes, estilos, navegación o estados de interfaz.
 
@@ -46,15 +46,13 @@ La captura y la implementación anteriores del login son un resultado rechazado 
 
 ## Logo y activos
 
-El logo oficial todavía no está incorporado. Cuando se entregue:
+El logo oficial está incorporado bajo `public/brand/`:
 
-- Se ubicará bajo `public/brand/`.
-- Se conservarán proporción, colores y variantes oficiales.
-- Se documentarán fondos permitidos, área de seguridad y tamaño mínimo.
-- No se reconstruirá como texto, CSS o SVG manual.
-- No se deformará, recoloreará ni decorará.
-
-Hasta entonces puede mostrarse “Digraf” como nombre textual, sin presentarlo como reemplazo del logo. La ausencia del activo no bloquea tipografía, tokens, componentes ni accesibilidad.
+- `digraf-favicon.png` se usa como favicon y shortcut icon; es la variante transparente derivada de `digraf-mark.png`, cuyo patrón cuadriculado de origen no se publica como fondo.
+- `digraf-logo.png` se usa en los lockups visibles del shell autenticado y login; Apple touch icon usa esta variante.
+- Se conservan proporción, colores y variantes entregadas.
+- No se reconstruye como texto, CSS o SVG manual.
+- No se deforma, recolorea ni decora.
 
 ## Color
 

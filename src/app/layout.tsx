@@ -19,6 +19,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Digraf",
   description: "Gestión interna de producción de Digraf",
+  icons: {
+    icon: "/brand/digraf-favicon.png",
+    shortcut: "/brand/digraf-favicon.png",
+    apple: "/brand/digraf-logo.png",
+  },
 };
 
 export default function RootLayout({

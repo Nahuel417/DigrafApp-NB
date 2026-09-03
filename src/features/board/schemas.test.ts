@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { confirmOrderPaymentSchema, moveOrderSchema, reversePaymentSchema } from "./schemas";
+import { confirmOrderPaymentSchema, moveOrderSchema, reversePaymentSchema, setOrderLabelSchema } from "./schemas";
 
 const movement = {
   orderId: "11111111-1111-4111-8111-111111111111",
@@ -64,5 +64,24 @@ describe("reverse payment schema", () => {
     expect(reversePaymentSchema.safeParse({ ...reversal, expectedUpdatedAt: "ayer" }).success).toBe(false);
     expect(reversePaymentSchema.safeParse({ ...reversal, idempotencyKey: " " }).success).toBe(false);
     expect(reversePaymentSchema.safeParse({ ...reversal, reason: "x".repeat(501) }).success).toBe(false);
+  });
+});
+
+describe("set order label schema", () => {
+  const labelChange = {
+    orderId: "11111111-1111-4111-8111-111111111111",
+    label: "urgent",
+    expectedUpdatedAt: "2026-07-29T03:00:00.000Z",
+  };
+
+  it("accepts supported labels and an empty value for removal", () => {
+    expect(setOrderLabelSchema.safeParse(labelChange).success).toBe(true);
+    expect(setOrderLabelSchema.parse({ ...labelChange, label: "" }).label).toBeNull();
+  });
+
+  it("rejects unsupported labels and malformed versions", () => {
+    expect(setOrderLabelSchema.safeParse({ ...labelChange, label: "blue" }).success).toBe(false);
+    expect(setOrderLabelSchema.safeParse({ ...labelChange, expectedUpdatedAt: "ayer" }).success).toBe(false);
+    expect(setOrderLabelSchema.parse(labelChange)).not.toHaveProperty("idempotencyKey");
   });
 });

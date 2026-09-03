@@ -36,7 +36,7 @@ La aplicación se utiliza internamente durante la jornada de una gráfica textil
 
 ## Brand Commitments
 
-El producto se llama Digraf. La interfaz y sus mensajes están en español rioplatense, con voseo, tono directo, operativo, respetuoso y no promocional. El logo oficial existe pero todavía no fue entregado; cuando esté disponible se conservará bajo `public/brand/` sin reconstruirlo, deformarlo, recolorearlo ni usar el nombre textual como sustituto del logo.
+El producto se llama Digraf. La interfaz y sus mensajes están en español rioplatense, con voseo, tono directo, operativo, respetuoso y no promocional. El logo oficial está incorporado bajo `public/brand/` y se conserva sin reconstruirlo, deformarlo, recolorearlo ni usar el nombre textual como sustituto del logo.
 
 ## Evidence on Hand
 

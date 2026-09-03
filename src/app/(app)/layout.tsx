@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { AppNavigation } from "@/components/app-navigation";
+import { BrandLockup } from "@/components/brand-lockup";
 import { LogoutForm } from "@/features/auth/components/logout-form";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
@@ -33,16 +34,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
       </a>
       <aside className="app-sidebar fixed inset-y-0 left-0 z-40 hidden h-dvh w-[15.5rem] min-h-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
         <div className="sidebar-header flex shrink-0 items-center gap-3 px-4 py-4">
-          <div className="sidebar-brand flex min-w-0 items-center gap-3">
-            <span className="relative grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <span aria-hidden="true" className="text-sm font-semibold">D</span>
-              <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-success ring-2 ring-sidebar" />
-            </span>
-            <div className="sidebar-label min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight">Digraf</p>
-              <p className="truncate text-[11px] text-muted-foreground">Operaciones internas</p>
-            </div>
-          </div>
+          <BrandLockup className="sidebar-brand" textClassName="sidebar-label" />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
@@ -89,13 +81,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
       <div className="min-w-0 lg:col-start-2 lg:min-h-0 lg:overflow-y-auto">
         <header className="sticky top-0 z-40 border-b border-sidebar-border bg-sidebar/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-primary" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold leading-none">Digraf</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{profile.displayName}</p>
-              </div>
-            </div>
+            <BrandLockup className="min-w-0 gap-2" compact tagline={profile.displayName} />
             <LogoutForm buttonClassName="h-11" />
           </div>
           <div className="mt-3">

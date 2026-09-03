@@ -9,11 +9,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 
 import { reverseOrderPaymentAction, type OrderQuickView, type ReverseOrderPaymentActionState } from "../actions";
+import { orderLabelOptions } from "../labels";
 import type { BoardOrder } from "../queries";
+import { orderLabelSchema, type OrderLabel } from "../schemas";
 
 import { OrderDesignThumbnail } from "./order-design-thumbnail";
 
@@ -38,6 +42,30 @@ function openModal(dialog: HTMLDialogElement) {
 function closeModal(dialog: HTMLDialogElement) {
   if (typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
+}
+
+function OrderLabelSelector({ isPending, onChange, order, portalContainer }: { isPending: boolean; onChange: (label: OrderLabel | null) => void; order: Pick<BoardOrder, "id" | "label" | "publicNumber">; portalContainer: HTMLElement | null }) {
+  const selectId = `quick-view-label-${order.id}`;
+
+  return (
+    <Field className="min-w-44 gap-1" onPointerDown={(event) => event.stopPropagation()}>
+      <FieldLabel className="sr-only" htmlFor={selectId}>Etiqueta de PED-{String(order.publicNumber).padStart(6, "0")}</FieldLabel>
+      <Select
+        disabled={isPending}
+        onValueChange={(value) => onChange(value === "none" ? null : orderLabelSchema.safeParse(value).data ?? null)}
+        value={order.label ?? "none"}>
+        <SelectTrigger aria-label={`Etiqueta de PED-${String(order.publicNumber).padStart(6, "0")}`} className="h-9 rounded-xl bg-card px-3 shadow-none [&>svg]:size-3.5" id={selectId}>
+          <SelectValue placeholder="Sin etiqueta" />
+        </SelectTrigger>
+        <SelectContent container={portalContainer}>
+          <SelectGroup>
+            <SelectItem value="none">Sin etiqueta</SelectItem>
+            {orderLabelOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.name}</SelectItem>)}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
+  );
 }
 
 function ReversePaymentDialog({ data, onReconciled, portalContainer }: { data: OrderQuickView; onReconciled: (order: BoardOrder | null) => void; portalContainer: HTMLElement | null }) {
@@ -101,7 +129,7 @@ function ReversePaymentDialog({ data, onReconciled, portalContainer }: { data: O
   );
 }
 
-export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "primaryDesignImage" | "productName">; onClose: () => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
+export function OrderQuickView({ data, isLabelPending, onClose, onLabelChange, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "label" | "primaryDesignImage" | "productName">; isLabelPending: boolean; onClose: () => void; onLabelChange: (label: OrderLabel | null) => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
@@ -178,7 +206,10 @@ export function OrderQuickView({ data, onClose, onReconciled, stageNames }: { da
             orderId={data.id}
           />
           <div className="min-w-0">
-            <Badge className="gap-1.5 rounded-full border-primary/25 bg-primary/10 text-primary" variant="outline"><Layers3 aria-hidden="true" className="size-3" />{data.stageName}</Badge>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Badge className="gap-1.5 rounded-full border-primary/25 bg-primary/10 text-primary" variant="outline"><Layers3 aria-hidden="true" className="size-3" />{data.stageName}</Badge>
+              <OrderLabelSelector isPending={isLabelPending} onChange={onLabelChange} order={data} portalContainer={quickViewPortalContainer} />
+            </div>
             <dl className="mt-4 grid gap-3 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
               <div className="rounded-xl border border-border bg-surface-muted/50 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Package aria-hidden="true" className="size-3.5" />Cantidad</dt><dd className="mt-1 font-mono text-sm font-medium tabular-nums">{data.quantity} u.</dd></div>
               <div className="rounded-xl border border-border bg-surface-muted/50 p-3"><dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Shirt aria-hidden="true" className="size-3.5" />Producto</dt><dd className="mt-1 break-words text-sm font-medium">{data.productName ?? "Sin producto"}</dd></div>
