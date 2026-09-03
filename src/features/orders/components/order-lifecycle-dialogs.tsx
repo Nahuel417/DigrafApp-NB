@@ -50,8 +50,8 @@ export function CancelOrderDialog(props: OrderLifecycleDialogProps) {
   return (
     <AlertDialog onOpenChange={handleOpenChange} open={open}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive">
-          <Archive aria-hidden="true" />
+        <Button className="group/lifecycle-action transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" variant="destructive">
+          <Archive aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-action:-translate-y-0.5 group-active/lifecycle-action:translate-y-0 motion-reduce:!translate-none" data-icon="inline-start" />
           Anular pedido
         </Button>
       </AlertDialogTrigger>
@@ -80,8 +80,8 @@ export function CancelOrderDialog(props: OrderLifecycleDialogProps) {
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel ref={cancelButtonRef}>Cancelar</AlertDialogCancel>
-            <SubmitButton pendingLabel="Anulando..." variant="destructive">
-              <Archive aria-hidden="true" />
+            <SubmitButton className="group/lifecycle-confirm transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" pendingLabel="Anulando..." variant="destructive">
+              <Archive aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-confirm:-translate-y-0.5 group-active/lifecycle-confirm:translate-y-0 motion-reduce:!translate-none" data-icon="inline-start" />
               Confirmar anulación
             </SubmitButton>
           </AlertDialogFooter>
@@ -115,8 +115,8 @@ export function RestoreOrderDialog(props: OrderLifecycleDialogProps) {
   return (
     <AlertDialog onOpenChange={handleOpenChange} open={open}>
       <AlertDialogTrigger asChild>
-        <Button variant="outline">
-          <RotateCcw aria-hidden="true" />
+        <Button className="group/lifecycle-action transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" variant="outline">
+          <RotateCcw aria-hidden="true" className="transition-transform duration-200 group-hover/lifecycle-action:-rotate-45 group-active/lifecycle-action:rotate-0 motion-reduce:!rotate-none" data-icon="inline-start" />
           Restaurar pedido
         </Button>
       </AlertDialogTrigger>
@@ -140,8 +140,8 @@ export function RestoreOrderDialog(props: OrderLifecycleDialogProps) {
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel ref={cancelButtonRef}>Cancelar</AlertDialogCancel>
-            <SubmitButton pendingLabel="Restaurando...">
-              <RotateCcw aria-hidden="true" />
+            <SubmitButton className="group/lifecycle-confirm transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" pendingLabel="Restaurando...">
+              <RotateCcw aria-hidden="true" className="transition-transform duration-200 group-hover/lifecycle-confirm:-rotate-45 group-active/lifecycle-confirm:rotate-0 motion-reduce:!rotate-none" data-icon="inline-start" />
               Confirmar restauración
             </SubmitButton>
           </AlertDialogFooter>
@@ -195,8 +195,8 @@ function M16ArchiveDialog({
   return (
     <AlertDialog onOpenChange={handleOpenChange} open={open}>
       <AlertDialogTrigger asChild>
-        <Button variant={destructive ? "destructive" : "outline"}>
-          {destructive ? <Trash2 aria-hidden="true" /> : <Archive aria-hidden="true" />}
+        <Button className="group/lifecycle-action transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" variant={destructive ? "destructive" : "outline"}>
+          {destructive ? <Trash2 aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-action:rotate-6 group-active/lifecycle-action:rotate-0 motion-reduce:!rotate-none" data-icon="inline-start" /> : <Archive aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-action:-translate-y-0.5 group-active/lifecycle-action:translate-y-0 motion-reduce:!translate-none" data-icon="inline-start" />}
           {buttonLabel}
         </Button>
       </AlertDialogTrigger>
@@ -225,8 +225,8 @@ function M16ArchiveDialog({
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel ref={cancelButtonRef}>Cancelar</AlertDialogCancel>
-            <SubmitButton pendingLabel={pendingLabel} variant={destructive ? "destructive" : "default"}>
-              {destructive ? <Trash2 aria-hidden="true" /> : <Archive aria-hidden="true" />}
+            <SubmitButton className="group/lifecycle-confirm transition-[background-color,border-color,box-shadow,transform,translate] duration-150 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:!translate-none" pendingLabel={pendingLabel} variant={destructive ? "destructive" : "default"}>
+              {destructive ? <Trash2 aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-confirm:rotate-6 group-active/lifecycle-confirm:rotate-0 motion-reduce:!rotate-none" data-icon="inline-start" /> : <Archive aria-hidden="true" className="transition-transform duration-150 group-hover/lifecycle-confirm:-translate-y-0.5 group-active/lifecycle-confirm:translate-y-0 motion-reduce:!translate-none" data-icon="inline-start" />}
               Confirmar
             </SubmitButton>
           </AlertDialogFooter>
