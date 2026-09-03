@@ -72,6 +72,7 @@ test.describe("Navegación de Caja M9", () => {
   let service: SupabaseClient<Database> | null = null;
   const identities: Identity[] = [];
   const historyDayIds: string[] = [];
+  const createdCurrentDayIds: string[] = [];
   let currentDayFixture: CurrentDayFixture | null = null;
   const runId = randomUUID().slice(0, 8);
 
@@ -82,7 +83,7 @@ test.describe("Navegación de Caja M9", () => {
 
   async function cashSnapshot() {
     const admin = adminClient();
-    const day = await admin.from("cash_days").select("id, opening_balance, opening_updated_at").eq("operational_date", currentOperationalDate()).maybeSingle();
+    const day = await admin.from("cash_days").select("id, opening_balance, opening_updated_at").eq("operational_date", currentOperationalDate()).is("closed_at", null).maybeSingle();
     if (day.error) throw day.error;
     if (!day.data) return { openingBalance: null, openingUpdatedAt: null, movementIds: [] as string[] };
     const movements = await admin.from("cash_movements").select("id").eq("cash_day_id", day.data.id);
@@ -148,33 +149,22 @@ test.describe("Navegación de Caja M9", () => {
     await day.click();
   }
 
-  async function reopenCurrentCashDay(page: Page, identity: Identity, reason?: string) {
-    await login(page, identity);
-    await page.goto("/cash");
-    await expect(page.getByRole("button", { name: "Reabrir caja", exact: true })).toHaveCount(1);
-    await page.getByRole("button", { name: "Reabrir caja", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Confirmar reapertura" })).toBeVisible();
-    if (reason === undefined) {
-      let actionRequests = 0;
-      page.on("request", (request) => {
-        if (request.method() === "POST" && new URL(request.url()).pathname === "/cash") actionRequests += 1;
-      });
-      await page.getByRole("button", { name: "Confirmar reapertura", exact: true }).click();
-      await expect(page.getByRole("alertdialog")).toBeVisible();
-      expect(actionRequests).toBe(0);
-      return;
-    }
-    await page.getByLabel("Motivo").fill(reason);
-    const actionResponse = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/cash");
-    await page.getByRole("button", { name: "Confirmar reapertura", exact: true }).click();
-    await actionResponse;
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+  function rememberCreatedCurrentDay(id: string) {
+    if (currentDayFixture && id !== currentDayFixture.id && !createdCurrentDayIds.includes(id)) createdCurrentDayIds.push(id);
+  }
+
+  async function currentOpenDay() {
+    const day = await adminClient().from("cash_days").select("id, opening_balance, closed_at").eq("operational_date", currentOperationalDate()).is("closed_at", null).maybeSingle();
+    if (day.error || !day.data) throw day.error ?? new Error("No se encontró la sesión abierta actual de Caja.");
+    rememberCreatedCurrentDay(day.data.id);
+    return day.data;
   }
 
   async function prepareCurrentClosedDay() {
     const admin = adminClient();
-    const day = await admin.from("cash_days").select("id, opening_balance, closed_at, closed_by, closure_kind, closing_balance, closure_idempotency_key, closure_idempotency_fingerprint").eq("operational_date", currentOperationalDate()).single();
+    const day = await admin.from("cash_days").select("id, opening_balance, closed_at, closed_by, closure_kind, closing_balance, closure_idempotency_key, closure_idempotency_fingerprint").eq("operational_date", currentOperationalDate()).is("closed_at", null).single();
     if (day.error || !day.data) throw day.error ?? new Error("No se preparó la caja actual E2E.");
+    rememberCreatedCurrentDay(day.data.id);
     const movements = await admin.from("cash_movements").select("id").eq("cash_day_id", day.data.id);
     const lifecycle = await admin.from("cash_day_lifecycle_events").select("id").eq("cash_day_id", day.data.id);
     if (movements.error || lifecycle.error) throw movements.error ?? lifecycle.error ?? new Error("No se preparó la caja actual E2E.");
@@ -188,8 +178,9 @@ test.describe("Navegación de Caja M9", () => {
 
   async function prepareCurrentOpenDay() {
     const admin = adminClient();
-    const day = await admin.from("cash_days").select("id, opening_balance, closed_at, closed_by, closure_kind, closing_balance, closure_idempotency_key, closure_idempotency_fingerprint").eq("operational_date", currentOperationalDate()).single();
+    const day = await admin.from("cash_days").select("id, opening_balance, closed_at, closed_by, closure_kind, closing_balance, closure_idempotency_key, closure_idempotency_fingerprint").eq("operational_date", currentOperationalDate()).is("closed_at", null).single();
     if (day.error || !day.data) throw day.error ?? new Error("No se preparó la caja actual E2E.");
+    rememberCreatedCurrentDay(day.data.id);
     const movements = await admin.from("cash_movements").select("id").eq("cash_day_id", day.data.id);
     const lifecycle = await admin.from("cash_day_lifecycle_events").select("id").eq("cash_day_id", day.data.id);
     if (movements.error || lifecycle.error) throw movements.error ?? lifecycle.error ?? new Error("No se preparó la caja actual E2E.");
@@ -211,10 +202,31 @@ test.describe("Navegación de Caja M9", () => {
   test.afterAll(async () => {
     if (!service) return;
     const failures: string[] = [];
+    for (const dayId of createdCurrentDayIds) {
+      const currentMovements = await service.from("cash_movements").select("id").eq("cash_day_id", dayId);
+      const movementIds = (currentMovements.data ?? []).map((item) => item.id);
+      if (movementIds.length) {
+        const { error: eventError } = await service.from("cash_movement_events").delete().in("movement_id", movementIds);
+        if (eventError) failures.push(`movement events ${dayId}: ${eventError.message}`);
+        const { error: movementError } = await service.from("cash_movements").delete().in("id", movementIds);
+        if (movementError) failures.push(`movements ${dayId}: ${movementError.message}`);
+      }
+      const { error: openingError } = await service.from("cash_opening_events").delete().eq("cash_day_id", dayId);
+      if (openingError) failures.push(`opening events ${dayId}: ${openingError.message}`);
+      const { error: lifecycleError } = await service.from("cash_day_lifecycle_events").delete().eq("cash_day_id", dayId);
+      if (lifecycleError) failures.push(`lifecycle ${dayId}: ${lifecycleError.message}`);
+      const { error: dayError } = await service.from("cash_days").delete().eq("id", dayId);
+      if (dayError) failures.push(`cash day ${dayId}: ${dayError.message}`);
+    }
     if (currentDayFixture) {
       const currentMovements = await service.from("cash_movements").select("id").eq("cash_day_id", currentDayFixture.id);
       const movementIds = (currentMovements.data ?? []).map((item) => item.id).filter((id) => !currentDayFixture!.movementIds.includes(id));
-      if (movementIds.length) await service.from("cash_movements").delete().in("id", movementIds);
+      if (movementIds.length) {
+        const { error } = await service.from("cash_movement_events").delete().in("movement_id", movementIds);
+        if (error) failures.push(`current movement events: ${error.message}`);
+        const { error: movementError } = await service.from("cash_movements").delete().in("id", movementIds);
+        if (movementError) failures.push(`current movements: ${movementError.message}`);
+      }
       const currentLifecycle = await service.from("cash_day_lifecycle_events").select("id").eq("cash_day_id", currentDayFixture.id);
       const lifecycleIds = (currentLifecycle.data ?? []).map((item) => item.id).filter((id) => !currentDayFixture!.lifecycleIds.includes(id));
       if (lifecycleIds.length) await service.from("cash_day_lifecycle_events").delete().in("id", lifecycleIds);
@@ -316,42 +328,25 @@ test.describe("Navegación de Caja M9", () => {
     await expect(page.getByRole("button", { name: "Reabrir caja", exact: true })).toHaveCount(0);
   });
 
-  test("Admin reabre la caja actual con motivo y conserva el mismo ID", async ({ page }) => {
-    const cashDayId = await prepareCurrentClosedDay();
-    await reopenCurrentCashDay(page, identities[2]!, "Corrección de Admin E2E");
-    const reopened = await adminClient().from("cash_days").select("id, closed_at").eq("id", cashDayId).single();
-    expect(reopened.error).toBeNull();
-    expect(reopened.data).toEqual({ id: cashDayId, closed_at: null });
-  });
-
-  test("Atención puede reabrir y el motivo vacío no se confirma", async ({ page }) => {
-    const attentionDayId = await prepareCurrentClosedDay();
-    await reopenCurrentCashDay(page, identities[0]!, "Corrección de Atención E2E");
-    expect((await adminClient().from("cash_days").select("closed_at").eq("id", attentionDayId).single()).data?.closed_at).toBeNull();
-
-    const validationDayId = await prepareCurrentClosedDay();
-    await page.context().clearCookies();
-    await reopenCurrentCashDay(page, identities[2]!);
-    const unchanged = await adminClient().from("cash_days").select("closed_at").eq("id", validationDayId).single();
-    expect(unchanged.data?.closed_at).toBeTruthy();
-  });
-
-  test("reabre, opera y recierra el mismo día visible", async ({ page }) => {
-    const cashDayId = await prepareCurrentClosedDay();
+  test("una sesión cerrada conserva el historial y crea otra abierta con saldo cero", async ({ page }) => {
+    const closedDayId = await prepareCurrentClosedDay();
     await login(page, identities[2]!);
     await page.goto("/cash");
-    await expect(page.getByText("Caja cerrada: no admite nuevas modificaciones.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Editar" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Registrar ingreso" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Reabrir caja", exact: true }).click();
-    await page.getByLabel("Motivo").fill("Corrección visible E2E");
-    let response = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === "/cash");
-    await page.getByRole("button", { name: "Confirmar reapertura", exact: true }).click();
-    await response;
-    await expect(page.getByRole("button", { name: "Reabrir caja", exact: true })).toHaveCount(0);
+    const openDay = await currentOpenDay();
+    expect(openDay.id).not.toBe(closedDayId);
+    expect(openDay.opening_balance).toBe(0);
+    await expect(page.getByText("Caja abierta", { exact: true })).toBeVisible();
+  });
+
+  test("opera y cierra la nueva sesión del mismo día", async ({ page }) => {
+    const closedDayId = await prepareCurrentClosedDay();
+    await login(page, identities[2]!);
+    await page.goto("/cash");
+    const openDay = await currentOpenDay();
+    expect(openDay.id).not.toBe(closedDayId);
     await page.locator("#cash-income-amount").fill("2.00");
     await page.locator("#cash-income-description").fill("Movimiento visible E2E");
-    response = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === "/cash");
+    let response = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === "/cash");
     await page.getByRole("button", { name: "Registrar ingreso", exact: true }).click();
     await response;
     await page.getByRole("button", { name: "Cerrar caja", exact: true }).click();
@@ -359,8 +354,13 @@ test.describe("Navegación de Caja M9", () => {
     await page.getByRole("button", { name: "Confirmar cierre", exact: true }).click();
     await response;
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
-    const sameDay = await adminClient().from("cash_days").select("id, closed_at").eq("id", cashDayId).single();
-    expect(sameDay.data?.id).toBe(cashDayId);
-    expect(sameDay.data?.closed_at).toBeTruthy();
+    const closed = await adminClient().from("cash_days").select("id, closed_at").eq("id", openDay.id).single();
+    expect(closed.data?.id).toBe(openDay.id);
+    expect(closed.data?.closed_at).toBeTruthy();
+
+    await page.reload();
+    const nextOpenDay = await currentOpenDay();
+    expect(nextOpenDay.id).not.toBe(openDay.id);
+    await expect(page.getByText("Caja abierta", { exact: true })).toBeVisible();
   });
 });
