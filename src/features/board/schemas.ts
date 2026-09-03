@@ -29,6 +29,16 @@ export const reversePaymentSchema = z.object({
   reason: z.string().trim().max(500, "El motivo de reversión no puede superar los 500 caracteres.").optional(),
 });
 
+export const orderLabelSchema = z.enum(["urgent", "returned", "review"]);
+
+export const setOrderLabelSchema = z.object({
+  orderId: z.string().uuid("El pedido seleccionado no es válido."),
+  label: z.union([orderLabelSchema, z.literal("")]).transform((value) => value || null),
+  expectedUpdatedAt: z.string().datetime({ offset: true, message: "La versión del pedido no es válida." }),
+});
+
 export type MoveOrderValues = z.infer<typeof moveOrderSchema>;
 export type ConfirmOrderPaymentValues = z.infer<typeof confirmOrderPaymentSchema>;
 export type ReversePaymentValues = z.infer<typeof reversePaymentSchema>;
+export type OrderLabel = z.infer<typeof orderLabelSchema>;
+export type SetOrderLabelValues = z.infer<typeof setOrderLabelSchema>;

@@ -24,6 +24,32 @@ function errorsFor(state: OrderActionState, field: string) {
     return state.fieldErrors?.[field]?.map((message) => ({ message }));
 }
 
+type OrderFormValues = {
+    clientName: string;
+    teamName: string;
+    phone: string;
+    orderDate: string;
+    promisedDeliveryDate: string;
+    description: string;
+    totalAmount: string;
+    depositAmount: string;
+    depositPaid: boolean;
+};
+
+function initialFormValues(orderDate: string): OrderFormValues {
+    return {
+        clientName: '',
+        teamName: '',
+        phone: '',
+        orderDate,
+        promisedDeliveryDate: '',
+        description: '',
+        totalAmount: '',
+        depositAmount: '',
+        depositPaid: false,
+    };
+}
+
 function safeMoney(value: string) {
     try {
         return value.trim() ? normalizeMoney(value) : null;
@@ -36,16 +62,42 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
     const [state, formAction] = useActionState(createOrderAction, {});
     const formRef = useRef<HTMLFormElement>(null);
     const resultRef = useRef<HTMLDivElement>(null);
-    const [totalAmount, setTotalAmount] = useState('');
-    const [depositAmount, setDepositAmount] = useState('');
-    const [depositPaid, setDepositPaid] = useState(false);
-    const [promisedDeliveryDate, setPromisedDeliveryDate] = useState('');
+    const [values, setValues] = useState(() => initialFormValues(initialOrderDate));
+    const [successResetToastId, setSuccessResetToastId] = useState<string>();
+    const [clearedFieldErrors, setClearedFieldErrors] = useState<{ toastId?: string; fields: Set<string> }>({ fields: new Set() });
     const [lineSummary, setLineSummary] = useState({ lineCount: 1, unitCount: 1 });
     const idempotencyRef = useRef<HTMLInputElement>(null);
-    const total = safeMoney(totalAmount);
-    const deposit = safeMoney(depositAmount);
+    const resetDraft = state.status === 'success' && Boolean(state.toastId) && state.toastId !== successResetToastId;
+    const draftValues = resetDraft ? initialFormValues(initialOrderDate) : values;
+    const total = safeMoney(draftValues.totalAmount);
+    const deposit = safeMoney(draftValues.depositAmount);
     const balance = total && deposit ? safeOrderBalance(total, deposit) : null;
     useMutationToast(state);
+
+    function clearFieldError(field: string) {
+        const toastId = state.toastId;
+        setClearedFieldErrors((current) => {
+            if (current.toastId === toastId) {
+                if (current.fields.has(field)) return current;
+                return { toastId, fields: new Set(current.fields).add(field) };
+            }
+            return { toastId, fields: new Set([field]) };
+        });
+    }
+
+    function errorsForField(field: string) {
+        return clearedFieldErrors.toastId === state.toastId && clearedFieldErrors.fields.has(field) ? undefined : errorsFor(state, field);
+    }
+
+    function hasFieldError(field: string) {
+        return Boolean(errorsForField(field)?.length);
+    }
+
+    function updateValue<K extends keyof OrderFormValues>(field: K, value: OrderFormValues[K]) {
+        setValues((current) => ({ ...(resetDraft ? initialFormValues(initialOrderDate) : current), [field]: value }));
+        if (resetDraft && state.toastId) setSuccessResetToastId(state.toastId);
+        clearFieldError(field);
+    }
 
     useEffect(() => {
         if (!state.toastId) return;
@@ -77,6 +129,10 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
                 key={state.status === 'success' && state.toastId ? state.toastId : 'create-order-form'}
                 noValidate
                 onSubmit={() => {
+                    if (resetDraft && state.toastId) {
+                        setValues(initialFormValues(initialOrderDate));
+                        setSuccessResetToastId(state.toastId);
+                    }
                     if (idempotencyRef.current && !idempotencyRef.current.value) idempotencyRef.current.value = crypto.randomUUID();
                 }}
                 ref={formRef}>
@@ -85,65 +141,71 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
                 <div className="min-w-0 space-y-6">
                     <Section icon={UserRound} title="Identificación" hint="Datos de contacto del pedido.">
                         <FieldGroup className="grid gap-4 md:grid-cols-3">
-                            <Field data-invalid={Boolean(errorsFor(state, 'clientName')?.length)}>
+                            <Field data-invalid={hasFieldError('clientName')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-client-name">
                                     Cliente
                                 </FieldLabel>
                                 <Input
                                     aria-describedby="order-client-name-error"
-                                    aria-invalid={Boolean(errorsFor(state, 'clientName')?.length)}
+                                    aria-invalid={hasFieldError('clientName')}
                                     className="rounded-xl bg-card shadow-none transition-colors focus-visible:bg-card"
                                     id="order-client-name"
                                     name="clientName"
+                                    onChange={(event) => updateValue('clientName', event.target.value)}
                                     placeholder="Nombre y apellido"
                                     required
+                                    value={draftValues.clientName}
                                 />
-                                <FieldError errors={errorsFor(state, 'clientName')} id="order-client-name-error" />
+                                <FieldError errors={errorsForField('clientName')} id="order-client-name-error" />
                             </Field>
-                            <Field data-invalid={Boolean(errorsFor(state, 'teamName')?.length)}>
+                            <Field data-invalid={hasFieldError('teamName')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-team-name">
                                     Equipo
                                 </FieldLabel>
                                 <Input
                                     aria-describedby="order-team-name-error"
-                                    aria-invalid={Boolean(errorsFor(state, 'teamName')?.length)}
+                                    aria-invalid={hasFieldError('teamName')}
                                     className="rounded-xl bg-card shadow-none transition-colors focus-visible:bg-card"
                                     id="order-team-name"
                                     name="teamName"
+                                    onChange={(event) => updateValue('teamName', event.target.value)}
                                     placeholder="Club o equipo"
                                     required
+                                    value={draftValues.teamName}
                                 />
-                                <FieldError errors={errorsFor(state, 'teamName')} id="order-team-name-error" />
+                                <FieldError errors={errorsForField('teamName')} id="order-team-name-error" />
                             </Field>
-                            <Field data-invalid={Boolean(errorsFor(state, 'phone')?.length)}>
+                            <Field data-invalid={hasFieldError('phone')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-phone">
                                     Teléfono
                                 </FieldLabel>
                                 <Input
                                     aria-describedby="order-phone-error"
-                                    aria-invalid={Boolean(errorsFor(state, 'phone')?.length)}
+                                    aria-invalid={hasFieldError('phone')}
                                     className="rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card"
                                     id="order-phone"
                                     inputMode="tel"
                                     name="phone"
+                                    onChange={(event) => updateValue('phone', event.target.value)}
                                     placeholder="11 5555 5555"
                                     required
+                                    value={draftValues.phone}
                                 />
-                                <FieldError errors={errorsFor(state, 'phone')} id="order-phone-error" />
+                                <FieldError errors={errorsForField('phone')} id="order-phone-error" />
                             </Field>
                         </FieldGroup>
                     </Section>
 
                     <Section icon={CalendarDays} title="Fechas" hint="Ingreso y compromiso de entrega.">
                         <FieldGroup className="grid gap-4 md:grid-cols-2">
-                            <Field>
+                            <Field data-invalid={hasFieldError('orderDate')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-date">
                                     Fecha del pedido
                                 </FieldLabel>
-                                <DatePickerField defaultValue={initialOrderDate} id="order-date" label="la fecha del pedido" name="orderDate" triggerLabel="Abrir calendario de ingreso" />
-                                <FieldError errors={errorsFor(state, 'orderDate')} />
+                                <DatePickerField errorId="order-date-error" id="order-date" invalid={hasFieldError('orderDate')} label="la fecha del pedido" name="orderDate" onChange={(value) => updateValue('orderDate', value)} triggerLabel="Abrir calendario de ingreso" value={draftValues.orderDate} />
+                                <FieldError errors={errorsForField('orderDate')} id="order-date-error" />
                             </Field>
-                            <Field>
+                            <Field data-invalid={hasFieldError('promisedDeliveryDate')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-promised-date">
                                     Fecha prometida de entrega
                                 </FieldLabel>
@@ -151,29 +213,36 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
                                     id="order-promised-date"
                                     label="la fecha prometida de entrega"
                                     name="promisedDeliveryDate"
-                                    onChange={setPromisedDeliveryDate}
+                                    errorId="order-promised-date-error"
+                                    invalid={hasFieldError('promisedDeliveryDate')}
+                                    onChange={(value) => updateValue('promisedDeliveryDate', value)}
                                     triggerLabel="Abrir calendario de entrega"
-                                    value={promisedDeliveryDate}
+                                    value={draftValues.promisedDeliveryDate}
                                 />
-                                <FieldError errors={errorsFor(state, 'promisedDeliveryDate')} />
+                                <FieldError errors={errorsForField('promisedDeliveryDate')} id="order-promised-date-error" />
                             </Field>
                         </FieldGroup>
                     </Section>
 
-                    <OrderLineEditor catalogs={catalogs} onSummaryChange={setLineSummary} />
+                    <OrderLineEditor catalogs={catalogs} error={errorsForField('lines')?.map((error) => error?.message).filter(Boolean).join(' ')} onEdit={() => clearFieldError('lines')} onSummaryChange={setLineSummary} />
 
                     <Section icon={Info} title="Descripción" hint="Indicaciones que no estén en las opciones.">
-                        <Field>
+                        <Field data-invalid={hasFieldError('description')}>
                             <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-description">
                                 Detalles adicionales <span className="font-normal text-muted-foreground">(opcional)</span>
                             </FieldLabel>
                             <Textarea
+                                aria-describedby="order-description-error"
+                                aria-invalid={hasFieldError('description')}
                                 className="min-h-28 resize-none rounded-xl bg-card shadow-none transition-colors focus-visible:bg-card"
                                 id="order-description"
                                 name="description"
+                                onChange={(event) => updateValue('description', event.target.value)}
                                 placeholder="Ej. numeración del 1 al 24, escudo en pecho izquierdo."
                                 rows={4}
+                                value={draftValues.description}
                             />
+                            <FieldError errors={errorsForField('description')} id="order-description-error" />
                             <FieldDescription className="flex items-center gap-1.5 text-xs">
                                 <Info aria-hidden="true" className="size-3" />
                                 Esta descripción acompaña la configuración estructurada.
@@ -183,51 +252,51 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
 
                     <Section icon={BadgeDollarSign} title="Importe total" hint="El pedido conserva un único importe total. No se cargan precios por renglón.">
                         <FieldGroup className="grid gap-4 md:grid-cols-2">
-                            <Field data-invalid={Boolean(errorsFor(state, 'totalAmount')?.length)}>
+                            <Field data-invalid={hasFieldError('totalAmount')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-total-amount">
                                     Total del pedido
                                 </FieldLabel>
                                 <Input
                                     aria-describedby="order-total-error"
-                                    aria-invalid={Boolean(errorsFor(state, 'totalAmount')?.length)}
+                                    aria-invalid={hasFieldError('totalAmount')}
                                     className="h-10 rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card md:h-10"
                                     id="order-total-amount"
                                     inputMode="decimal"
                                     name="totalAmount"
-                                    onChange={(event) => setTotalAmount(event.target.value)}
+                                    onChange={(event) => updateValue('totalAmount', event.target.value)}
                                     placeholder="$ 0,00"
                                     required
                                     type="text"
-                                    value={totalAmount}
+                                    value={draftValues.totalAmount}
                                 />
-                                <FieldError errors={errorsFor(state, 'totalAmount')} id="order-total-error" />
+                                <FieldError errors={errorsForField('totalAmount')} id="order-total-error" />
                             </Field>
-                            <Field data-invalid={Boolean(errorsFor(state, 'depositAmount')?.length)}>
+                            <Field data-invalid={hasFieldError('depositAmount')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-deposit-amount">
                                     Monto de seña
                                 </FieldLabel>
                                 <Input
                                     aria-describedby="order-deposit-error"
-                                    aria-invalid={Boolean(errorsFor(state, 'depositAmount')?.length)}
+                                    aria-invalid={hasFieldError('depositAmount')}
                                     className="h-10 rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card md:h-10"
                                     id="order-deposit-amount"
                                     inputMode="decimal"
                                     name="depositAmount"
-                                    onChange={(event) => setDepositAmount(event.target.value)}
+                                    onChange={(event) => updateValue('depositAmount', event.target.value)}
                                     placeholder="$ 0,00"
                                     required
                                     type="text"
-                                    value={depositAmount}
+                                    value={draftValues.depositAmount}
                                 />
-                                <FieldError errors={errorsFor(state, 'depositAmount')} id="order-deposit-error" />
+                                <FieldError errors={errorsForField('depositAmount')} id="order-deposit-error" />
                             </Field>
                         </FieldGroup>
                         <label className="mt-4 flex min-h-10 flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-sm">
                             <input
-                                checked={depositPaid}
+                                checked={draftValues.depositPaid}
                                 className="size-4 accent-primary"
                                 name="depositPaid"
-                                onChange={(event) => setDepositPaid(event.target.checked)}
+                                onChange={(event) => updateValue('depositPaid', event.target.checked)}
                                 type="checkbox"
                                 value="true"
                             />
@@ -259,10 +328,10 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
                     </div>
                     <dl className="divide-y divide-border border-t border-border text-sm">
                         <SummaryRow label="Total del pedido" value={total ? formatArs(total) : formatArs('0')} />
-                        <SummaryRow label="Seña" value={deposit ? formatArs(deposit) : formatArs('0')} badge={depositPaid ? 'Pagada' : 'No pagada'} ok={depositPaid} />
+                        <SummaryRow label="Seña" value={deposit ? formatArs(deposit) : formatArs('0')} badge={draftValues.depositPaid ? 'Pagada' : 'No pagada'} ok={draftValues.depositPaid} />
                         <SummaryRow icon={Layers} label="Renglones" value={String(lineSummary.lineCount)} />
                         <SummaryRow icon={Shirt} label="Unidades" value={String(lineSummary.unitCount)} />
-                        <SummaryRow icon={CalendarDays} label="Entrega" value={promisedDeliveryDate ? formatDate(promisedDeliveryDate) : 'Sin definir'} />
+                        <SummaryRow icon={CalendarDays} label="Entrega" value={draftValues.promisedDeliveryDate ? formatDate(draftValues.promisedDeliveryDate) : 'Sin definir'} />
                     </dl>
                     <div className="border-t border-border p-4">
                         <SubmitButton
@@ -285,7 +354,9 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
 
 function DatePickerField({
     defaultValue = '',
+    errorId,
     id,
+    invalid = false,
     label,
     name,
     onChange,
@@ -293,7 +364,9 @@ function DatePickerField({
     value,
 }: {
     defaultValue?: string;
+    errorId?: string;
     id: string;
+    invalid?: boolean;
     label: string;
     name: string;
     onChange?: (value: string) => void;
@@ -337,6 +410,8 @@ function DatePickerField({
     return (
         <div className="relative" ref={fieldRef}>
             <Input
+                aria-describedby={errorId}
+                aria-invalid={invalid}
                 className="rounded-xl bg-card pr-10 font-mono text-sm shadow-none transition-colors focus-visible:bg-card [appearance:none] [&::-webkit-calendar-picker-indicator]:opacity-0"
                 id={id}
                 name={name}

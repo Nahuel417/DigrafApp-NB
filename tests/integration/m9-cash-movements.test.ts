@@ -135,7 +135,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
   }
 
   async function ensureCurrentDayClosed() {
-    const current = await service.from("cash_days").select("id, closed_at").eq("operational_date", operationalDate).single();
+    const current = await service.from("cash_days").select("id, closed_at").eq("operational_date", operationalDate).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (current.error || !current.data) throw current.error ?? new Error("No se encontró la caja actual para reapertura.");
     cashDayId = current.data.id;
     if (current.data.closed_at) return;
@@ -149,6 +149,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
       .from("cash_days")
       .select("id, opening_balance, opening_updated_at")
       .eq("operational_date", operationalDate)
+      .is("closed_at", null)
       .maybeSingle();
     if (existing.error) throw existing.error;
     preExistingCashDay = Boolean(existing.data);
@@ -203,7 +204,17 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
         service
           .from("cash_days")
           .update({ opening_balance: initialOpeningBalance, opening_updated_at: initialOpeningUpdatedAt, closed_at: null, closed_by: null, closure_kind: null, closing_balance: null, closure_idempotency_key: null, closure_idempotency_fingerprint: null })
-          .eq("id", cashDayId),
+        .eq("id", cashDayId),
+      );
+    }
+    const syntheticActorIds = identities.map((identity) => identity.id);
+    if (syntheticActorIds.length) {
+      await cleanup(
+        "cash_days actor references",
+        service
+          .from("cash_days")
+          .update({ closed_at: null, closed_by: null, closure_kind: null, closing_balance: null, closure_idempotency_key: null, closure_idempotency_fingerprint: null })
+          .in("closed_by", syntheticActorIds),
       );
     }
     for (const identity of identities) {
@@ -336,7 +347,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Fundación de caja 
     const { count, error } = await service
       .from("cash_days")
       .select("id", { count: "exact", head: true })
-      .eq("operational_date", operationalDate);
+      .eq("operational_date", operationalDate)
+      .is("closed_at", null);
     expect(error).toBeNull();
     expect(count).toBe(1);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canConfirmPayment, canCreateManualOrder, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderLabels, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
 import { canArchiveDeliveredOrder, canEditOrderSensitive, canManageOrderDesignImages, canPurgeCancelledOrder } from "./permissions";
 
 describe("M3 permissions", () => {
@@ -19,6 +19,12 @@ describe("M3 permissions", () => {
   it("allows every active operational role to request a non-financial movement", () => {
     for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
       expect(canMoveOrder(role)).toBe(true);
+    }
+  });
+
+  it("allows every active operational role to edit order labels", () => {
+    for (const role of ["super_admin", "admin", "attention", "employee"] as const) {
+      expect(canEditOrderLabels(role)).toBe(true);
     }
   });
 });

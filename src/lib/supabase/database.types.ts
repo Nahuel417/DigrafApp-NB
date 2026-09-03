@@ -1524,6 +1524,7 @@ export type Database = {
           id: string
           idempotency_fingerprint: string | null
           idempotency_key: string | null
+          label: Database["public"]["Enums"]["order_label"] | null
           lifecycle_state: string
           order_date: string | null
           order_type: Database["public"]["Enums"]["order_type"] | null
@@ -1547,6 +1548,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
+          label?: Database["public"]["Enums"]["order_label"] | null
           lifecycle_state?: string
           order_date?: string | null
           order_type?: Database["public"]["Enums"]["order_type"] | null
@@ -1570,6 +1572,7 @@ export type Database = {
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
+          label?: Database["public"]["Enums"]["order_label"] | null
           lifecycle_state?: string
           order_date?: string | null
           order_type?: Database["public"]["Enums"]["order_type"] | null
@@ -2098,6 +2101,7 @@ export type Database = {
           has_design_image: boolean
           id: string
           image_updated_at: string
+          label: Database["public"]["Enums"]["order_label"]
           order_type: Database["public"]["Enums"]["order_type"]
           payment_confirmed_at: string
           promised_delivery_date: string
@@ -2417,6 +2421,18 @@ export type Database = {
         Args: { target_id: string; target_is_active: boolean }
         Returns: undefined
       }
+      set_order_label: {
+        Args: {
+          p_expected_updated_at: string
+          p_label: Database["public"]["Enums"]["order_label"]
+          p_order_id: string
+        }
+        Returns: {
+          label: Database["public"]["Enums"]["order_label"]
+          order_id: string
+          updated_at: string
+        }[]
+      }
       unarchive_delivered_order: {
         Args: {
           p_expected_updated_at: string
@@ -2509,6 +2525,7 @@ export type Database = {
       catalog_option_selection_mode: "single" | "multiple"
       catalog_product_kind: "garment" | "flag" | "bag" | "shield"
       garment_layer: "upper" | "lower"
+      order_label: "urgent" | "returned" | "review"
       order_line_type: "individual" | "set" | "flag" | "bag" | "shield"
       order_type: "set" | "individual"
     }
@@ -2653,6 +2670,7 @@ export const Constants = {
       catalog_option_selection_mode: ["single", "multiple"],
       catalog_product_kind: ["garment", "flag", "bag", "shield"],
       garment_layer: ["upper", "lower"],
+      order_label: ["urgent", "returned", "review"],
       order_line_type: ["individual", "set", "flag", "bag", "shield"],
       order_type: ["set", "individual"],
     },

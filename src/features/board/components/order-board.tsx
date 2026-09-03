@@ -18,7 +18,7 @@ import {
     type DragStartEvent,
     type CollisionDetection,
 } from '@dnd-kit/core';
-import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, GripVertical, Package, PackageOpen, Shirt } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, GripVertical, Package, PackageOpen, Search, Shirt, Tag } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
 
@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMutationToast } from '@/hooks/use-mutation-toast';
 import { formatArs } from '@/lib/money/decimal';
@@ -43,20 +44,38 @@ import {
     confirmOrderPaymentAction,
     getOrderQuickViewAction,
     moveOrderAction,
+    reconcileOrderLabelAction,
     reconcileOrderAction,
     type ConfirmOrderPaymentActionState,
     type MoveOrderActionState,
     type OrderQuickView,
+    setOrderLabelAction,
+    type SetOrderLabelActionState,
 } from '../actions';
 import { moveBoardOrder, replaceBoardOrder } from '../board-state';
+import { orderLabelClassName, orderLabelName, orderLabelOptions } from '../labels';
 import type { BoardColumn, BoardOrder } from '../queries';
+import type { OrderLabel } from '../schemas';
 import { OrderDesignThumbnail } from './order-design-thumbnail';
 import { OrderQuickView as OrderQuickViewPanel } from './order-quick-view';
 
 type MoveSource = Pick<BoardOrder, 'id' | 'currentStageId' | 'updatedAt'>;
 type MovementMethod = 'selector' | 'dnd';
-type QuickViewData = OrderQuickView & Pick<BoardOrder, 'primaryDesignImage' | 'productName'>;
+type QuickViewData = OrderQuickView & Pick<BoardOrder, 'label' | 'primaryDesignImage' | 'productName'>;
 type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
+type LabelFilter = OrderLabel | 'all' | 'none';
+
+function OrderLabelBadge({ label }: { label: OrderLabel | null }) {
+    if (!label) return null;
+
+    return (
+        <span
+            aria-label={`Etiqueta ${orderLabelName(label)}`}
+            className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold leading-none ${orderLabelClassName(label)}`}>
+            {orderLabelName(label)}
+        </span>
+    );
+}
 
 const collisionDetectionStrategy: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
@@ -85,7 +104,10 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
                     />
                 ) : null}
                 <div className="min-w-0 flex-1 pr-8">
-                    <p className="font-mono text-[11px] tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-mono text-[11px] tracking-data text-muted-foreground">{orderId(order.publicNumber)}</p>
+                        <OrderLabelBadge label={order.label} />
+                    </div>
                     <h3 className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium leading-snug">
                         <FileText aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
                         <a
@@ -346,11 +368,13 @@ export function OrderBoard({
     canDeliverPaidOrders = false,
     canCreateOrders,
     initialColumns,
+    initialSearch = '',
 }: {
     canConfirmPayment: boolean;
     canDeliverPaidOrders?: boolean;
     canCreateOrders: boolean;
     initialColumns: BoardColumn[];
+    initialSearch?: string;
 }) {
     const [columns, setColumns] = useState(initialColumns);
     const [mobileStageId, setMobileStageId] = useState(() => initialColumns[0]?.id ?? '');
@@ -360,17 +384,20 @@ export function OrderBoard({
     const [dragPreviewAnchor, setDragPreviewAnchor] = useState<{ x: number; y: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [announcement, setAnnouncement] = useState('Tablero listo para mover pedidos.');
-    const [mutationState, setMutationState] = useState<MoveOrderActionState | ConfirmOrderPaymentActionState>({});
+    const [mutationState, setMutationState] = useState<MoveOrderActionState | ConfirmOrderPaymentActionState | SetOrderLabelActionState>({});
     const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
     const [quickView, setQuickView] = useState<QuickViewData | null>(null);
     const [quickViewError, setQuickViewError] = useState<string | null>(null);
+    const [labelFilter, setLabelFilter] = useState<LabelFilter>('all');
+    const [deliveryFrom, setDeliveryFrom] = useState('');
+    const [deliveryTo, setDeliveryTo] = useState('');
     const [isQuickViewPending, startQuickViewTransition] = useTransition();
     const quickViewTriggerRef = useRef<HTMLButtonElement | null>(null);
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor));
     const allOrders = columns.flatMap((column) => column.orders);
     const activeOrder = activeDragId ? (allOrders.find((order) => order.id === activeDragId) ?? null) : null;
     const paidStageId = columns.find((column) => column.code === 'paid')?.id;
-    const selectedMobileStageId = columns.some((column) => column.id === mobileStageId) ? mobileStageId : columns[0]?.id ?? '';
+    const selectedMobileStageId = columns.some((column) => column.id === mobileStageId) ? mobileStageId : (columns[0]?.id ?? '');
     useMutationToast(mutationState);
 
     useEffect(() => {
@@ -431,6 +458,7 @@ export function OrderBoard({
             if (result.data) {
                 setQuickView({
                     ...result.data,
+                    label: boardOrder?.label ?? null,
                     primaryDesignImage: boardOrder?.primaryDesignImage ?? null,
                     productName: boardOrder?.productName ?? null,
                 });
@@ -441,6 +469,13 @@ export function OrderBoard({
     function closeQuickView() {
         setQuickView(null);
         window.requestAnimationFrame(() => quickViewTriggerRef.current?.focus());
+    }
+
+    function clearFilters() {
+        setDeliveryFrom('');
+        setDeliveryTo('');
+        setLabelFilter('all');
+        if (initialSearch.trim()) window.location.assign('/orders');
     }
 
     function reportLocalRejection(order: BoardOrder, message: string, method: MovementMethod) {
@@ -464,6 +499,70 @@ export function OrderBoard({
             setAnnouncement(`Cancelaste la confirmación de cobro de ${orderId(request.order.publicNumber)}. El pedido permanece en ${stageName(request.source.currentStageId)}.`);
         }
         focusOrderControl(request.order.id, request.method);
+    }
+
+    function requestLabelChange(order: BoardOrder, label: OrderLabel | null) {
+        if (order.label === label) return;
+        if (pendingOrderIds.has(order.id)) {
+            setAnnouncement(`${orderId(order.publicNumber)} ya tiene un cambio en curso.`);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('orderId', order.id);
+        formData.set('label', label ?? '');
+        formData.set('expectedUpdatedAt', order.updatedAt);
+
+        setErrorMessage(null);
+        setMutationState({});
+        setPendingOrderIds((current) => new Set(current).add(order.id));
+        setColumns((current) => replaceBoardOrder(current, { ...order, label }));
+        setQuickView((current) => current?.id === order.id ? { ...current, label } : current);
+        setAnnouncement(`Actualizando la etiqueta de ${orderId(order.publicNumber)}.`);
+
+        startTransition(async () => {
+            try {
+                const result = await setOrderLabelAction({}, formData);
+                if (result.status === 'success') {
+                    const updatedOrder = result.reconciledOrder ?? {
+                        ...order,
+                        label: result.updatedOrder?.label ?? label,
+                        updatedAt: result.updatedOrder?.updatedAt ?? order.updatedAt,
+                    };
+                    setColumns((current) => replaceBoardOrder(current, updatedOrder));
+                    setQuickView((current) => current?.id === order.id ? { ...current, label: updatedOrder.label, expectedUpdatedAt: updatedOrder.updatedAt } : current);
+                    setAnnouncement(`${orderId(order.publicNumber)} ahora tiene la etiqueta ${label ? orderLabelName(label) : 'Sin etiqueta'}.`);
+                } else {
+                    const canonicalOrder = result.reconciledOrder ?? order;
+                    setColumns((current) => replaceBoardOrder(current, canonicalOrder));
+                    setQuickView((current) => current?.id === order.id ? { ...current, label: canonicalOrder.label, expectedUpdatedAt: canonicalOrder.updatedAt } : current);
+                    setErrorMessage(result.message ?? 'No se pudo actualizar la etiqueta. Intentá nuevamente.');
+                    setMutationState(result);
+                    setAnnouncement(`${orderId(order.publicNumber)} conservó su etiqueta anterior. ${result.message ?? 'Intentá nuevamente.'}`);
+                }
+            } catch {
+                try {
+                    const canonicalOrder = await reconcileOrderLabelAction(order.id);
+                    setColumns((current) => replaceBoardOrder(current, canonicalOrder ?? order));
+                    setQuickView((current) => current?.id === order.id ? { ...current, label: canonicalOrder?.label ?? order.label, expectedUpdatedAt: canonicalOrder?.updatedAt ?? order.updatedAt } : current);
+                    const message = canonicalOrder
+                        ? `${orderId(order.publicNumber)} quedó con la etiqueta ${canonicalOrder.label ? orderLabelName(canonicalOrder.label) : 'Sin etiqueta'}.`
+                        : 'Estado no confirmado. Recargá el tablero para verificar la etiqueta.';
+                    setErrorMessage(canonicalOrder ? null : message);
+                    setMutationState(canonicalOrder ? {} : { message, status: 'error', toastId: crypto.randomUUID() });
+                    setAnnouncement(message);
+                } catch {
+                    const message = 'Estado no confirmado. Recargá el tablero para verificar la etiqueta.';
+                    setColumns((current) => replaceBoardOrder(current, order));
+                    setQuickView((current) => current?.id === order.id ? { ...current, label: order.label, expectedUpdatedAt: order.updatedAt } : current);
+                    setErrorMessage(message);
+                    setMutationState({ message, status: 'error', toastId: crypto.randomUUID() });
+                    setAnnouncement(message);
+                }
+            } finally {
+                clearPending(order.id);
+            }
+        });
     }
 
     function confirmPayment() {
@@ -697,8 +796,19 @@ export function OrderBoard({
         },
     };
 
-    const orderCount = columns.reduce((count, column) => count + column.orders.length, 0);
+    const hasInvalidDeliveryRange = Boolean(deliveryFrom && deliveryTo && deliveryFrom > deliveryTo);
+    const visibleColumns = columns.map((column) => ({
+        ...column,
+        orders: column.orders.filter((order) => {
+            const matchesLabel = labelFilter === 'all' || (labelFilter === 'none' ? order.label === null : order.label === labelFilter);
+            const matchesDelivery = hasInvalidDeliveryRange || (!deliveryFrom || order.promisedDeliveryDate >= deliveryFrom) && (!deliveryTo || order.promisedDeliveryDate <= deliveryTo);
+            return matchesLabel && matchesDelivery;
+        }),
+    }));
+    const totalOrderCount = columns.reduce((count, column) => count + column.orders.length, 0);
+    const orderCount = visibleColumns.reduce((count, column) => count + column.orders.length, 0);
     const paymentAmount = canConfirmPayment ? (paymentRequest?.order.totalAmount ?? null) : null;
+    const hasActiveFilters = Boolean(initialSearch.trim() || deliveryFrom || deliveryTo || labelFilter !== 'all');
     const dragOverlay = (
         <DragOverlay dropAnimation={null}>
             {activeOrder ? (
@@ -732,13 +842,80 @@ export function OrderBoard({
                 <p aria-atomic="true" aria-live="assertive" className="sr-only" data-testid="board-announcement">
                     {announcement}
                 </p>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count>
+                <div className="flex flex-wrap items-start gap-2" data-testid="board-filters">
+                    <details className="group/filter relative" open={Boolean(initialSearch)}>
+                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                            <Search aria-hidden="true" className="size-3.5 text-primary" />
+                            Buscar
+                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                        </summary>
+                        <form action="/orders" className="absolute left-0 top-full z-20 mt-2 flex w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-xl border border-border bg-card p-3 shadow-lg" method="get" role="search">
+                            <label className="relative min-w-0 flex-1" htmlFor="order-board-search">
+                                <span className="sr-only">Buscar por cliente, equipo o teléfono</span>
+                                <Input autoFocus={Boolean(initialSearch)} className="h-9 rounded-lg bg-background pr-2" defaultValue={initialSearch} id="order-board-search" name="search" placeholder="Cliente, equipo o teléfono" />
+                            </label>
+                            <Button className="h-9 shrink-0 rounded-lg px-3" type="submit">Buscar</Button>
+                        </form>
+                    </details>
+                    <details className="group/filter relative">
+                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                            <CalendarDays aria-hidden="true" className="size-3.5 text-primary" />
+                            Entrega
+                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                        </summary>
+                        <div className="absolute left-0 top-full z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
+                            <p className="text-xs font-medium text-foreground">Rango de entrega</p>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-from">
+                                    Desde
+                                    <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-from" max={deliveryTo || undefined} onChange={(event) => setDeliveryFrom(event.target.value)} type="date" value={deliveryFrom} />
+                                </label>
+                                <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-to">
+                                    Hasta
+                                    <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-to" min={deliveryFrom || undefined} onChange={(event) => setDeliveryTo(event.target.value)} type="date" value={deliveryTo} />
+                                </label>
+                            </div>
+                            {hasInvalidDeliveryRange ? <p className="text-xs text-error" role="alert">La fecha Desde no puede superar Hasta.</p> : null}
+                        </div>
+                    </details>
+                    <details className="group/filter relative">
+                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                            <Tag aria-hidden="true" className="size-3.5 text-primary" />
+                            Etiqueta
+                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                        </summary>
+                        <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
+                            <Field className="gap-1">
+                                <FieldLabel className="text-xs" htmlFor="board-label-filter">Filtrar pedidos por etiqueta</FieldLabel>
+                                <Select onValueChange={(value) => setLabelFilter(value as LabelFilter)} value={labelFilter}>
+                                    <SelectTrigger className="h-9 rounded-lg bg-background px-3 shadow-none" id="board-label-filter">
+                                        <SelectValue placeholder="Todas las etiquetas" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectItem value="all">Todas las etiquetas</SelectItem>
+                                            <SelectItem value="none">Sin etiqueta</SelectItem>
+                                            {orderLabelOptions.map((option) => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                    {option.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+                        </div>
+                    </details>
+                    {hasActiveFilters ? <Button className="h-9 rounded-xl px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={clearFilters} type="button" variant="ghost">Limpiar filtros</Button> : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count data-testid="board-count">
                         <Package aria-hidden="true" className="size-3.5 text-primary" />
                         {orderCount === 1 ? '1 pedido en seguimiento' : `${orderCount} pedidos en seguimiento`}
                     </p>
+                    {hasInvalidDeliveryRange ? <p className="text-error">Corregí el rango para filtrar por entrega.</p> : null}
                 </div>
-                {orderCount === 0 ? (
+                {totalOrderCount === 0 ? (
                     <Alert>
                         <PackageOpen aria-hidden="true" />
                         <AlertTitle>Todavía no hay pedidos en el tablero</AlertTitle>
@@ -747,10 +924,17 @@ export function OrderBoard({
                         </AlertDescription>
                     </Alert>
                 ) : null}
+                {totalOrderCount > 0 && orderCount === 0 ? (
+                    <Alert>
+                        <Tag aria-hidden="true" />
+                        <AlertTitle>No hay pedidos con estos filtros</AlertTitle>
+                        <AlertDescription>Ajustá los filtros o elegí “Limpiar filtros” para volver a mostrar pedidos.</AlertDescription>
+                    </Alert>
+                ) : null}
                 {errorMessage ? (
                     <Alert variant="destructive">
                         <AlertCircle aria-hidden="true" />
-                        <AlertTitle>No pudimos mover el pedido</AlertTitle>
+                        <AlertTitle>No pudimos actualizar el pedido</AlertTitle>
                         <AlertDescription>{errorMessage}</AlertDescription>
                     </Alert>
                 ) : null}
@@ -776,6 +960,11 @@ export function OrderBoard({
                     <OrderQuickViewPanel
                         data={quickView}
                         onClose={closeQuickView}
+                        isLabelPending={pendingOrderIds.has(quickView.id)}
+                        onLabelChange={(label) => {
+                            const order = findOrder(quickView.id);
+                            if (order) requestLabelChange(order, label);
+                        }}
                         onReconciled={(reconciledOrder) => {
                             if (reconciledOrder) {
                                 setMobileStageId(reconciledOrder.currentStageId);
@@ -788,7 +977,7 @@ export function OrderBoard({
                 ) : null}
                 <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
                     <div aria-label="Etapas del tablero" className="mb-3 flex min-w-0 gap-2 overflow-x-auto pb-1 lg:hidden" data-testid="mobile-stage-selector" role="tablist">
-                        {columns.map((column, index) => {
+                        {visibleColumns.map((column, index) => {
                             const isSelected = column.id === selectedMobileStageId;
                             const orderLabel = column.orders.length === 1 ? 'pedido' : 'pedidos';
                             return (
@@ -815,7 +1004,7 @@ export function OrderBoard({
                         })}
                     </div>
                     <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-full lg:w-max lg:max-w-none lg:flex-row lg:overscroll-x-contain lg:pb-3">
-                        {columns.map((column) => (
+                        {visibleColumns.map((column) => (
                             <div className={`${column.id === selectedMobileStageId ? 'block' : 'hidden'} lg:block lg:w-[18.75rem] lg:shrink-0`} data-testid={`mobile-stage-panel-${column.code}`} key={column.id}>
                                 <BoardColumnView
                                     activeOrder={activeOrder}

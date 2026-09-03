@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Layers, Palette, Plus, Scissors, Trash2 } from "luc
 import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel, FieldSet } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -176,7 +176,7 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
   </article>;
 }
 
-export function OrderLineEditor({ catalogs, initialLines = [], name = "lines", onSummaryChange }: { catalogs: OrderFormCatalogs; initialLines?: OrderLineInput[]; name?: string; onSummaryChange?: (summary: { lineCount: number; unitCount: number }) => void }) {
+export function OrderLineEditor({ catalogs, error, initialLines = [], name = "lines", onEdit, onSummaryChange }: { catalogs: OrderFormCatalogs; error?: string; initialLines?: OrderLineInput[]; name?: string; onEdit?: () => void; onSummaryChange?: (summary: { lineCount: number; unitCount: number }) => void }) {
   const lineId = useId();
   const [lines, setLines] = useState<EditableLine[]>(() => {
     const initial = initialLines.length ? initialLines : [{ position: 0, line_type: "individual" as const, quantity: 1, color: "", options: [] }];
@@ -188,10 +188,12 @@ export function OrderLineEditor({ catalogs, initialLines = [], name = "lines", o
       unitCount: lines.reduce((total, item) => total + (Number.isFinite(item.quantity) ? item.quantity : 0), 0),
     });
   }, [lines, onSummaryChange]);
-  function replace(index: number, value: EditableLine) { setLines((current) => current.map((item, itemIndex) => itemIndex === index ? value : item)); }
-  function move(index: number, direction: -1 | 1) { setLines((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target]!, next[index]!]; return next; }); }
+  function replace(index: number, value: EditableLine) { setLines((current) => current.map((item, itemIndex) => itemIndex === index ? value : item)); onEdit?.(); }
+  function move(index: number, direction: -1 | 1) { setLines((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target]!, next[index]!]; return next; }); onEdit?.(); }
+  function addLine() { setLines((current) => [...current, line()]); onEdit?.(); }
+  function removeLine(index: number) { setLines((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)); onEdit?.(); }
 
-  return <FieldSet className="@container/line-editor min-w-0 gap-0 rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5">
+  return <FieldSet className="@container/line-editor min-w-0 gap-0 rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5" data-invalid={Boolean(error)}>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Layers aria-hidden="true" className="size-4" /></span>
@@ -200,9 +202,10 @@ export function OrderLineEditor({ catalogs, initialLines = [], name = "lines", o
           <FieldDescription className="text-xs leading-5">Agregá cada producto, con su cantidad, color y opciones. No se cargan importes por renglón.</FieldDescription>
         </div>
       </div>
-      <Button className="h-9 rounded-full px-3 text-xs" onClick={() => setLines((current) => [...current, line()])} type="button" variant="outline"><Plus data-icon="inline-start" />Agregar renglón</Button>
+      <Button className="h-9 rounded-full px-3 text-xs" onClick={addLine} type="button" variant="outline"><Plus data-icon="inline-start" />Agregar renglón</Button>
     </div>
     <input name={name} type="hidden" value={JSON.stringify(lines.map(({ key: _key, ...item }, position) => ({ ...item, position, color: item.color?.trim() || null })))} readOnly />
-    <div className="flex flex-col gap-4">{lines.map((item, index) => <LineEditor catalogs={catalogs} index={index} item={item} key={item.key} lineCount={lines.length} onChange={(value) => replace(index, value)} onMove={(direction) => move(index, direction)} onRemove={() => setLines((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index))} />)}</div>
+    <FieldError errors={error ? [{ message: error }] : undefined} />
+    <div className="flex flex-col gap-4">{lines.map((item, index) => <LineEditor catalogs={catalogs} index={index} item={item} key={item.key} lineCount={lines.length} onChange={(value) => replace(index, value)} onMove={(direction) => move(index, direction)} onRemove={() => removeLine(index)} />)}</div>
   </FieldSet>;
 }

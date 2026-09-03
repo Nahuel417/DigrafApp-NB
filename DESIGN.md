@@ -39,6 +39,10 @@ Digraf es una aplicacion interna, light y operativa. La interfaz expresa trazabi
 
 La jerarquia responde a las tareas reales, no al impacto promocional. La referencia visual principal es `docs/brand/references/`: sus capturas se reproducen con alta fidelidad en composicion, proporciones, densidad, espaciado, bordes, radios, navegacion, tablas y componentes. La evolucion es gradual; no reemplaza el sistema existente ni crea modulos, metricas o funcionalidades inexistentes.
 
+## Brand Assets
+
+El favicon usa `public/brand/digraf-favicon.png`, una variante transparente derivada de `public/brand/digraf-mark.png`. Los lockups visibles usan `public/brand/digraf-logo.png` junto con el nombre de Digraf y la leyenda operativa en Outfit. Los activos se mantienen sin deformar ni recolorear.
+
 **Key Characteristics:**
 - Operativa, profesional y agil.
 - Estructura y estados reales antes que decoracion.
@@ -135,6 +139,6 @@ Las formas son suavemente redondeadas con radio base de `0.6rem` y sus derivados
 ### Don't:
 - **Don't** agregar dark mode, selector `.dark`, toggle, provider de tema ni validacion duplicada.
 - **Don't** inventar metricas, graficos, modulos, rutas, marcas, logos, datos, textos o funcionalidades para completar una composicion.
-- **Don't** usar el nombre textual como reemplazo del logo oficial, ni reconstruir, deformar, recolorear o decorar ese logo cuando se entregue.
+- **Don't** usar el nombre textual como reemplazo del logo oficial, ni reconstruir, deformar, recolorear o decorar los activos entregados.
 - **Don't** ocultar informacion operativa, depender solo del color, usar placeholders como unico label o reducir targets por densidad.
 - **Don't** mezclar librerias de iconos, emojis o SVGs personalizados de interfaz.
