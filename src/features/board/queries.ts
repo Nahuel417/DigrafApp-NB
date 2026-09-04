@@ -2,6 +2,7 @@ import type { AppRole } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 
 import { sortBoardOrders, sortPaidBoardOrders } from "./board-state";
+import type { OrderLabel } from "./schemas";
 
 export type BoardStage = {
   id: string;
@@ -17,6 +18,7 @@ export type BoardOrder = {
   teamName: string | null;
   quantity: number;
   orderType: "set" | "individual" | null;
+  label: OrderLabel | null;
   productName?: string | null;
   promisedDeliveryDate: string;
   currentStageId: string;
@@ -59,7 +61,7 @@ export function buildBoardColumns(stages: BoardStage[], orders: BoardOrder[]): B
 }
 
 type BoardRpcRow = {
-  id: string; public_number: number; customer_name: string; team_name: string | null; quantity: number; order_type: "set" | "individual" | null;
+  id: string; public_number: number; customer_name: string; team_name: string | null; label: OrderLabel | null; quantity: number; order_type: "set" | "individual" | null;
   promised_delivery_date: string; current_stage_id: string; updated_at: string; has_design_image: boolean; image_updated_at: string | null;
   total_amount: number | null; payment_confirmed_at: string | null;
 };
@@ -126,6 +128,7 @@ export async function getOrderBoard(role: AppRole, search = ""): Promise<OrderBo
     teamName: order.team_name,
     quantity: order.quantity,
     orderType: order.order_type,
+    label: order.label,
     productName: productNamesByOrderId.get(order.id) ?? null,
     promisedDeliveryDate: order.promised_delivery_date,
     currentStageId: order.current_stage_id,

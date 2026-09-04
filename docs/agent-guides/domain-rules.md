@@ -143,7 +143,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 
 ## Caja diaria
 
-- Cada día operativo tiene una caja en `America/Argentina/Cordoba`.
+- Cada día operativo tiene como máximo una sesión de caja abierta en `America/Argentina/Cordoba`; las sesiones cerradas del mismo día se conservan como historial.
 - Admin/Atención cargan el saldo inicial y pueden editarlo mientras la caja está abierta.
 - La edición de saldo inicial requiere auditoría de valor anterior, valor nuevo, actor y timestamp; incluir motivo cuando corresponda.
 - Saldo final = saldo inicial + ingresos válidos − egresos válidos.
@@ -152,6 +152,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 - Movimientos manuales se editan solo con caja abierta.
 - Cualquiera de los dos Admin puede cerrar caja manualmente. Atención no puede cerrarla.
 - Al iniciar el día siguiente, la caja anterior se cierra automáticamente si sigue abierta.
+- Si la caja del día está cerrada, un cobro positivo crea una nueva sesión abierta con saldo inicial `0`; la sesión cerrada no se reabre ni se modifica.
 - La caja cerrada bloquea toda edición y debe mostrar un mensaje claro.
 - Los movimientos anulados se conservan con actor y timestamp de anulación.
 - El historial diferencia ingresos por pedido, ingresos manuales y egresos manuales.

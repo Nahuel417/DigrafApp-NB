@@ -81,6 +81,7 @@ test.describe("Tablero M4", () => {
     test.skip((page.viewportSize()?.width ?? 0) < 1024, "El DnD con mouse se verifica en desktop; mobile requiere interacción táctil real.");
     await handle.scrollIntoViewIfNeeded();
     await expect(handle).toBeVisible();
+    if (await handle.getAttribute("data-drag-handle")) await expect(handle).toBeEnabled();
     const box = await handle.boundingBox();
     if (!box) throw new Error("No se encontró el handle DnD.");
     const startX = box.x + box.width / 2;
@@ -419,9 +420,12 @@ test.describe("Tablero M4", () => {
       await page.setViewportSize(viewport);
       await page.goto("/orders");
       await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
-      await expect(page.locator("details summary").first()).toBeVisible();
-      await page.locator("details summary").first().click();
-      await expect(page.getByLabel(/Mover PED-\d{6} a/).first()).toBeVisible();
+      const visibleCard = page.locator("article:visible").first();
+      await expect(visibleCard).toBeVisible();
+      const moveDisclosure = visibleCard.locator("details");
+      await expect(moveDisclosure.locator("summary")).toBeVisible();
+      await moveDisclosure.locator("summary").click();
+      await expect(visibleCard.getByLabel(/Mover PED-\d{6} a/)).toBeVisible();
       expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
       if (viewport.width < 1024) {
         await expect(page.getByRole("tab").first()).toBeVisible();

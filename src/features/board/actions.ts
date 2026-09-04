@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { mutationResult, type MutationState } from "@/lib/action-state";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canConfirmPayment, canEditOrderDescription, canEditOrderSensitive, canMoveOrder, canReversePayment } from "@/lib/auth/permissions";
+import { canConfirmPayment, canEditOrderDescription, canEditOrderLabels, canEditOrderSensitive, canMoveOrder, canReversePayment } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 
 import { getOrderBoardSnapshot, getOrderMovementSnapshot } from "./queries";
-import { confirmOrderPaymentSchema, moveOrderSchema, reconcileOrderSchema, reversePaymentSchema } from "./schemas";
+import { confirmOrderPaymentSchema, moveOrderSchema, reconcileOrderSchema, reversePaymentSchema, setOrderLabelSchema, type OrderLabel } from "./schemas";
 import { getOrderDetail, getOrderTimeline } from "../orders/detail-queries";
 
 export type MoveOrderActionState = MutationState & {
@@ -29,6 +29,12 @@ export type ConfirmOrderPaymentActionState = MutationState & {
   paymentId?: string;
   cashMovementId?: string | null;
   confirmedAt?: string;
+  reconciledOrder?: Awaited<ReturnType<typeof getOrderBoardSnapshot>>;
+};
+
+export type SetOrderLabelActionState = MutationState & {
+  code?: "permission_denied" | "version_conflict" | "not_found" | "invalid_request";
+  updatedOrder?: { label: OrderLabel | null; updatedAt: string };
   reconciledOrder?: Awaited<ReturnType<typeof getOrderBoardSnapshot>>;
 };
 
@@ -106,6 +112,26 @@ function paymentFormValues(formData: FormData) {
     expectedUpdatedAt: String(formData.get("expectedUpdatedAt") ?? ""),
     idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
   };
+}
+
+function labelFormValues(formData: FormData) {
+  return {
+    orderId: String(formData.get("orderId") ?? ""),
+    label: String(formData.get("label") ?? ""),
+    expectedUpdatedAt: String(formData.get("expectedUpdatedAt") ?? ""),
+  };
+}
+
+const labelErrorMessages = [
+  ["permission_denied", "No tenés permiso para etiquetar pedidos.", ["No tenés permiso para realizar esta operación.", "No tenés permiso para etiquetar pedidos."]],
+  ["version_conflict", "El pedido cambió en otra sesión. Actualizá el tablero e intentá nuevamente.", ["El pedido cambió en otra sesión"]],
+  ["not_found", "El pedido seleccionado no existe.", ["El pedido seleccionado no existe."]],
+  ["invalid_request", "La etiqueta del pedido no es válida.", ["La etiqueta del pedido no es válida.", "Solo se pueden etiquetar pedidos activos.", "El pedido ya tiene esa etiqueta."]],
+] as const;
+
+function labelError(message: string) {
+  const match = labelErrorMessages.find(([code, , markers]) => message.includes(code) || markers.some((marker) => message.includes(marker)));
+  return match ? { code: match[0], message: match[1] } : { code: "invalid_request" as const, message: "No se pudo actualizar la etiqueta. Intentá nuevamente." };
 }
 
 function reversalFormValues(formData: FormData) {
@@ -273,6 +299,56 @@ export async function reconcileOrderAction(orderId: string) {
   if (!profile || !profile.isActive || profile.mustChangePassword || !canMoveOrder(profile.role)) return null;
 
   return getOrderMovementSnapshot(parsed.data.orderId);
+}
+
+export async function setOrderLabelAction(
+  _previous: SetOrderLabelActionState,
+  formData: FormData,
+): Promise<SetOrderLabelActionState> {
+  const parsed = setOrderLabelSchema.safeParse(labelFormValues(formData));
+  if (!parsed.success) {
+    return { ...mutationResult("error", parsed.error.issues[0]?.message ?? "La etiqueta del pedido no es válida.", parsed.error.flatten().fieldErrors), code: "invalid_request" };
+  }
+
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword || !canEditOrderLabels(profile.role)) {
+    return { ...mutationResult("error", "No tenés permiso para etiquetar pedidos."), code: "permission_denied" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_order_label", {
+    p_order_id: parsed.data.orderId,
+    p_label: parsed.data.label,
+    p_expected_updated_at: parsed.data.expectedUpdatedAt,
+  } as never);
+
+  if (error) {
+    const mapped = labelError(error.message);
+    const reconciledOrder = mapped.code === "version_conflict" ? await getOrderBoardSnapshot(parsed.data.orderId, profile.role) : null;
+    revalidatePath("/orders");
+    return { ...mutationResult("error", mapped.message), code: mapped.code, ...(reconciledOrder ? { reconciledOrder } : {}) };
+  }
+
+  const updated = data?.[0] as { label: OrderLabel | null; updated_at: string } | undefined;
+  if (!updated) return { ...mutationResult("error", "No se pudo actualizar la etiqueta. Intentá nuevamente."), code: "invalid_request" };
+
+  revalidatePath("/orders");
+  const reconciledOrder = await getOrderBoardSnapshot(parsed.data.orderId, profile.role);
+  return {
+    ...mutationResult("success", "La etiqueta del pedido fue actualizada."),
+    updatedOrder: { label: updated.label, updatedAt: updated.updated_at },
+    ...(reconciledOrder ? { reconciledOrder } : {}),
+  };
+}
+
+export async function reconcileOrderLabelAction(orderId: string) {
+  const parsed = reconcileOrderSchema.safeParse({ orderId });
+  if (!parsed.success) return null;
+
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword || !canEditOrderLabels(profile.role)) return null;
+
+  return getOrderBoardSnapshot(parsed.data.orderId, profile.role);
 }
 
 export type OrderQuickView = {

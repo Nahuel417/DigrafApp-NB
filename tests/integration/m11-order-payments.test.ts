@@ -29,6 +29,17 @@ type PaymentResult = {
   updated_at: string;
 };
 
+function currentOperationalDate() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Argentina/Cordoba",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11", () => {
   const service = createClient<Database>(localUrl, serviceRoleKey ?? "test-key", { auth: { persistSession: false } });
   const identities: Identity[] = [];
@@ -37,6 +48,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
   const paymentEventIds: string[] = [];
   const stageEventIds: string[] = [];
   const cashMovementIds: string[] = [];
+  const createdCashDayIds = new Set<string>();
+  const baselineCashDayIds = new Set<string>();
+  const baselineOpenCashDayIds = new Set<string>();
   let stages: Record<string, string> = {};
 
   async function createIdentity(role: Role) {
@@ -114,6 +128,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
     const summary = await attention.rpc("get_current_cash_summary");
     if (summary.error || !summary.data?.[0]) throw summary.error ?? new Error("No se pudo preparar la caja M11.");
+    if (!baselineCashDayIds.has(summary.data[0].cash_day_id)) createdCashDayIds.add(summary.data[0].cash_day_id);
     if (summary.data[0].closed_at) {
       const reopened = await attention.rpc("reopen_cash_day", {
         p_cash_day_id: summary.data[0].cash_day_id,
@@ -140,6 +155,13 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
   }
 
   beforeAll(async () => {
+    const existingCashDays = await service.from("cash_days").select("id, closed_at").eq("operational_date", currentOperationalDate());
+    if (existingCashDays.error) throw existingCashDays.error;
+    for (const day of existingCashDays.data) {
+      baselineCashDayIds.add(day.id);
+      if (day.closed_at === null) baselineOpenCashDayIds.add(day.id);
+    }
+
     const stageResult = await service.from("workflow_stages").select("id, code");
     if (stageResult.error) throw stageResult.error;
     stages = Object.fromEntries(stageResult.data.map((stage) => [stage.code, stage.id]));
@@ -161,6 +183,13 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     if (orderIds.length) await service.from("order_financials").delete().in("order_id", orderIds);
     if (orderIds.length) await service.from("order_stage_events").delete().in("order_id", orderIds);
     if (orderIds.length) await service.from("orders").delete().in("id", orderIds);
+    for (const cashDayId of createdCashDayIds) {
+      await service.from("cash_day_lifecycle_events").delete().eq("cash_day_id", cashDayId);
+      await service.from("cash_days").delete().eq("id", cashDayId);
+    }
+    if (baselineOpenCashDayIds.size) {
+      await service.from("cash_days").update({ closed_at: null, closed_by: null, closure_kind: null, closing_balance: null, closure_idempotency_key: null, closure_idempotency_fingerprint: null }).in("id", [...baselineOpenCashDayIds]);
+    }
 
     for (const identity of identities) {
       await service.from("profiles").delete().eq("id", identity.id);
@@ -234,22 +263,48 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Pago atómico M11",
     expect(movements).toHaveLength(0);
   });
 
-  it("rechaza un total positivo con caja cerrada sin efectos parciales", async () => {
-    await closeCash();
+  it("crea una caja nueva abierta al confirmar un total positivo con la caja cerrada", async () => {
+    const closedCashDayId = await closeCash();
     const order = await createOrder("25.00");
     const client = await signedClient(identities.find((identity) => identity.role === "attention")!);
     const result = await confirm(client, order, `m11-closed-${randomUUID()}`);
 
-    expect(result.error?.message).toContain("caja está cerrada");
-    const [{ data: persistedOrder }, { count: paymentCount }, { count: stageCount }] = await Promise.all([
-      service.from("orders").select("current_stage_id, updated_at").eq("id", order.id).single(),
-      service.from("order_payments").select("id", { count: "exact", head: true }).eq("order_id", order.id),
-      service.from("order_stage_events").select("id", { count: "exact", head: true }).eq("order_id", order.id),
+    expect(result.error).toBeNull();
+    expect(result.payment).toMatchObject({ amount: 25, cash_movement_id: expect.any(String), stage_code: "paid" });
+
+    const [{ data: current }, { data: previous }] = await Promise.all([
+      client.rpc("get_current_cash_summary"),
+      service.from("cash_days").select("id, closed_at, closing_balance").eq("id", closedCashDayId).single(),
     ]);
-    expect(persistedOrder).toEqual({ current_stage_id: stages.received, updated_at: order.updated_at });
-    expect(paymentCount).toBe(0);
-    expect(stageCount).toBe(0);
-    await ensureCashOpen();
+    if (current?.[0] && !baselineCashDayIds.has(current[0].cash_day_id)) createdCashDayIds.add(current[0].cash_day_id);
+    expect(current?.[0]).toMatchObject({ cash_day_id: expect.any(String), opening_balance: 0, closed_at: null });
+    expect(current?.[0]?.cash_day_id).not.toBe(closedCashDayId);
+    expect(current?.[0]?.movements).toEqual(expect.arrayContaining([expect.objectContaining({ id: result.payment?.cash_movement_id, amount: 25, direction: "income" })]));
+    expect(previous).toMatchObject({ id: closedCashDayId, closed_at: expect.any(String) });
+  });
+
+  it("serializa dos cobros concurrentes sobre una sola caja nueva", async () => {
+    await closeCash();
+    const firstOrder = await createOrder("15.00");
+    const secondOrder = await createOrder("35.00");
+    const firstClient = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
+    const secondClient = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    const [first, second] = await Promise.all([
+      confirm(firstClient, firstOrder, `m11-closed-race-a-${randomUUID()}`),
+      confirm(secondClient, secondOrder, `m11-closed-race-b-${randomUUID()}`),
+    ]);
+
+    expect(first.error).toBeNull();
+    expect(second.error).toBeNull();
+    const movementIds = [first.payment?.cash_movement_id, second.payment?.cash_movement_id].filter((id): id is string => Boolean(id));
+    const { data: movements, error: movementsError } = await service.from("cash_movements").select("cash_day_id").in("id", movementIds);
+    expect(movementsError).toBeNull();
+    expect(new Set(movements?.map((movement) => movement.cash_day_id))).toHaveLength(1);
+
+    const summary = await firstClient.rpc("get_current_cash_summary");
+    expect(summary.error).toBeNull();
+    expect(summary.data?.[0]).toMatchObject({ cash_day_id: movements?.[0]?.cash_day_id, opening_balance: 0, closed_at: null });
+    if (summary.data?.[0] && !baselineCashDayIds.has(summary.data[0].cash_day_id)) createdCashDayIds.add(summary.data[0].cash_day_id);
   });
 
   it("reproduce el resultado exacto y rechaza el conflicto de clave", async () => {
