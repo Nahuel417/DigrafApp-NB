@@ -1,11 +1,11 @@
-import { ClipboardPlus, CircleCheck, Kanban, LayoutGrid, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
+import { Calculator, ClipboardPlus, CircleCheck, Kanban, LayoutGrid, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 
 import { MutationNotice } from "@/components/mutation-notice";
 import { Badge } from "@/components/ui/badge";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canCreateManualOrder, canManageCatalogs, canManageStages, canManageUsers, canOperateCash } from "@/lib/auth/permissions";
+import { canCreateManualOrder, canManageCatalogs, canManagePrices, canManageStages, canManageUsers, canOperateCash } from "@/lib/auth/permissions";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
   const profile = await requireActiveProfile();
@@ -15,6 +15,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { allowed: canOperateCash(profile), description: "Apertura, ingresos y egresos del día con trazabilidad.", href: "/cash", icon: WalletCards, label: "Caja diaria" },
     { allowed: canCreateManualOrder(profile.role), description: "Alta manual de pedidos con sus especificaciones.", href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido" },
     { allowed: canManageCatalogs(profile.role), description: "Prendas, telas, cuellos y moldes disponibles.", href: "/catalogs", icon: ListTree, label: "Catálogos" },
+    { allowed: canManagePrices(profile.role), description: "Precios y cotizaciones transitorias.", href: "/commercial", icon: Calculator, label: "Cotizador" },
     { allowed: canManageStages(profile.role), description: "Recorrido operativo configurable del tablero.", href: "/stages", icon: ListOrdered, label: "Etapas" },
     { allowed: canManageUsers(profile.role), description: "Perfiles internos, roles y accesos del equipo.", href: "/users", icon: Users, label: "Usuarios" },
   ].filter((item) => item.allowed);
