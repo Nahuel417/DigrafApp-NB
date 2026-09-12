@@ -70,6 +70,23 @@ describe("PricingManager", () => {
     expect(screen.getAllByText("$ 200.00").length).toBeGreaterThan(0);
   });
 
+  it("clears a hidden quote selection when searching", () => {
+    const first = { id: crypto.randomUUID(), code: null, group: "adults" as const, name: "Remera", unit: "unidad" as const, price: "1000.00", active: true };
+    const second = { id: crypto.randomUUID(), code: null, group: "adults" as const, name: "Pantalón", unit: "unidad" as const, price: "1200.00", active: true };
+    render(<PricingManager data={{ products: [first, second] }} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Armar cotización/ }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Producto" }));
+    expect(screen.getByRole("option", { name: "Remera" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Pantalón" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar producto por nombre" }), { target: { value: "Pantalón" } });
+
+    expect(screen.getByRole("button", { hidden: true, name: "Agregar" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("option", { name: "Pantalón" }));
+    fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+    expect(screen.getAllByText("Pantalón")).toHaveLength(2);
+  });
+
   it("keeps inactive products visible with an explicit status", () => {
     render(<PricingManager data={{ products: [
       { id: crypto.randomUUID(), code: null, group: "adults", name: "Producto inactivo", unit: "unidad", price: "200.00", active: false },

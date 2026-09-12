@@ -64,14 +64,18 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       client.rpc("create_catalog_item", { target_kind: "neckline", target_garment_layer: "", target_name: `PR1A neckline ${randomUUID()}` }),
       client.rpc("create_catalog_item", { target_kind: "upper_pattern", target_garment_layer: "", target_name: `PR1A pattern ${randomUUID()}` }),
       client.rpc("create_catalog_item", { target_kind: "fabric", target_garment_layer: "", target_name: `PR1A fabric ${randomUUID()}` }),
+      client.rpc("create_catalog_item", { target_kind: "garment", target_garment_layer: "lower", target_name: `PR1A lower garment ${randomUUID()}` }),
+      client.rpc("create_catalog_item", { target_kind: "lower_pattern", target_garment_layer: "", target_name: `PR1A lower pattern ${randomUUID()}` }),
     ]);
     if (legacyItems.some(({ data, error }) => error || !data)) throw legacyItems.find(({ error }) => error)?.error ?? new Error("No se crearon las opciones legacy PR1A.");
     catalogItemIds.push(...legacyItems.map(({ data }) => data!));
     const projection = await service.from("catalog_products").select("id").eq("legacy_catalog_item_id", catalogItemIds[0]!).single();
     if (projection.error) throw projection.error;
+    const lowerProjection = await service.from("catalog_products").select("id").eq("legacy_catalog_item_id", catalogItemIds[4]!).single();
+    if (lowerProjection.error) throw lowerProjection.error;
     const flag = await client.rpc("create_catalog_product_without_category", { target_section_id: sectionIds[1]!, target_kind: "flag", target_name: `PR1A flag ${randomUUID()}` });
     if (flag.error || !flag.data) throw flag.error ?? new Error("No se creó la bandera PR1A.");
-    productIds.push(projection.data.id, flag.data);
+    productIds.push(projection.data.id, flag.data, lowerProjection.data.id);
   });
 
   afterAll(async () => {
@@ -108,6 +112,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       p_client_name: "Cliente PR1A",
       p_team_name: "Equipo PR1A",
       p_phone: "3515550000",
+      p_dni: "12.345.678",
       p_order_date: "2026-08-17",
       p_promised_delivery_date: "2026-08-24",
       p_description: "",
@@ -129,6 +134,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       p_client_name: "Cliente PR1A editado",
       p_team_name: "Equipo PR1A editado",
       p_phone: "3515550001",
+      p_dni: "98.765.432",
       p_order_date: "2026-08-17",
       p_promised_delivery_date: "2026-08-25",
       p_description: "Actualizado PR1A",
@@ -165,8 +171,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
     });
     expect(bypass.error).not.toBeNull();
 
-    const persisted = await service.from("orders").select("client_name, team_name, phone, description").eq("id", orderId!).single();
-    expect(persisted.data).toMatchObject({ client_name: "Cliente PR1A editado", team_name: "Equipo PR1A editado", phone: "3515550001", description: "Actualizado PR1A" });
+    const persisted = await service.from("orders").select("client_name, team_name, phone, dni, description").eq("id", orderId!).single();
+    expect(persisted.data).toMatchObject({ client_name: "Cliente PR1A editado", team_name: "Equipo PR1A editado", phone: "3515550001", dni: "98765432", description: "Actualizado PR1A" });
     const financials = await service.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId!).single();
     expect(financials.data).toEqual({ total_amount: 1500, deposit_amount: 300, deposit_paid: true });
     const persistedLines = await service.from("order_lines").select("position, product_id, quantity, color").eq("order_id", orderId!).order("position");
@@ -174,5 +180,63 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1A: order_lines,
       { position: 0, product_id: productIds[0], quantity: 12, color: "Azul" },
       { position: 1, product_id: productIds[1], quantity: 2, color: "Rojo" },
     ]);
+  });
+
+  it("creates and updates a premium set line while preserving its internal type", async () => {
+    const lines = [{
+      position: 0,
+      line_type: "premium_set" as const,
+      quantity: 2,
+      color: "Negro",
+      options: [],
+      configuration: {
+        upper: { product_id: productIds[0]!, options: [] },
+        lower: { product_id: productIds[2]!, options: [] },
+        legacy_options: { neckline_id: catalogItemIds[1], upper_pattern_id: catalogItemIds[2], lower_pattern_id: catalogItemIds[5], fabric_id: catalogItemIds[3], extra_ids: [] },
+      },
+      shield_product_ids: [],
+    }];
+    const created = await client.rpc("create_order", {
+      p_client_name: "Cliente premium",
+      p_team_name: "Equipo premium",
+      p_phone: "3515550010",
+      p_order_date: "2026-08-17",
+      p_promised_delivery_date: "2026-08-24",
+      p_description: "",
+      p_total_amount: "2000.00",
+      p_deposit_amount: "0.00",
+      p_deposit_paid: false,
+      p_lines: lines,
+      p_idempotency_key: `pr1a-premium-${randomUUID()}`,
+    });
+    expect(created.error).toBeNull();
+    const orderId = created.data?.[0]?.order_id;
+    expect(orderId).toEqual(expect.any(String));
+    orderIds.push(orderId!);
+
+    const initial = await service.from("orders").select("order_type, updated_at").eq("id", orderId!).single();
+    expect(initial.data?.order_type).toBe("set");
+    const updated = await client.rpc("update_order", {
+      p_order_id: orderId!,
+      p_client_name: "Cliente premium editado",
+      p_team_name: "Equipo premium",
+      p_phone: "3515550010",
+      p_order_date: "2026-08-17",
+      p_promised_delivery_date: "2026-08-25",
+      p_description: "Actualizado premium",
+      p_total_amount: 2200,
+      p_deposit_amount: 200,
+      p_deposit_paid: true,
+      p_lines: lines,
+      p_change_note: "Prueba premium",
+      p_expected_updated_at: initial.data!.updated_at,
+      p_idempotency_key: `pr1a-premium-update-${randomUUID()}`,
+    });
+    expect(updated.error).toBeNull();
+
+    const persisted = await service.from("orders").select("order_type").eq("id", orderId!).single();
+    expect(persisted.data?.order_type).toBe("set");
+    const persistedLine = await service.from("order_lines").select("line_type, product_id, product_name_snapshot, configuration").eq("order_id", orderId!).single();
+    expect(persistedLine.data).toMatchObject({ line_type: "premium_set", product_id: null, product_name_snapshot: "Conjunto premium" });
   });
 });
