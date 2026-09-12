@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BadgeDollarSign, CalendarDays, CheckCircle2, ClipboardList, History, Info, Package, PencilLine, Phone, Scissors, Sparkles, UserRound, UsersRound, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, CalendarDays, CheckCircle2, ClipboardList, FileDown, History, Info, Package, PencilLine, Phone, Scissors, Sparkles, UserRound, UsersRound, type LucideIcon } from "lucide-react";
 
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderDesignImages, canManageOrderLifecycle, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
+import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderDesignImages, canManageOrderLifecycle, canOperateCash, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
 import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
 import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
+import { getActiveOrderPayment, shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,13 +25,14 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const { orderId } = await params;
   const { view } = await searchParams;
 
-  const [data, timelineEvents, stageNames, designImagesResult] = await Promise.all([
+  const [data, timelineEvents, stageNames, designImagesResult, payment] = await Promise.all([
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
     getOrderDesignImagesReadUrls(orderId)
       .then((images) => ({ error: null, images }))
       .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", images: [] })),
+    getActiveOrderPayment(orderId),
   ]);
 
   if (!data) {
@@ -46,6 +48,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const isReadOnly = isCancelled || isArchivedDelivered;
   const canManageDesignImage = !isReadOnly && canManageOrderDesignImages(profile.role);
   const balance = canReadFinances ? visibleBalanceString(financials) : null;
+  const canDownloadPaymentReceipt = shouldShowPaymentReceipt(order.currentStage.code, payment, canOperateCash(profile));
 
   const timelineItems = timelineEvents.map((event) => ({
     id: event.id,
@@ -205,8 +208,9 @@ export default async function OrderDetailPage({ params, searchParams }: { params
             />
             {canReadFinances ? (
               <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-                <div className="grid-paper border-b border-border px-5 py-4">
+                <div className="grid-paper flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
                   <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-label text-muted-foreground"><BadgeDollarSign aria-hidden="true" className="size-3.5 text-primary" />Importes</h2>
+                  {canDownloadPaymentReceipt ? <Button asChild className="h-9 rounded-lg px-3 text-xs" size="sm" variant="outline"><Link download href={`/orders/${order.id}/payment-receipt`}><FileDown aria-hidden="true" data-icon="inline-start" />Descargar comprobante</Link></Button> : null}
                 </div>
                 <dl className="divide-y divide-border">
                   <FinancialRow label="Total" value={financials ? formatArsFromNumber(financials.totalAmount) : "—"} />

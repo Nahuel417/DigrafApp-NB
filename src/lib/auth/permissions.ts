@@ -11,6 +11,10 @@ export function canManageCatalogs(role: AppRole) {
   return role === "super_admin" || role === "admin";
 }
 
+export function canManagePrices(role: AppRole) {
+  return role === "super_admin" || role === "admin" || role === "attention";
+}
+
 export function canManageStages(role: AppRole) {
   return role === "super_admin" || role === "admin";
 }

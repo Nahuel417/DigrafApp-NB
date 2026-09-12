@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderLabels, canManageCatalogs, canManageOrderLifecycle, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
+import { canCloseCash, canConfirmPayment, canCreateManualOrder, canEditOrderLabels, canManageCatalogs, canManageOrderLifecycle, canManagePrices, canManageStages, canMoveOrder, canOperateCash, canReadOrderFinancials, canReopenCash, canReversePayment } from "./permissions";
 import { canArchiveDeliveredOrder, canEditOrderSensitive, canManageOrderDesignImages, canPurgeCancelledOrder } from "./permissions";
 
 describe("M3 permissions", () => {
@@ -71,6 +71,13 @@ describe("cash permissions", () => {
 });
 
 describe("payment permissions", () => {
+  it("allows the three pricing roles and rejects Employee", () => {
+    expect(canManagePrices("super_admin")).toBe(true);
+    expect(canManagePrices("admin")).toBe(true);
+    expect(canManagePrices("attention")).toBe(true);
+    expect(canManagePrices("employee")).toBe(false);
+  });
+
   it("allows only financial operational roles to confirm payment", () => {
     expect(canConfirmPayment("super_admin")).toBe(true);
     expect(canConfirmPayment("admin")).toBe(true);
