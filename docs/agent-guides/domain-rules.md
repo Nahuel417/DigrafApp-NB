@@ -21,6 +21,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Comentar pedido | Sí | Sí | Sí | Sí |
 | Editar datos sensibles | Sí | Sí | Sí | No |
 | Purgar manualmente pedido anulado | Sí | Sí | No | No |
+| Importar y administrar precios, cotizar y descargar PDF | Sí | Sí | Sí | No |
 
 `super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
 
@@ -115,6 +116,8 @@ Los importes del pedido se almacenan como `numeric(14,2)`:
 
 Solo Super admin, Admin y Atención pueden crear el pedido manual. Solo Super admin y Admin pueden administrar catálogos. Empleado no obtiene permisos adicionales en M3. Los importes son visibles para Super admin, Admin y Atención; Empleado no puede leerlos.
 
+M13/M14: Super admin, Admin y Atención pueden importar, crear, editar, activar, desactivar y eliminar definitivamente precios, armar cotizaciones y descargar/imprimir su PDF. Empleado, anónimos, perfiles inactivos y perfiles con cambio obligatorio de contraseña no pueden leer ni mutar esta superficie.
+
 Los productos, opciones y valores se desactivan en lugar de borrarse destructivamente. Los pedidos conservan snapshots de productos, escudos, opciones y valores, por lo que cambios posteriores del catálogo no alteran su historia.
 
 Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, especificaciones e importes después del alta. La fecha prometida debe quedar auditada. Todos los roles operativos pueden modificar descripción y gestionar la colección de imágenes mediante altas, reemplazos, eliminaciones y selección o limpieza explícita de la primaria.
@@ -156,6 +159,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 - La caja cerrada bloquea toda edición y debe mostrar un mensaje claro.
 - Los movimientos anulados se conservan con actor y timestamp de anulación.
 - El historial diferencia ingresos por pedido, ingresos manuales y egresos manuales.
+- Un comprobante de pago es una constancia interna no fiscal. Solo se descarga desde el detalle de un pedido en `paid` o `delivered` con un pago activo, por Super admin, Admin o Atención. Usa el identificador `PED-XXXXXX`; si el pago se revierte, el botón desaparece, pero el ingreso original y su auditoría se conservan. Los comprobantes ya descargados no se invalidan técnicamente.
 
 ## Comentarios, imágenes y auditoría
 

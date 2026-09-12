@@ -1607,6 +1607,66 @@ export type Database = {
           },
         ]
       }
+      price_products: {
+        Row: {
+          code: string | null
+          code_key: string | null
+          created_at: string
+          created_by: string
+          group_name: Database["public"]["Enums"]["price_group"]
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          unit: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          code?: string | null
+          code_key?: string | null
+          created_at?: string
+          created_by: string
+          group_name: Database["public"]["Enums"]["price_group"]
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          unit: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          code?: string | null
+          code_key?: string | null
+          created_at?: string
+          created_by?: string
+          group_name?: Database["public"]["Enums"]["price_group"]
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          unit?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_products_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_products_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -2021,6 +2081,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_catalog_item: { Args: { target_id: string }; Returns: undefined }
+      delete_price_product: { Args: { p_id: string }; Returns: undefined }
       ensure_catalog_section: {
         Args: { target_code: string; target_name: string }
         Returns: string
@@ -2126,6 +2187,8 @@ export type Database = {
           to_stage_id: string
         }[]
       }
+      get_price_list: { Args: never; Returns: Json }
+      import_price_products: { Args: { p_rows: Json }; Returns: number }
       list_closed_cash_days: {
         Args: never
         Returns: {
@@ -2150,6 +2213,24 @@ export type Database = {
           p_reason: string
         }
         Returns: string
+      }
+      m13_m14_assert_actor: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          must_change_password: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       m15_cancel_fingerprint: {
         Args: {
@@ -2486,6 +2567,18 @@ export type Database = {
           updated_at: string
         }[]
       }
+      upsert_price_product: {
+        Args: {
+          p_code: string
+          p_group: Database["public"]["Enums"]["price_group"]
+          p_id: string
+          p_is_active: boolean
+          p_name: string
+          p_price: number
+          p_unit: string
+        }
+        Returns: string
+      }
       void_cash_movement: {
         Args: {
           p_idempotency_key: string
@@ -2528,6 +2621,7 @@ export type Database = {
       order_label: "urgent" | "returned" | "review"
       order_line_type: "individual" | "set" | "flag" | "bag" | "shield"
       order_type: "set" | "individual"
+      price_group: "adults" | "children" | "flags" | "additions"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2673,6 +2767,7 @@ export const Constants = {
       order_label: ["urgent", "returned", "review"],
       order_line_type: ["individual", "set", "flag", "bag", "shield"],
       order_type: ["set", "individual"],
+      price_group: ["adults", "children", "flags", "additions"],
     },
   },
 } as const
