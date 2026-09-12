@@ -28,6 +28,7 @@ type OrderFormValues = {
     clientName: string;
     teamName: string;
     phone: string;
+    dni: string;
     orderDate: string;
     promisedDeliveryDate: string;
     description: string;
@@ -41,6 +42,7 @@ function initialFormValues(orderDate: string): OrderFormValues {
         clientName: '',
         teamName: '',
         phone: '',
+        dni: '',
         orderDate,
         promisedDeliveryDate: '',
         description: '',
@@ -140,7 +142,7 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
 
                 <div className="min-w-0 space-y-6">
                     <Section icon={UserRound} title="Identificación" hint="Datos de contacto del pedido.">
-                        <FieldGroup className="grid gap-4 md:grid-cols-3">
+                        <FieldGroup className="grid gap-4 md:grid-cols-2">
                             <Field data-invalid={hasFieldError('clientName')}>
                                 <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-client-name">
                                     Cliente
@@ -192,6 +194,23 @@ export function CreateOrderForm({ catalogs, initialOrderDate }: { catalogs: Orde
                                     value={draftValues.phone}
                                 />
                                 <FieldError errors={errorsForField('phone')} id="order-phone-error" />
+                            </Field>
+                            <Field data-invalid={hasFieldError('dni')}>
+                                <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="order-dni">
+                                    DNI <span className="font-normal text-muted-foreground">(opcional)</span>
+                                </FieldLabel>
+                                <Input
+                                    aria-describedby="order-dni-error"
+                                    aria-invalid={hasFieldError('dni')}
+                                    className="rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card"
+                                    id="order-dni"
+                                    inputMode="numeric"
+                                    name="dni"
+                                    onChange={(event) => updateValue('dni', event.target.value)}
+                                    placeholder="12.345.678"
+                                    value={draftValues.dni}
+                                />
+                                <FieldError errors={errorsForField('dni')} id="order-dni-error" />
                             </Field>
                         </FieldGroup>
                     </Section>

@@ -24,6 +24,7 @@ const data: PaymentReceiptData = {
     clientName: "Club Norte",
     teamName: "Primera",
     phone: "3515550000",
+    dni: null,
     quantity: 3,
     orderType: "individual",
     orderDate: "2026-09-04",

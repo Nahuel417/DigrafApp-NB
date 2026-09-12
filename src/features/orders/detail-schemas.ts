@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { compareMoney, normalizeMoney } from "@/lib/money/decimal";
 
-import { orderLinesValue } from "./schemas";
+import { optionalDniValue, orderLinesValue } from "./schemas";
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresá una fecha válida.");
 const moneyValue = z
   .string()
@@ -36,6 +36,7 @@ export const updateOrderSchema = z
     clientName: z.string().trim().min(2, "Ingresá el cliente.").max(200, "El cliente no puede superar los 200 caracteres."),
     teamName: z.string().trim().min(2, "Ingresá el equipo.").max(200, "El equipo no puede superar los 200 caracteres."),
     phone: z.string().trim().min(6, "Ingresá un teléfono válido.").max(40, "El teléfono no puede superar los 40 caracteres."),
+    dni: optionalDniValue,
     lines: orderLinesValue,
     orderDate: dateValue,
     promisedDeliveryDate: dateValue,

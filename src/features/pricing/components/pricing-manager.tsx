@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, FileSpreadsheet, FileText, Minus, Pencil, Plus, Power, Printer, Search, Tags, Trash2, Upload } from "lucide-react";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 import type { MutationState } from "@/lib/action-state";
@@ -215,6 +215,7 @@ function QuoteBuilder({ products, onLinesChange }: { products: PriceProduct[]; o
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const productSearchRef = useRef<HTMLInputElement>(null);
   function updateLines(next: Array<{ product: PriceProduct; quantity: string }>) {
     setLines(next);
     onLinesChange(next.length);
@@ -224,6 +225,14 @@ function QuoteBuilder({ products, onLinesChange }: { products: PriceProduct[]; o
   }
   const selected = active.find((product) => product.id === productId);
   const filtered = active.filter((product) => product.name.toLowerCase().includes(search.toLowerCase()));
+  function updateProductSearch(value: string) {
+    setSearch(value);
+    if (selected && !selected.name.toLowerCase().includes(value.toLowerCase())) setProductId("");
+  }
+  function selectProduct(value: string) {
+    setProductId(value);
+    setSearch("");
+  }
   const result = useMemo(() => { try { return calculateQuote(lines.map((line) => ({ name: line.product.name, unit: line.product.unit, unitPrice: line.product.price, quantity: line.quantity })), discount); } catch { return null; } }, [discount, lines]);
 
   async function printQuote() {
@@ -263,12 +272,11 @@ function QuoteBuilder({ products, onLinesChange }: { products: PriceProduct[]; o
           <header className="grid-paper flex flex-wrap items-center gap-3 border-b border-border px-5 py-4 sm:px-6 sm:py-5">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Calculator aria-hidden="true" className="size-[18px]" /></span>
             <div><p className="text-[10px] font-medium uppercase tracking-label text-muted-foreground">Detalle principal</p><h2 className="text-sm font-semibold tracking-tight" id="quote-products-title">Ítems cotizados <span className="text-xs font-normal text-muted-foreground">({lines.length} líneas)</span></h2></div>
-            <Field className="ml-auto w-full sm:w-56"><FieldLabel className="sr-only" htmlFor="quote-search">Buscar por nombre</FieldLabel><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input className="h-10 rounded-xl bg-background pl-9" id="quote-search" onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nombre" type="search" value={search} /></div></Field>
           </header>
           <div className="grid gap-3 border-b border-border p-5 md:grid-cols-[minmax(0,1fr)_8rem_auto] md:items-end">
-            <Field><FieldLabel htmlFor="quote-product">Producto</FieldLabel><Select onValueChange={setProductId} value={productId}><SelectTrigger className="h-10 rounded-xl bg-background" id="quote-product"><SelectValue placeholder="Elegí un producto" /></SelectTrigger><SelectContent>{filtered.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}{product.code ? ` · ${product.code}` : ""}</SelectItem>)}</SelectContent></Select></Field>
+            <Field><FieldLabel htmlFor="quote-product">Producto</FieldLabel><Select onOpenChange={(open) => { if (open) { setSearch(""); window.requestAnimationFrame(() => productSearchRef.current?.focus()); } }} onValueChange={selectProduct} value={productId}><SelectTrigger className="h-10 rounded-xl bg-background" id="quote-product"><SelectValue placeholder="Elegí un producto" /></SelectTrigger><SelectContent className="p-0"><div className="border-b border-border p-2"><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar producto por nombre" autoComplete="off" className="h-9 rounded-lg bg-background pl-8 text-xs" onChange={(event) => updateProductSearch(event.target.value)} onKeyDown={(event) => { if (event.key !== "Escape") event.stopPropagation(); }} placeholder="Buscar por nombre" ref={productSearchRef} type="search" value={search} /></div></div>{filtered.length ? <SelectGroup>{filtered.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}{product.code ? ` · ${product.code}` : ""}</SelectItem>)}</SelectGroup> : <p className="px-3 py-6 text-center text-xs text-muted-foreground">No hay productos que coincidan.</p>}</SelectContent></Select></Field>
             <Field><FieldLabel htmlFor="quote-quantity">Cantidad</FieldLabel><Input className="h-10 rounded-xl bg-background font-mono tabular-nums" id="quote-quantity" inputMode="decimal" onChange={(event) => setQuantity(event.target.value)} value={quantity} /></Field>
-            <Button className={cn("h-10", buttonMotion)} onClick={() => { if (selected) { updateLines([...lines, { product: selected, quantity }]); setQuantity("1"); } }} type="button"><Plus aria-hidden="true" data-icon="inline-start" />Agregar</Button>
+            <Button className={cn("h-10", buttonMotion)} disabled={!selected} onClick={() => { if (selected) { updateLines([...lines, { product: selected, quantity }]); setQuantity("1"); } }} type="button"><Plus aria-hidden="true" data-icon="inline-start" />Agregar</Button>
           </div>
           <div className="divide-y divide-border">
             {lines.map((line, index) => (

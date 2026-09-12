@@ -1521,6 +1521,7 @@ export type Database = {
           current_stage_id: string | null
           customer_name: string | null
           description: string | null
+          dni: string | null
           id: string
           idempotency_fingerprint: string | null
           idempotency_key: string | null
@@ -1545,6 +1546,7 @@ export type Database = {
           current_stage_id?: string | null
           customer_name?: string | null
           description?: string | null
+          dni?: string | null
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
@@ -1569,6 +1571,7 @@ export type Database = {
           current_stage_id?: string | null
           customer_name?: string | null
           description?: string | null
+          dni?: string | null
           id?: string
           idempotency_fingerprint?: string | null
           idempotency_key?: string | null
@@ -2045,6 +2048,7 @@ export type Database = {
           p_deposit_amount: string
           p_deposit_paid: boolean
           p_description: string
+          p_dni?: string
           p_idempotency_key: string
           p_lines: Json
           p_order_date: string
@@ -2537,6 +2541,7 @@ export type Database = {
           p_deposit_amount: number
           p_deposit_paid: boolean
           p_description: string
+          p_dni?: string
           p_expected_updated_at: string
           p_idempotency_key: string
           p_lines: Json
@@ -2619,7 +2624,13 @@ export type Database = {
       catalog_product_kind: "garment" | "flag" | "bag" | "shield"
       garment_layer: "upper" | "lower"
       order_label: "urgent" | "returned" | "review"
-      order_line_type: "individual" | "set" | "flag" | "bag" | "shield"
+      order_line_type:
+        | "individual"
+        | "set"
+        | "flag"
+        | "bag"
+        | "shield"
+        | "premium_set"
       order_type: "set" | "individual"
       price_group: "adults" | "children" | "flags" | "additions"
     }
@@ -2765,7 +2776,14 @@ export const Constants = {
       catalog_product_kind: ["garment", "flag", "bag", "shield"],
       garment_layer: ["upper", "lower"],
       order_label: ["urgent", "returned", "review"],
-      order_line_type: ["individual", "set", "flag", "bag", "shield"],
+      order_line_type: [
+        "individual",
+        "set",
+        "flag",
+        "bag",
+        "shield",
+        "premium_set",
+      ],
       order_type: ["set", "individual"],
       price_group: ["adults", "children", "flags", "additions"],
     },

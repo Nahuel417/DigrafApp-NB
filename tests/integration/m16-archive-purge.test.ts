@@ -77,6 +77,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   async function createOrder(stageId = deliveredStageId) {
     const { data, error } = await service.from("orders").insert({
       customer_name: `M16 ${randomUUID().slice(0, 8)}`,
+      dni: "12345678",
       quantity: 2,
       order_type: "individual",
       order_date: "2026-08-14",
@@ -546,8 +547,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect(purged.error).toBeNull();
     expect(purged.data).toMatchObject({ order_id: order.id, lifecycle_state: "purged_cancelled", source: "manual", reason: "Cliente pidió purgarlo" });
 
-    const tombstone = await service.from("orders").select("id, public_number, lifecycle_state, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason, cancelled_by, cancelled_at, created_at").eq("id", order.id).single();
-    expect(tombstone.data).toMatchObject({ id: order.id, lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
+    const tombstone = await service.from("orders").select("id, public_number, lifecycle_state, customer_name, client_name, team_name, phone, dni, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason, cancelled_by, cancelled_at, created_at").eq("id", order.id).single();
+    expect(tombstone.data).toMatchObject({ id: order.id, lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, dni: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
     expect(tombstone.data?.cancelled_by).toBe(identity("admin").id);
   });
 
@@ -887,8 +888,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect(after.changeEvents).toEqual(before.changeEvents);
     expect(after.lifecycleEvents.filter((event) => event.event_type !== "cancelled_purged")).toEqual(before.lifecycleEvents);
 
-    const order = await service.from("orders").select("lifecycle_state, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason").eq("id", fixture.orderId).single();
-    expect(order.data).toEqual({ lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
+    const order = await service.from("orders").select("lifecycle_state, customer_name, client_name, team_name, phone, dni, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, idempotency_key, idempotency_fingerprint, cancellation_reason").eq("id", fixture.orderId).single();
+    expect(order.data).toEqual({ lifecycle_state: "purged_cancelled", customer_name: null, client_name: null, team_name: null, phone: null, dni: null, quantity: null, order_type: null, order_date: null, promised_delivery_date: null, description: null, current_stage_id: null, idempotency_key: null, idempotency_fingerprint: null, cancellation_reason: null });
 
     const job = await service.from("order_purge_jobs").select("status, object_paths").eq("order_id", fixture.orderId).single();
     expect(job.data?.status).toBe("storage_pending");
