@@ -2,7 +2,6 @@ import "server-only";
 
 import mammoth from "mammoth";
 import readXlsxFile from "read-excel-file/node";
-import { PDFParse } from "pdf-parse";
 
 import { parsePriceText, type ImportedPrice } from "./importer";
 
@@ -23,6 +22,7 @@ export async function parsePriceFile(file: File): Promise<ImportedPrice[]> {
   } else if (extension === ".docx") {
     text = (await mammoth.extractRawText({ buffer })).value;
   } else if (extension === ".pdf") {
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try {
       text = (await parser.getText()).text;
