@@ -70,4 +70,12 @@ describe("OrderLineEditor", () => {
     expect(screen.getAllByText("No hay opciones configuradas para las partes seleccionadas.")).toHaveLength(1);
     expect(screen.queryAllByText("Este producto no tiene opciones configuradas.")).toHaveLength(0);
   });
+
+  it("shows the same part configuration for a premium set", () => {
+    render(<OrderLineEditor catalogs={catalogs} />);
+    choose("Tipo de renglón", "Conjunto premium");
+    expect(screen.getByLabelText("Parte superior")).toBeTruthy();
+    expect(screen.getByLabelText("Parte inferior")).toBeTruthy();
+    expect(screen.getAllByText("No hay opciones configuradas para las partes seleccionadas.")).toHaveLength(1);
+  });
 });

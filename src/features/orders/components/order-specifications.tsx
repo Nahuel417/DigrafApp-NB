@@ -9,6 +9,7 @@ export type SpecificationSection = { items: SpecificationItem[]; title: string }
 const lineTypeLabels: Record<OrderDetailLine["lineType"], string> = {
   individual: "Prenda individual",
   set: "Conjunto",
+  premium_set: "Conjunto premium",
   flag: "Bandera",
   bag: "Bolso",
   shield: "Escudo",
@@ -188,6 +189,10 @@ function specificationSectionIcon(title: string): LucideIcon {
   return Package;
 }
 
+function isSetLine(lineType: OrderDetailLine["lineType"]) {
+  return lineType === "set" || lineType === "premium_set";
+}
+
 export function buildOrderSpecificationSections(line: OrderDetailLine, catalogs: OrderDetailCatalogs, selections: OrderSelection[] = []): SpecificationSection[] {
   const snapshot = isRecord(line.configurationSnapshot) ? line.configurationSnapshot : {};
   const configuration = isRecord(snapshot.configuration) ? { ...snapshot, ...snapshot.configuration } : snapshot;
@@ -195,18 +200,18 @@ export function buildOrderSpecificationSections(line: OrderDetailLine, catalogs:
     { label: "Tipo de renglón", value: lineTypeLabels[line.lineType] },
     { label: "Cantidad", value: String(line.quantity) },
   ];
-  if (line.lineType !== "set") baseItems.push({ label: "Producto", value: line.productName });
+  if (!isSetLine(line.lineType)) baseItems.push({ label: "Producto", value: line.productName });
   if (line.color?.trim()) baseItems.push({ label: "Color", value: line.color.trim() });
   if (line.shieldNames.length) baseItems.push({ label: "Escudos", value: line.shieldNames.join(", ") });
 
   const sections: SpecificationSection[] = [{ items: baseItems, title: "Datos del renglón" }];
-  if (line.lineType === "set") {
+  if (isSetLine(line.lineType)) {
     const upper = partSection("Parte superior", configuration.upper, catalogs, selections);
     const lower = partSection("Parte inferior", configuration.lower, catalogs, selections);
     if (upper) sections.push(upper);
     if (lower) sections.push(lower);
   }
-  const optionItems = line.lineType === "set"
+  const optionItems = isSetLine(line.lineType)
     ? []
     : formatOptionItems(configuration.options, line.productId, catalogs);
   if (optionItems.length) sections.push({ items: optionItems, title: "Opciones del producto" });

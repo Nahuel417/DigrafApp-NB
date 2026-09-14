@@ -19,6 +19,7 @@ const lineTypeSelectClassName = `${compactSelectClassName} max-w-56`;
 const lineTypeLabels: Record<OrderLineType, string> = {
   individual: "Prenda individual",
   set: "Conjunto",
+  premium_set: "Conjunto premium",
   flag: "Bandera",
   bag: "Bolso",
   shield: "Escudo",
@@ -26,6 +27,10 @@ const lineTypeLabels: Record<OrderLineType, string> = {
 
 function line(type: OrderLineType = "individual"): EditableLine {
   return { key: crypto.randomUUID(), position: 0, line_type: type, quantity: 1, color: "", options: [] };
+}
+
+function isSetLine(type: OrderLineType) {
+  return type === "set" || type === "premium_set";
 }
 
 function hasNoConfiguredOptions(product: OrderCatalogProduct | undefined, hasLegacyOptions: boolean) {
@@ -100,7 +105,7 @@ function LegacyOptions({ catalogs, id, needsLower, needsUpper, options, onChange
     <div className="grid min-w-0 gap-4 @lg/line-editor:grid-cols-2">
       {needsUpper ? <LegacySelect id={`${id}-neckline`} label="Cuello" onChange={(value) => update({ neckline_id: value })} options={catalogs.necklines} value={options.neckline_id ?? ""} /> : null}
       {needsUpper ? <LegacySelect id={`${id}-upper-pattern`} label="Molde superior" onChange={(value) => update({ upper_pattern_id: value })} options={catalogs.upperPatterns} value={options.upper_pattern_id ?? ""} /> : null}
-      {needsLower ? <LegacySelect id={`${id}-lower-pattern`} label="Molde de short/pollera" onChange={(value) => update({ lower_pattern_id: value })} options={catalogs.lowerPatterns} value={options.lower_pattern_id ?? ""} /> : null}
+      {needsLower ? <LegacySelect id={`${id}-lower-pattern`} label="Molde inferior" onChange={(value) => update({ lower_pattern_id: value })} options={catalogs.lowerPatterns} value={options.lower_pattern_id ?? ""} /> : null}
       <LegacySelect id={`${id}-fabric`} label="Tela" onChange={(value) => update({ fabric_id: value })} options={catalogs.fabrics} value={options.fabric_id ?? ""} />
     </div>
     <Field className="mt-4">
@@ -116,7 +121,7 @@ function LegacyOptions({ catalogs, id, needsLower, needsUpper, options, onChange
 }
 
 function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemove }: { catalogs: OrderFormCatalogs; item: EditableLine; index: number; lineCount: number; onChange: (line: EditableLine) => void; onMove: (direction: -1 | 1) => void; onRemove: () => void }) {
-  const products = item.line_type === "individual" || item.line_type === "set" ? catalogs.garments : item.line_type === "flag" ? catalogs.flags : item.line_type === "bag" ? catalogs.bags : catalogs.shields;
+  const products = item.line_type === "individual" || isSetLine(item.line_type) ? catalogs.garments : item.line_type === "flag" ? catalogs.flags : item.line_type === "bag" ? catalogs.bags : catalogs.shields;
   const product = products.find((candidate) => candidate.id === item.product_id);
   const upperProduct = catalogs.garments.find((candidate) => candidate.id === item.configuration?.upper?.product_id);
   const lowerProduct = catalogs.garments.find((candidate) => candidate.id === item.configuration?.lower?.product_id);
@@ -124,7 +129,7 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
   const legacyOptions = item.configuration?.legacy_options ?? {};
   const updateLegacyOptions = (options: LegacyLineOptions) => update({ configuration: { ...item.configuration, legacy_options: options } });
   const individualLayer = product?.garmentLayer;
-  const legacyOptionLists = item.line_type === "set"
+  const legacyOptionLists = isSetLine(item.line_type)
     ? [catalogs.necklines, catalogs.upperPatterns, catalogs.lowerPatterns, catalogs.fabrics, catalogs.extras]
     : item.line_type === "individual" && individualLayer
       ? [individualLayer === "upper" ? catalogs.necklines : catalogs.lowerPatterns, ...(individualLayer === "upper" ? [catalogs.upperPatterns] : []), catalogs.fabrics, catalogs.extras]
@@ -162,15 +167,15 @@ function LineEditor({ catalogs, item, index, lineCount, onChange, onMove, onRemo
           <Input className="h-9 rounded-full bg-card pl-10 shadow-none transition-colors focus-visible:bg-card md:h-9" id={`line-color-${item.key}`} maxLength={100} onChange={(event) => update({ color: event.target.value })} placeholder="Ej. verde / blanco" value={item.color ?? ""} />
         </div>
       </Field>
-    {item.line_type !== "set" ? <div className="min-w-0"><ProductSelect id={`line-product-${item.key}`} label="Producto de catálogo" onChange={(productId) => update({ product_id: productId, options: [], configuration: { ...item.configuration, legacy_options: {} } })} products={products} value={item.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={product} selections={item.options} onChange={(options) => update({ options })} />{hasNoConfiguredOptions(product, hasLegacyOptions) ? <p className="mt-2 text-sm text-muted-foreground">Este producto no tiene opciones configuradas.</p> : null}</div> : null}
-    {item.line_type === "set" ? <>
+    {!isSetLine(item.line_type) ? <div className="min-w-0"><ProductSelect id={`line-product-${item.key}`} label="Producto de catálogo" onChange={(productId) => update({ product_id: productId, options: [], configuration: { ...item.configuration, legacy_options: {} } })} products={products} value={item.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={product} selections={item.options} onChange={(options) => update({ options })} />{hasNoConfiguredOptions(product, hasLegacyOptions) ? <p className="mt-2 text-sm text-muted-foreground">Este producto no tiene opciones configuradas.</p> : null}</div> : null}
+    {isSetLine(item.line_type) ? <>
       <div className="grid min-w-0 gap-4 @lg/line-editor:grid-cols-2">
       <div><ProductSelect id={`line-upper-${item.key}`} label="Parte superior" onChange={(productId) => update({ configuration: { ...item.configuration, upper: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "upper")} value={item.configuration?.upper?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={upperProduct} selections={item.configuration?.upper?.options} onChange={(options) => update({ configuration: { ...item.configuration, upper: { product_id: item.configuration?.upper?.product_id ?? "", options } } })} /></div>
       <div><ProductSelect id={`line-lower-${item.key}`} label="Parte inferior" onChange={(productId) => update({ configuration: { ...item.configuration, lower: { product_id: productId, options: [] } } })} products={catalogs.garments.filter((candidate) => candidate.garmentLayer === "lower")} value={item.configuration?.lower?.product_id ?? ""} /><ProductOptions hasLegacyOptions={hasLegacyOptions} product={lowerProduct} selections={item.configuration?.lower?.options} onChange={(options) => update({ configuration: { ...item.configuration, lower: { product_id: item.configuration?.lower?.product_id ?? "", options } } })} /></div>
       </div>
       {hasNoConfiguredOptions(upperProduct, hasLegacyOptions) || hasNoConfiguredOptions(lowerProduct, hasLegacyOptions) ? <p className="text-sm text-muted-foreground">No hay opciones configuradas para las partes seleccionadas.</p> : null}
     </> : null}
-    {item.line_type === "set" ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower needsUpper onChange={updateLegacyOptions} options={legacyOptions} /> : item.line_type === "individual" && individualLayer ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower={individualLayer === "lower"} needsUpper={individualLayer === "upper"} onChange={updateLegacyOptions} options={legacyOptions} /> : null}
+    {isSetLine(item.line_type) ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower needsUpper onChange={updateLegacyOptions} options={legacyOptions} /> : item.line_type === "individual" && individualLayer ? <LegacyOptions catalogs={catalogs} id={`line-${item.key}`} needsLower={individualLayer === "lower"} needsUpper={individualLayer === "upper"} onChange={updateLegacyOptions} options={legacyOptions} /> : null}
     <Field><FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground">Escudos <span className="font-normal text-muted-foreground">(opcionales, múltiples)</span></FieldLabel><div className="flex flex-wrap gap-2">{catalogs.shields.length ? catalogs.shields.map((shield) => <label className="flex min-h-8 items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs transition-colors hover:border-primary/40" key={shield.id}><input checked={(item.shield_product_ids ?? []).includes(shield.id)} className="size-3.5 accent-primary" onChange={(event) => update({ shield_product_ids: event.target.checked ? [...new Set([...(item.shield_product_ids ?? []), shield.id])] : (item.shield_product_ids ?? []).filter((id) => id !== shield.id) })} type="checkbox" />{shield.name}</label>) : <span className="text-sm text-muted-foreground">No hay escudos activos.</span>}</div></Field>
     </div>
   </article>;

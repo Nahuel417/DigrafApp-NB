@@ -62,7 +62,7 @@ export function OrderEditForm({ action, catalogs, financials, order }: { action:
       <input name="orderDate" type="hidden" value={order.orderDate} />
 
       <EditSection hint="Datos de contacto del pedido." icon={UserRound} title="Identificación">
-        <FieldGroup className="grid min-w-0 gap-4 @xl/edit-form:grid-cols-2 @4xl/edit-form:grid-cols-3">
+        <FieldGroup className="grid min-w-0 gap-4 @xl/edit-form:grid-cols-2">
           <Field data-invalid={Boolean(errorsFor(state, "clientName")?.length)}>
             <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="edit-client-name">Cliente</FieldLabel>
             <Input className="rounded-xl bg-card shadow-none transition-colors focus-visible:bg-card" defaultValue={order.clientName ?? ""} id="edit-client-name" name="clientName" required />
@@ -77,6 +77,11 @@ export function OrderEditForm({ action, catalogs, financials, order }: { action:
             <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="edit-phone">Teléfono</FieldLabel>
             <Input className="rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card" defaultValue={order.phone ?? ""} id="edit-phone" inputMode="tel" name="phone" required />
             <FieldError errors={errorsFor(state, "phone")} />
+          </Field>
+          <Field data-invalid={Boolean(errorsFor(state, "dni")?.length)}>
+            <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="edit-dni">DNI <span className="font-normal text-muted-foreground">(opcional)</span></FieldLabel>
+            <Input className="rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card" defaultValue={order.dni ?? ""} id="edit-dni" inputMode="numeric" name="dni" placeholder="12.345.678" />
+            <FieldError errors={errorsFor(state, "dni")} />
           </Field>
         </FieldGroup>
         <FieldDescription className="mt-4 text-xs leading-5">Los históricos pueden aparecer vacíos, pero deben completarse para guardar.</FieldDescription>

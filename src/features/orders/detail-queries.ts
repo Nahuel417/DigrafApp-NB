@@ -10,6 +10,7 @@ export type OrderDetail = {
   clientName: string | null;
   teamName: string | null;
   phone: string | null;
+  dni: string | null;
   quantity: number;
   orderType: Database["public"]["Enums"]["order_type"] | null;
   orderDate: string;
@@ -69,6 +70,7 @@ type OrderDetailRow = {
   client_name?: string | null;
   team_name?: string | null;
   phone?: string | null;
+  dni?: string | null;
   quantity: number | null;
   order_type: Database["public"]["Enums"]["order_type"] | null;
   order_date: string | null;
@@ -92,6 +94,7 @@ export function mapOrderDetailRow(row: OrderDetailRow, stage: { id: string; code
     clientName: row.client_name ?? null,
     teamName: row.team_name ?? null,
     phone: row.phone ?? null,
+    dni: row.dni ?? null,
     quantity: row.quantity,
     orderType: row.order_type,
     orderDate: row.order_date,
@@ -113,7 +116,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, public_number, customer_name, client_name, team_name, phone, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, lifecycle_state, cancelled_at, cancelled_by, cancellation_reason, updated_at, created_at, workflow_stages (id, code, name)")
+    .select("id, public_number, customer_name, client_name, team_name, phone, dni, quantity, order_type, order_date, promised_delivery_date, description, current_stage_id, lifecycle_state, cancelled_at, cancelled_by, cancellation_reason, updated_at, created_at, workflow_stages (id, code, name)")
     .eq("id", orderId)
     .single();
 
@@ -138,6 +141,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
       clientName: order.client_name,
       teamName: order.team_name,
       phone: order.phone,
+      dni: order.dni,
       lines: (lines ?? []).map((line) => ({
         id: line.id,
         position: line.position,

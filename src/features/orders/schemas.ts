@@ -4,6 +4,15 @@ import { compareMoney, normalizeMoney } from "@/lib/money/decimal";
 
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresá una fecha válida.");
 
+export const optionalDniValue = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const normalized = value.replace(/[.\s]/g, "");
+    return normalized || null;
+  },
+  z.string().regex(/^\d{7,8}$/, "Ingresá un DNI válido de 7 u 8 dígitos.").nullable().optional(),
+);
+
 const moneyValue = z
   .string()
   .trim()
@@ -23,7 +32,7 @@ const legacyOptionsSchema = z.object({
 
 const orderLineSchema = z.object({
   position: z.number().int().nonnegative(),
-  line_type: z.enum(["individual", "set", "flag", "bag", "shield"]),
+  line_type: z.enum(["individual", "set", "premium_set", "flag", "bag", "shield"]),
   product_id: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
   color: z.string().max(100).nullable().optional(),
@@ -35,7 +44,7 @@ const orderLineSchema = z.object({
   }).optional(),
   shield_product_ids: z.array(z.string().uuid()).optional(),
 }).superRefine((line, context) => {
-  if (line.line_type === "set") {
+  if (line.line_type === "set" || line.line_type === "premium_set") {
     if (!line.configuration?.upper) context.addIssue({ code: "custom", path: ["configuration", "upper"], message: "Seleccioná la parte superior." });
     if (!line.configuration?.lower) context.addIssue({ code: "custom", path: ["configuration", "lower"], message: "Seleccioná la parte inferior." });
   } else if (!line.product_id) {
@@ -60,6 +69,7 @@ export const orderFormSchema = z
     clientName: z.string().trim().min(2, "Ingresá el cliente.").max(200, "El cliente no puede superar los 200 caracteres."),
     teamName: z.string().trim().min(2, "Ingresá el equipo.").max(200, "El equipo no puede superar los 200 caracteres."),
     phone: z.string().trim().min(6, "Ingresá un teléfono válido.").max(40, "El teléfono no puede superar los 40 caracteres."),
+    dni: optionalDniValue,
     lines: orderLinesValue,
     orderDate: dateValue,
     promisedDeliveryDate: dateValue,

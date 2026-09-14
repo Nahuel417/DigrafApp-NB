@@ -1,6 +1,6 @@
 import type { Json } from "@/lib/supabase/database.types";
 
-export const orderLineTypes = ["individual", "set", "flag", "bag", "shield"] as const;
+export const orderLineTypes = ["individual", "set", "premium_set", "flag", "bag", "shield"] as const;
 export type OrderLineType = (typeof orderLineTypes)[number];
 
 export type CatalogOptionSelection = {

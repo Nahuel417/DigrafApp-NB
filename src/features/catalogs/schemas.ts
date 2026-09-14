@@ -21,7 +21,7 @@ export const catalogItemKindLabels: Record<CatalogItemKind, string> = {
   garment: "Prendas",
   neckline: "Cuellos",
   upper_pattern: "Moldes superiores",
-  lower_pattern: "Moldes de short/pollera",
+  lower_pattern: "Moldes inferiores",
   fabric: "Telas",
   extra: "Extras",
 };
