@@ -20,3 +20,14 @@ export function orderLabelClassName(label: OrderLabel) {
       return "border-label-review-foreground/20 bg-label-review text-label-review-foreground";
   }
 }
+
+export function orderLabelAccentClassName(label: OrderLabel) {
+  switch (label) {
+    case "urgent":
+      return "bg-error/20";
+    case "returned":
+      return "bg-warning-foreground/30";
+    case "review":
+      return "bg-label-review-foreground/30";
+  }
+}
