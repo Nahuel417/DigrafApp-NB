@@ -126,7 +126,7 @@ test("PR1 conserva catálogos, opciones legacy, pedidos mixtos y saldo", async (
     await selectValue(page, "Parte inferior", lowerProduct.name);
     await selectValue(page, "Cuello", legacyByKind.get("neckline:")!.name);
     await selectValue(page, "Molde superior", legacyByKind.get("upper_pattern:")!.name);
-    await selectValue(page, "Molde de short/pollera", legacyByKind.get("lower_pattern:")!.name);
+    await selectValue(page, "Molde inferior", legacyByKind.get("lower_pattern:")!.name);
     await selectValue(page, "Tela", legacyByKind.get("fabric:")!.name);
     await page.getByLabel("Total del pedido").fill("30000");
     await page.getByLabel("Monto de seña").fill("5000");

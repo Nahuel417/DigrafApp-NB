@@ -67,6 +67,15 @@ describe("OrderSpecifications", () => {
     expect(screen.getByText("Bolsillo")).toBeTruthy();
   });
 
+  it("renders premium set parts without exposing a product field", () => {
+    const premiumLine = { ...line({ configuration: { upper: { product_id: productId }, lower: { product_id: productId } } }), lineType: "premium_set" as const, productId: null, productName: "Conjunto premium" };
+    render(<OrderSpecifications catalogs={catalogs} line={premiumLine} />);
+
+    expect(screen.getByText("Conjunto premium")).toBeTruthy();
+    expect(screen.getByText("Parte superior")).toBeTruthy();
+    expect(screen.getByText("Parte inferior")).toBeTruthy();
+  });
+
   it("hides unknown configuration values without changing the rest of the specification view", () => {
     render(<OrderSpecifications catalogs={{ ...catalogs, garments: [] }} line={line({ new_mode: { enabled: true, reference: "config-v2" } })} />);
 

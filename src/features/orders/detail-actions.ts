@@ -91,6 +91,7 @@ export async function updateOrderAction(
     p_client_name: data.clientName,
     p_team_name: data.teamName,
     p_phone: data.phone,
+    p_dni: data.dni ?? "",
     p_order_date: data.orderDate,
     p_promised_delivery_date: data.promisedDeliveryDate,
     p_description: data.description,

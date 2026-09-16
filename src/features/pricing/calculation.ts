@@ -1,4 +1,4 @@
-export type QuoteLineInput = { name: string; unit: "unidad" | "metro_lineal"; unitPrice: string; quantity: string };
+export type QuoteLineInput = { name: string; unit: "unidad" | "metro_lineal"; unitPrice: string | number; quantity: string };
 export type QuoteLine = QuoteLineInput & { lineTotalCents: bigint };
 
 const CENTS = BigInt(100);

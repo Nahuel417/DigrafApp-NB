@@ -26,10 +26,31 @@ describe("order form schema", () => {
     if (result.success) expect(result.data.totalAmount).toBe("1000.50");
   });
 
+  it("normalizes an optional DNI to digits", () => {
+    const result = orderFormSchema.safeParse({ ...validOrder(), dni: " 12.345.678 " });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.dni).toBe("12345678");
+  });
+
+  it("accepts a missing DNI and rejects invalid lengths", () => {
+    const missing = orderFormSchema.safeParse({ ...validOrder(), dni: "" });
+    expect(missing.success).toBe(true);
+    if (missing.success) expect(missing.data.dni).toBeNull();
+
+    expect(orderFormSchema.safeParse({ ...validOrder(), dni: "123456" }).success).toBe(false);
+    expect(orderFormSchema.safeParse({ ...validOrder(), dni: "123456789" }).success).toBe(false);
+  });
+
   it("requires both products for a set in a single line", () => {
     const result = orderFormSchema.safeParse({ ...validOrder(), lines: JSON.stringify([{ position: 0, line_type: "set", quantity: 2, configuration: { upper: { product_id: productId } } }]) });
     expect(result.success).toBe(false);
     if (!result.success) expect(JSON.stringify(result.error.flatten().fieldErrors)).toContain("parte inferior");
+  });
+
+  it("requires both products for a premium set in a single line", () => {
+    const result = orderFormSchema.safeParse({ ...validOrder(), lines: JSON.stringify([{ position: 0, line_type: "premium_set", quantity: 2, configuration: { lower: { product_id: productId } } }]) });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(JSON.stringify(result.error.flatten().fieldErrors)).toContain("parte superior");
   });
 
   it("rejects zero quantity and a deposit above total", () => {

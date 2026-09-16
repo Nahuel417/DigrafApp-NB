@@ -39,6 +39,7 @@ describe("CreateOrderForm", () => {
     const client = screen.getByLabelText("Cliente");
     const team = screen.getByLabelText("Equipo");
     const phone = screen.getByLabelText("Teléfono");
+    const dni = screen.getByLabelText("DNI (opcional)");
     const promisedDelivery = screen.getByLabelText("Fecha prometida de entrega");
     const description = screen.getByLabelText(/Detalles adicionales/);
     const total = screen.getByLabelText("Total del pedido");
@@ -50,6 +51,7 @@ describe("CreateOrderForm", () => {
     fireEvent.change(client, { target: { value: "Cliente escrito" } });
     fireEvent.change(team, { target: { value: "Equipo escrito" } });
     fireEvent.change(phone, { target: { value: "3515550199" } });
+    fireEvent.change(dni, { target: { value: "12.345.678" } });
     fireEvent.change(promisedDelivery, { target: { value: "2026-09-02" } });
     fireEvent.change(description, { target: { value: "Detalles escritos" } });
     fireEvent.change(total, { target: { value: "20000" } });
@@ -75,6 +77,7 @@ describe("CreateOrderForm", () => {
     expect(client).toHaveProperty("value", "Cliente escrito");
     expect(team).toHaveProperty("value", "Equipo escrito");
     expect(phone).toHaveProperty("value", "3515550199");
+    expect(dni).toHaveProperty("value", "12.345.678");
     expect(promisedDelivery).toHaveProperty("value", "2026-09-02");
     expect(description).toHaveProperty("value", "Detalles escritos");
     expect(total).toHaveProperty("value", "20000");
@@ -86,6 +89,7 @@ describe("CreateOrderForm", () => {
     if (!form) throw new Error("No se encontró el formulario de pedido.");
     const submitted = new FormData(form);
     expect(submitted.get("clientName")).toBe("Cliente escrito");
+    expect(submitted.get("dni")).toBe("12.345.678");
     expect(submitted.get("promisedDeliveryDate")).toBe("2026-09-02");
     expect(JSON.parse(String(submitted.get("lines")))[0]).toMatchObject({ quantity: 4, color: "verde" });
     expect(screen.getByText("El cliente es obligatorio.")).toBeTruthy();
