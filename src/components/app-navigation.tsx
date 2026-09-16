@@ -6,18 +6,21 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
+export type AppNavigationCapabilities = {
+  canCreateOrders: boolean;
+  canManageCatalogs: boolean;
+  canManageStages: boolean;
+  canManageUsers: boolean;
+  canManageOrderLifecycle: boolean;
+  canArchiveDeliveredOrder: boolean;
+  canOperateCash: boolean;
+  canManagePrices?: boolean;
+};
+
 type AppNavigationProps = {
-  capabilities: {
-    canCreateOrders: boolean;
-    canManageCatalogs: boolean;
-    canManageStages: boolean;
-    canManageUsers: boolean;
-    canManageOrderLifecycle: boolean;
-    canArchiveDeliveredOrder: boolean;
-    canOperateCash: boolean;
-    canManagePrices?: boolean;
-  };
+  capabilities: AppNavigationCapabilities;
   compact?: boolean;
+  onNavigate?: () => void;
 };
 
 type Capability = keyof AppNavigationProps["capabilities"];
@@ -39,7 +42,7 @@ const navigationItems: Array<{
   { href: "/users", icon: Users, label: "Usuarios", capability: "canManageUsers" },
 ];
 
-export function AppNavigation({ capabilities, compact = false }: AppNavigationProps) {
+export function AppNavigation({ capabilities, compact = false, onNavigate }: AppNavigationProps) {
   const pathname = usePathname();
   const items = navigationItems.filter((item) => !item.capability || capabilities[item.capability]);
   const activeHref = items
@@ -68,6 +71,7 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
             )}
             href={item.href}
             key={item.href}
+            onClick={onNavigate}
           >
             <span
               aria-hidden="true"
