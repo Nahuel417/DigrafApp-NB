@@ -5,6 +5,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { logoutFromApp } from "./navigation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -148,11 +149,6 @@ test.describe("Diseño vigente M7", () => {
     await expect(tab).toHaveAttribute("aria-selected", "true");
   }
 
-  async function logout(page: Page) {
-    await page.getByRole("button", { name: "Salir" }).click();
-    await expect(page).toHaveURL(/\/login$/);
-  }
-
   async function openDetail(page: Page, orderId: string) {
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByRole("heading", { name: "Diseño vigente" })).toBeVisible();
@@ -209,7 +205,8 @@ test.describe("Diseño vigente M7", () => {
       await expect(page.getByText("Todavía no hay un diseño cargado.")).toBeVisible();
       await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
       await expect(page.getByRole("button", { name: "Cargar diseño" })).toBeVisible();
-      await logout(page);
+      await logoutFromApp(page);
+      await expect(page).toHaveURL(/\/login$/);
     }
   });
 
@@ -240,7 +237,8 @@ test.describe("Diseño vigente M7", () => {
       await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
       await expect(page.getByLabel("Archivo de diseño")).toBeVisible();
       await expect(page.getByRole("button", { name: "Reemplazar diseño" })).toBeVisible();
-      await logout(page);
+      await logoutFromApp(page);
+      await expect(page).toHaveURL(/\/login$/);
     }
   });
 
@@ -412,7 +410,8 @@ test.describe("Diseño vigente M7", () => {
     await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
     await expect(page.locator("body")).not.toContainText("orders/");
 
-    await logout(page);
+    await logoutFromApp(page);
+    await expect(page).toHaveURL(/\/login$/);
     await login(page, identities[3]!);
     await openDetail(page, orderId);
     await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);

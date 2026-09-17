@@ -21,18 +21,22 @@ export function MobileNavigation({ capabilities, displayName, initials, roleName
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
 
     if (open) {
+      wasOpenRef.current = true;
       if (!dialog.open) dialog.showModal();
       const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
       return () => window.cancelAnimationFrame(frame);
     }
 
     if (dialog.open) dialog.close();
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
     const frame = window.requestAnimationFrame(() => triggerRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
@@ -86,7 +90,7 @@ export function MobileNavigation({ capabilities, displayName, initials, roleName
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
-              <AppNavigation capabilities={capabilities} onNavigate={() => setOpen(false)} />
+              <AppNavigation ariaLabel="Navegación principal móvil" capabilities={capabilities} onNavigate={() => setOpen(false)} />
             </div>
 
             <div className="shrink-0 border-t border-sidebar-border p-3">

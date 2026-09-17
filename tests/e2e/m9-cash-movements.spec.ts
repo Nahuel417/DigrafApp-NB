@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { openAppNavigation } from "./navigation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,10 +50,6 @@ async function login(page: Page, identity: Identity) {
   await page.getByLabel("Contraseña").fill(password);
   await page.getByRole("button", { name: "Ingresar" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-}
-
-function visibleNavigation(page: Page) {
-  return page.locator('nav[aria-label^="Navegación principal"]:visible');
 }
 
 function currentOperationalDate() {
@@ -138,7 +135,9 @@ test.describe("Navegación de Caja M9", () => {
     await page.goto("/cash?view=movements");
     const calendar = page.getByLabel("Calendario de movimientos de caja");
     await expect(calendar).toBeVisible();
-    const offset = monthOffset(currentOperationalDate(), operationalDate);
+    const selectedDate = await calendar.locator('button[data-selected-single="true"]').getAttribute("data-day");
+    if (!selectedDate) throw new Error("El calendario no expuso su fecha seleccionada.");
+    const offset = monthOffset(selectedDate, operationalDate);
     const direction = offset < 0 ? "Ir al mes anterior" : "Ir al mes siguiente";
     for (let index = 0; index < Math.abs(offset); index += 1) {
       await calendar.getByRole("button", { name: direction, exact: true }).click();
@@ -250,11 +249,11 @@ test.describe("Navegación de Caja M9", () => {
 
   test("Atención descubre Caja después de Pedidos y puede abrirla", async ({ page }) => {
     await login(page, identities[0]!);
-    const navigation = visibleNavigation(page);
+    const navigation = await openAppNavigation(page);
     await navigation.getByRole("link", { name: "Pedidos", exact: true }).click();
     await expect(page).toHaveURL(/\/orders$/);
 
-    const ordersNavigation = visibleNavigation(page);
+    const ordersNavigation = await openAppNavigation(page);
     await expect(ordersNavigation.getByRole("link", { name: "Caja", exact: true })).toHaveCount(1);
     await expect(ordersNavigation.getByRole("link")).toHaveText(["Panel", "Pedidos", "Caja", "Nuevo pedido", "Cotizador"]);
     await ordersNavigation.getByRole("link", { name: "Caja", exact: true }).click();
@@ -263,7 +262,7 @@ test.describe("Navegación de Caja M9", () => {
 
   test("Empleado no recibe Caja y el acceso directo vuelve al Panel", async ({ page }) => {
     await login(page, identities[1]!);
-    const navigation = visibleNavigation(page);
+    const navigation = await openAppNavigation(page);
     await expect(navigation.getByRole("link", { name: "Caja", exact: true })).toHaveCount(0);
 
     await page.goto("/cash");

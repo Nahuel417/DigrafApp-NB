@@ -42,11 +42,12 @@ describe("MobileNavigation", () => {
     render(<MobileNavigation capabilities={capabilities} displayName="Ana Admin" initials="AA" roleName="Admin" />);
 
     const trigger = screen.getByRole("button", { name: "Abrir navegación" });
+    expect(document.activeElement).not.toBe(trigger);
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: "Navegación" });
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(within(dialog).getByRole("navigation", { name: "Navegación principal" })).toBeTruthy();
+    expect(within(dialog).getByRole("navigation", { name: "Navegación principal móvil" })).toBeTruthy();
 
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
 
