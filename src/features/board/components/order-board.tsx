@@ -53,7 +53,7 @@ import {
     type SetOrderLabelActionState,
 } from '../actions';
 import { moveBoardOrder, replaceBoardOrder } from '../board-state';
-import { orderLabelClassName, orderLabelName, orderLabelOptions } from '../labels';
+import { orderLabelAccentClassName, orderLabelClassName, orderLabelName, orderLabelOptions } from '../labels';
 import type { BoardColumn, BoardOrder } from '../queries';
 import type { OrderLabel } from '../schemas';
 import { OrderDesignThumbnail } from './order-design-thumbnail';
@@ -247,9 +247,10 @@ function DraggableOrderCard({
         <article
             {...listeners}
             aria-busy={isPending || undefined}
-            className={`group rounded-xl border border-border bg-card p-2.5 shadow-xs transition-[border-color,opacity,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none motion-reduce:transition-none ${isDragging ? 'opacity-40' : 'opacity-100'}`}
+            className={`group relative overflow-hidden rounded-xl border border-border bg-card p-2.5 shadow-xs transition-[border-color,opacity,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none motion-reduce:transition-none ${isDragging ? 'opacity-40' : 'opacity-100'}`}
             data-order-id={order.id}
             ref={setNodeRef}>
+            {order.label ? <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-1.5 rounded-t-xl ${orderLabelAccentClassName(order.label)}`} /> : null}
             <div className="relative">
                 <div className="min-w-0 flex-1">
                     <OrderSummary order={order} showThumbnail />

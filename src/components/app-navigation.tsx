@@ -6,18 +6,21 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
+export type AppNavigationCapabilities = {
+  canCreateOrders: boolean;
+  canManageCatalogs: boolean;
+  canManageStages: boolean;
+  canManageUsers: boolean;
+  canManageOrderLifecycle: boolean;
+  canArchiveDeliveredOrder: boolean;
+  canOperateCash: boolean;
+  canManagePrices?: boolean;
+};
+
 type AppNavigationProps = {
-  capabilities: {
-    canCreateOrders: boolean;
-    canManageCatalogs: boolean;
-    canManageStages: boolean;
-    canManageUsers: boolean;
-    canManageOrderLifecycle: boolean;
-    canArchiveDeliveredOrder: boolean;
-    canOperateCash: boolean;
-    canManagePrices?: boolean;
-  };
-  compact?: boolean;
+  ariaLabel?: string;
+  capabilities: AppNavigationCapabilities;
+  onNavigate?: () => void;
 };
 
 type Capability = keyof AppNavigationProps["capabilities"];
@@ -39,7 +42,7 @@ const navigationItems: Array<{
   { href: "/users", icon: Users, label: "Usuarios", capability: "canManageUsers" },
 ];
 
-export function AppNavigation({ capabilities, compact = false }: AppNavigationProps) {
+export function AppNavigation({ ariaLabel = "Navegación principal", capabilities, onNavigate }: AppNavigationProps) {
   const pathname = usePathname();
   const items = navigationItems.filter((item) => !item.capability || capabilities[item.capability]);
   const activeHref = items
@@ -48,9 +51,9 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
 
   return (
     <nav
-      aria-label={compact ? "Navegación principal móvil" : "Navegación principal"}
-      className={cn(compact ? "grid grid-cols-2 gap-1" : "flex flex-col gap-1")}
-      id={compact ? undefined : "primary-navigation"}
+      aria-label={ariaLabel}
+      className="flex flex-col gap-1"
+      id={ariaLabel === "Navegación principal" ? "primary-navigation" : undefined}
     >
       {items.map((item) => {
         const active = item.href === activeHref;
@@ -61,13 +64,13 @@ export function AppNavigation({ capabilities, compact = false }: AppNavigationPr
             aria-current={active ? "page" : undefined}
             className={cn(
               "app-navigation-link group relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
-              compact && "min-h-11 justify-center text-center",
               active
                 ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
                 : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
             )}
             href={item.href}
             key={item.href}
+            onClick={onNavigate}
           >
             <span
               aria-hidden="true"

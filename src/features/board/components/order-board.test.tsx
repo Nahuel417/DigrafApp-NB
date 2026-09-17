@@ -287,6 +287,7 @@ describe("order labels", () => {
     expect((vi.mocked(setOrderLabelAction).mock.calls[0]?.[1] as FormData).get("label")).toBe("urgent");
     expect((vi.mocked(setOrderLabelAction).mock.calls[0]?.[1] as FormData).get("idempotencyKey")).toBeNull();
     await waitFor(() => expect(screen.getByLabelText("Etiqueta Urgente")).toBeTruthy());
+    expect(getOrderCard().querySelector("span.bg-error\\/20")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
