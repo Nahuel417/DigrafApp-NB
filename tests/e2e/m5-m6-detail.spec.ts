@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { logoutFromApp } from "./navigation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -150,6 +151,13 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
 
+  async function selectReceivedStageOnMobile(page: Page) {
+    if ((page.viewportSize()?.width ?? 0) >= 1024) return;
+    const tab = page.getByRole("tab", { name: /^Pedido recibido,/ });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+  }
+
   test.beforeAll(async () => {
     const { data: stage, error } = await admin.from("workflow_stages").select("id").eq("code", "received").single();
     if (error || !stage) throw error ?? new Error("No se encontró la etapa inicial.");
@@ -208,6 +216,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await login(page, identities[0]!);
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
+    await selectReceivedStageOnMobile(page);
 
     const card = page.getByText(`Super admin M5 M6 ${runId}`).locator("xpath=ancestor::article");
     const link = card.getByRole("link", { name: `Super admin M5 M6 ${runId}` });
@@ -220,6 +229,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
   test("Empleado abre una vista rápida operativa sin importes", async ({ page }) => {
     await login(page, identities[3]!);
     await page.goto("/orders");
+    await selectReceivedStageOnMobile(page);
     const card = page.getByText(`Empleado M5 M6 ${runId}`).locator("xpath=ancestor::article");
     await card.getByRole("button", { name: `Vista rápida de ${publicId(employeeOrder)}` }).click();
     const quickView = page.getByRole("dialog", { name: `Vista rápida de ${publicId(employeeOrder)}` });
@@ -239,7 +249,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Salir" }).click();
+    await logoutFromApp(page);
     await login(page, identities[1]!);
     await navigateToDetail(page, adminOrder);
     await page.getByRole("tab", { name: "Editar", exact: true }).click();
@@ -254,7 +264,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Importes" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Salir" }).click();
+    await logoutFromApp(page);
     await login(page, identities[3]!);
     await navigateToDetail(page, employeeOrder);
     await expect(page.getByRole("heading", { name: "Editar pedido" })).toHaveCount(0);
@@ -289,7 +299,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
       await page.getByRole("button", { name: "Guardar", exact: true }).click();
 
       await expect(page.getByText(descriptionText).first()).toBeVisible();
-      await page.getByRole("button", { name: "Salir" }).click();
+      await logoutFromApp(page);
     }
   });
 
@@ -305,7 +315,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
       await page.getByRole("button", { name: "Publicar comentario" }).click();
 
       await expect(page.getByText(commentText).first()).toBeVisible();
-      await page.getByRole("button", { name: "Salir" }).click();
+      await logoutFromApp(page);
     }
 
     await login(page, identities[0]!);
@@ -417,7 +427,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
         expect(Math.abs(scrollMetrics.scrollHeight - scrollMetrics.clientHeight - scrollMetrics.scrollTop)).toBeLessThanOrEqual(1);
       }
 
-      await page.getByRole("button", { name: "Salir" }).click();
+      await logoutFromApp(page);
     }
   });
 

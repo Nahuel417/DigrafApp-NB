@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { openAppNavigation } from "./navigation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -399,10 +400,7 @@ test.describe("Tablero M4", () => {
     await login(page);
     await page.goto("/orders/new");
 
-    const navigationName = (page.viewportSize()?.width ?? 0) < 1024
-      ? "Navegación principal móvil"
-      : "Navegación principal";
-    const activeLinks = page.getByRole("navigation", { name: navigationName, exact: true }).locator('a[aria-current="page"]');
+    const activeLinks = (await openAppNavigation(page)).locator('a[aria-current="page"]');
     await expect(activeLinks).toHaveCount(1);
     await expect(activeLinks).toHaveAttribute("href", "/orders/new");
   });

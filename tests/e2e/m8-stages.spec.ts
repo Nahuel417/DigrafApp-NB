@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { openAppNavigation } from "./navigation";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -71,7 +72,7 @@ test.describe("Administración de etapas M8", () => {
 
   test("Super admin crea, renombra, reordena y retira una etapa", async ({ page }) => {
     await login(page, managerEmail);
-    await page.getByRole("link", { name: "Etapas", exact: true }).first().click();
+    await (await openAppNavigation(page)).getByRole("link", { name: "Etapas", exact: true }).click();
     await expect(page).toHaveURL(/\/stages$/);
     await expect(page.getByRole("heading", { name: "Etapas", exact: true })).toBeVisible();
     await expect(page.getByText("Pagado").first()).toBeVisible();
