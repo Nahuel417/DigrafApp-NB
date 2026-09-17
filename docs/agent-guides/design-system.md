@@ -218,8 +218,8 @@ Las sombras dark originales quedan diferidas. Antes de una fase dark se debe red
 - Mantener visible la identidad de sesión.
 - No mostrar módulos inexistentes para completar el layout.
 - Los destinos visibles reflejan permisos, pero no sustituyen autorización.
-- El shell autenticado usa un sidebar compacto con únicamente los destinos reales y autorizados para la sesión; en mobile conserva acceso equivalente sin ocultar información operativa.
-- Cuando la cantidad de destinos autorizados no entra en una fila mobile, la navegación puede reacomodarse en una cuadrícula compacta de dos columnas. Debe conservar todos los destinos, targets de al menos 44 px y el estado activo sin crear un drawer nuevo.
+- El shell autenticado usa un sidebar compacto con únicamente los destinos reales y autorizados para la sesión; en mobile conserva acceso equivalente mediante una cabecera compacta y un menú hamburguesa.
+- El menú hamburguesa abre un drawer lateral con todos los destinos autorizados, identidad de sesión y salida. Debe conservar todos los destinos, targets de al menos 44 px, el estado activo, foco visible, cierre con Escape y retorno de foco al disparador.
 - Canvas, sidebar y cabecera mobile comparten `background`/`sidebar` en `#F8F7F2`; la continuidad no se rompe con una sidebar blanca. Cards y popovers continúan en blanco.
 
 ## Formularios

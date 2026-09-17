@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
+import { logoutFromApp } from "./navigation";
 
 const runId = randomUUID().replaceAll("-", "");
 const temporaryPassword = `Temporary${runId}7`;
@@ -73,7 +74,7 @@ test("requires changing the temporary password before entering the app", async (
     await expect(page.getByRole("heading", { name: "Panel general" })).toBeVisible();
     await expect(page.getByText("Contraseña actualizada. Tu acceso ya está habilitado.")).toBeVisible();
 
-    await page.getByRole("button", { name: "Salir" }).click();
+    await logoutFromApp(page);
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByText("Sesión cerrada correctamente.")).toBeVisible();
   } finally {

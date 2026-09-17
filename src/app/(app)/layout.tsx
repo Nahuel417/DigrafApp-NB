@@ -2,6 +2,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { AppNavigation } from "@/components/app-navigation";
 import { BrandLockup } from "@/components/brand-lockup";
+import { MobileNavigation } from "@/components/mobile-navigation";
 import { LogoutForm } from "@/features/auth/components/logout-form";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
@@ -80,15 +81,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
       </aside>
 
       <div className="min-w-0 lg:col-start-2 lg:min-h-0 lg:overflow-y-auto">
-        <header className="sticky top-0 z-40 border-b border-sidebar-border bg-sidebar/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <BrandLockup className="min-w-0 gap-2" compact tagline={profile.displayName} />
-            <LogoutForm buttonClassName="h-11" />
-          </div>
-          <div className="mt-3">
-             <AppNavigation capabilities={capabilities} compact />
-          </div>
-        </header>
+        <MobileNavigation capabilities={capabilities} displayName={profile.displayName} initials={initials} roleName={roleLabel(profile.role)} />
 
         <div className="lg:min-h-0" id="main-content" tabIndex={-1}>{children}</div>
       </div>

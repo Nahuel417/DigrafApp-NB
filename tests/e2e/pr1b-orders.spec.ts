@@ -107,6 +107,7 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     await page.getByRole("button", { name: "Confirmar cambios" }).click();
     await expect(page.getByLabel("Notifications alt+T").getByRole("listitem").filter({ hasText: "Pedido actualizado." })).toBeVisible();
     await page.goto(`/orders?search=${encodeURIComponent(`Equipo editado PR1B ${runId}`)}`);
+    if ((page.viewportSize()?.width ?? 0) < 1024) await page.getByRole("tab", { name: /^Pedido recibido,/ }).click();
     await expect(page.getByText(`Equipo editado PR1B ${runId}`, { exact: true })).toBeVisible();
   } finally {
     if (orderId) {
