@@ -8,7 +8,7 @@ import { canConfirmPayment, canCreateManualOrder, canDeliverPaidOrder } from "@/
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
   const profile = await requireActiveProfile();
   const { search = "" } = await searchParams;
-  const board = await getOrderBoard(profile.role, search);
+  const board = await getOrderBoard(search);
 
   return (
     <main className="mx-auto flex w-full max-w-[100rem] flex-col overflow-x-hidden px-4 py-6 sm:px-6 lg:h-dvh lg:min-h-0 lg:overflow-clip lg:[contain:layout_paint] lg:px-10 lg:py-8">

@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/core';
 import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, GripVertical, Package, PackageOpen, Search, Shirt, Tag } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { startTransition, useEffect, useRef, useState, useTransition } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -64,6 +64,7 @@ type MovementMethod = 'selector' | 'dnd';
 type QuickViewData = OrderQuickView & Pick<BoardOrder, 'label' | 'primaryDesignImage' | 'productName'>;
 type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
 type LabelFilter = OrderLabel | 'all' | 'none';
+type StageOption = Pick<BoardColumn, 'id' | 'code' | 'name'>;
 
 function OrderLabelBadge({ label }: { label: OrderLabel | null }) {
     if (!label) return null;
@@ -90,7 +91,7 @@ function orderDetailPath(orderId: string) {
     return `/orders/${orderId}`;
 }
 
-function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbnail?: boolean }) {
+const OrderSummary = memo(function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbnail?: boolean }) {
     return (
         <>
             <div className="flex items-start gap-3">
@@ -143,32 +144,23 @@ function OrderSummary({ order, showThumbnail }: { order: BoardOrder; showThumbna
             </dl>
         </>
     );
-}
+});
 
-function MoveOrderSelector({
-    canConfirmPayment,
-    canDeliverPaidOrders,
-    columns,
+const MoveOrderSelector = memo(function MoveOrderSelector({
+    availableDestinations,
+    movementLocked,
     isPending,
     onMove,
     order,
 }: {
-    canConfirmPayment: boolean;
-    canDeliverPaidOrders?: boolean;
-    columns: BoardColumn[];
+    availableDestinations: StageOption[];
+    movementLocked: boolean;
     isPending: boolean;
     onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
     order: BoardOrder;
 }) {
     const [destination, setDestination] = useState('');
     const selectId = `move-order-${order.id}`;
-    const paidStageId = columns.find((column) => column.code === 'paid')?.id;
-    const movementLocked = order.currentStageId === paidStageId && !canDeliverPaidOrders;
-    const availableDestinations =
-        order.currentStageId === paidStageId
-            ? columns.filter((column) => column.code === 'delivered')
-            : columns.filter((column) => column.id !== order.currentStageId && (canConfirmPayment || column.code !== 'paid'));
-
     if (movementLocked) {
         return <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">Los movimientos desde Pagado no están disponibles para este rol.</p>;
     }
@@ -214,35 +206,35 @@ function MoveOrderSelector({
             </form>
         </details>
     );
-}
+});
 
-function DraggableOrderCard({
-    canConfirmPayment,
-    canDeliverPaidOrders,
-    columns,
-    disableDragOnMobile,
+function DraggableOrderCardContent({
+    availableDestinations,
+    attributes,
+    dragDisabled,
+    isDragging,
+    listeners,
+    movementLocked,
     isPending,
     onMove,
     onQuickView,
     order,
+    setActivatorNodeRef,
+    setNodeRef,
 }: {
-    canConfirmPayment: boolean;
-    canDeliverPaidOrders?: boolean;
-    columns: BoardColumn[];
-    disableDragOnMobile: boolean;
+    availableDestinations: StageOption[];
+    attributes: ReturnType<typeof useDraggable>['attributes'];
+    dragDisabled: boolean;
+    isDragging: boolean;
+    listeners: ReturnType<typeof useDraggable>['listeners'];
+    movementLocked: boolean;
     isPending: boolean;
     onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
     onQuickView: (orderId: string, trigger: HTMLButtonElement) => void;
     order: BoardOrder;
+    setActivatorNodeRef: (element: HTMLElement | null) => void;
+    setNodeRef: (element: HTMLElement | null) => void;
 }) {
-    const paidStageId = columns.find((column) => column.code === 'paid')?.id;
-    const dragDisabled = disableDragOnMobile || isPending || (order.currentStageId === paidStageId && !canDeliverPaidOrders);
-    const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } = useDraggable({
-        id: order.id,
-        disabled: dragDisabled,
-        data: { currentStageId: order.currentStageId },
-    });
-
     return (
         <article
             {...listeners}
@@ -283,9 +275,19 @@ function DraggableOrderCard({
                 <Eye data-icon="inline-start" />
                 Vista rápida
             </Button>
-            <MoveOrderSelector canConfirmPayment={canConfirmPayment} canDeliverPaidOrders={canDeliverPaidOrders} columns={columns} isPending={isPending} onMove={onMove} order={order} />
+            <MoveOrderSelector availableDestinations={availableDestinations} isPending={isPending} movementLocked={movementLocked} onMove={onMove} order={order} />
         </article>
     );
+}
+
+function DraggableOrderCard({ order, paidStageId, availableDestinations, disableDragOnMobile, ...props }: Omit<React.ComponentProps<typeof DraggableOrderCardContent>, 'availableDestinations' | 'attributes' | 'dragDisabled' | 'isDragging' | 'listeners' | 'movementLocked' | 'setActivatorNodeRef' | 'setNodeRef'> & { canConfirmPayment: boolean; canDeliverPaidOrders?: boolean; paidStageId?: string; availableDestinations: StageOption[]; disableDragOnMobile: boolean }) {
+    const dragDisabled = disableDragOnMobile || props.isPending || (order.currentStageId === paidStageId && !props.canDeliverPaidOrders);
+    const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } = useDraggable({
+        id: order.id,
+        disabled: dragDisabled,
+        data: { currentStageId: order.currentStageId },
+    });
+    return <DraggableOrderCardContent {...props} attributes={attributes} availableDestinations={availableDestinations} dragDisabled={dragDisabled} isDragging={isDragging} listeners={listeners} movementLocked={order.currentStageId === paidStageId && !props.canDeliverPaidOrders} order={order} setActivatorNodeRef={setActivatorNodeRef} setNodeRef={setNodeRef} />;
 }
 
 function BoardColumnView({
@@ -378,6 +380,7 @@ export function OrderBoard({
     initialSearch?: string;
 }) {
     const [columns, setColumns] = useState(initialColumns);
+    const [stageMetadata] = useState(() => initialColumns.map(({ id, code, name, position }) => ({ id, code, name, position })));
     const [mobileStageId, setMobileStageId] = useState(() => initialColumns[0]?.id ?? '');
     const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
     const [isMobileBoard, setIsMobileBoard] = useState(false);
@@ -395,9 +398,18 @@ export function OrderBoard({
     const [isQuickViewPending, startQuickViewTransition] = useTransition();
     const quickViewTriggerRef = useRef<HTMLButtonElement | null>(null);
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor));
-    const allOrders = columns.flatMap((column) => column.orders);
-    const activeOrder = activeDragId ? (allOrders.find((order) => order.id === activeDragId) ?? null) : null;
-    const paidStageId = columns.find((column) => column.code === 'paid')?.id;
+    const ordersById = useMemo(() => new Map(columns.flatMap((column) => column.orders).map((order) => [order.id, order])), [columns]);
+    const stagesById = useMemo(() => new Map(stageMetadata.map((stage) => [stage.id, stage])), [stageMetadata]);
+    const stageOptions = useMemo(() => stageMetadata.map(({ id, code, name }) => ({ id, code, name })), [stageMetadata]);
+    const stageNames = useMemo(() => Object.fromEntries(stageMetadata.map((stage) => [stage.id, stage.name])), [stageMetadata]);
+    const activeOrder = activeDragId ? (ordersById.get(activeDragId) ?? null) : null;
+    const paidStageId = useMemo(() => stageMetadata.find((stage) => stage.code === 'paid')?.id, [stageMetadata]);
+    const stageDestinationsByStage = useMemo(() => new Map(stageMetadata.map((column) => [
+        column.id,
+        column.id === paidStageId
+            ? stageOptions.filter((stage) => stage.code === 'delivered')
+            : stageOptions.filter((stage) => stage.id !== column.id && (canConfirmPayment || stage.code !== 'paid')),
+    ])), [canConfirmPayment, paidStageId, stageMetadata, stageOptions]);
     const selectedMobileStageId = columns.some((column) => column.id === mobileStageId) ? mobileStageId : (columns[0]?.id ?? '');
     useMutationToast(mutationState);
 
@@ -410,12 +422,10 @@ export function OrderBoard({
         return () => mediaQuery.removeEventListener('change', updateMobileState);
     }, []);
 
-    function stageName(stageId: string) {
-        return columns.find((column) => column.id === stageId)?.name ?? 'la etapa seleccionada';
-    }
+    const stageName = useCallback((stageId: string) => stagesById.get(stageId)?.name ?? 'la etapa seleccionada', [stagesById]);
 
     function findOrder(orderIdValue: string) {
-        return columns.flatMap((column) => column.orders).find((order) => order.id === orderIdValue);
+        return ordersById.get(orderIdValue);
     }
 
     function handleMobileStageKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -433,27 +443,27 @@ export function OrderBoard({
         document.getElementById(`mobile-stage-tab-${nextColumn.id}`)?.focus();
     }
 
-    function focusOrderControl(orderIdValue: string, method: MovementMethod) {
+    const focusOrderControl = useCallback((orderIdValue: string, method: MovementMethod) => {
         window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() => {
                 const attribute = method === 'dnd' ? 'data-drag-handle' : 'data-move-selector';
                 document.querySelector<HTMLElement>(`[${attribute}="${orderIdValue}"]`)?.focus();
             });
         });
-    }
+    }, []);
 
-    function clearPending(orderIdValue: string) {
+    const clearPending = useCallback((orderIdValue: string) => {
         setPendingOrderIds((current) => {
             const next = new Set(current);
             next.delete(orderIdValue);
             return next;
         });
-    }
+    }, []);
 
-    function openQuickView(orderIdValue: string, trigger: HTMLButtonElement) {
+    const openQuickView = useCallback((orderIdValue: string, trigger: HTMLButtonElement) => {
         quickViewTriggerRef.current = trigger;
         setQuickViewError(null);
-        const boardOrder = findOrder(orderIdValue);
+        const boardOrder = ordersById.get(orderIdValue);
         startQuickViewTransition(async () => {
             const result = await getOrderQuickViewAction(orderIdValue);
             if (result.data) {
@@ -465,7 +475,7 @@ export function OrderBoard({
                 });
             } else setQuickViewError(result.message ?? 'No se pudo cargar la vista rápida.');
         });
-    }
+    }, [ordersById, startQuickViewTransition]);
 
     function closeQuickView() {
         setQuickView(null);
@@ -479,18 +489,18 @@ export function OrderBoard({
         if (initialSearch.trim()) window.location.assign('/orders');
     }
 
-    function reportLocalRejection(order: BoardOrder, message: string, method: MovementMethod) {
+    const reportLocalRejection = useCallback((order: BoardOrder, message: string, method: MovementMethod) => {
         setErrorMessage(message);
         setMutationState({ message, status: 'error', toastId: crypto.randomUUID() });
         setAnnouncement(`${orderId(order.publicNumber)} no se movió. ${message}`);
         focusOrderControl(order.id, method);
-    }
+    }, [focusOrderControl]);
 
-    function openPaymentConfirmation(order: BoardOrder, source: MoveSource, method: MovementMethod) {
+    const openPaymentConfirmation = useCallback((order: BoardOrder, source: MoveSource, method: MovementMethod) => {
         setErrorMessage(null);
         setPaymentRequest({ order, source, method });
         setAnnouncement(`Se abrió la confirmación de cobro para ${orderId(order.publicNumber)}.`);
-    }
+    }, []);
 
     function closePaymentConfirmation(announce = true) {
         if (!paymentRequest) return;
@@ -624,8 +634,8 @@ export function OrderBoard({
         });
     }
 
-    function requestMove(source: MoveSource, targetStageId: string, method: MovementMethod) {
-        const order = findOrder(source.id);
+    const requestMove = useCallback((source: MoveSource, targetStageId: string, method: MovementMethod) => {
+        const order = ordersById.get(source.id);
         if (!order) return;
         if (pendingOrderIds.has(source.id)) {
             setAnnouncement(`${orderId(order.publicNumber)} ya tiene un movimiento en curso.`);
@@ -636,7 +646,7 @@ export function OrderBoard({
             focusOrderControl(source.id, method);
             return;
         }
-        if (source.currentStageId === paidStageId && (!canDeliverPaidOrders || columns.find((column) => column.id === targetStageId)?.code !== 'delivered')) {
+        if (source.currentStageId === paidStageId && (!canDeliverPaidOrders || stagesById.get(targetStageId)?.code !== 'delivered')) {
             reportLocalRejection(order, 'Solo se permite entregar un pedido pagado.', method);
             return;
         }
@@ -713,16 +723,17 @@ export function OrderBoard({
                 focusOrderControl(source.id, method);
             }
         });
-    }
+    }, [canConfirmPayment, canDeliverPaidOrders, clearPending, focusOrderControl, openPaymentConfirmation, ordersById, paidStageId, pendingOrderIds, reportLocalRejection, stageName, stagesById]);
 
     function handleDragStart(event: DragStartEvent) {
         const order = findOrder(String(event.active.id));
         if (!order) return;
-        const activeNode = Array.from(document.querySelectorAll<HTMLElement>('[data-order-id]')).find((node) => node.dataset.orderId === String(event.active.id));
-        const initialRect = event.active.rect.current.initial ?? activeNode?.getBoundingClientRect() ?? null;
+        const initialRect = event.active.rect.current.initial;
+        const activeNode = initialRect ? null : document.querySelector<HTMLElement>(`[data-order-id="${String(event.active.id)}"]`);
+        const resolvedRect = initialRect ?? activeNode?.getBoundingClientRect() ?? null;
         const clientX = 'clientX' in event.activatorEvent ? event.activatorEvent.clientX : null;
         const clientY = 'clientY' in event.activatorEvent ? event.activatorEvent.clientY : null;
-        setDragPreviewAnchor(initialRect && typeof clientX === 'number' && typeof clientY === 'number' ? { x: clientX - initialRect.left, y: clientY - initialRect.top } : null);
+        setDragPreviewAnchor(resolvedRect && typeof clientX === 'number' && typeof clientY === 'number' ? { x: clientX - resolvedRect.left, y: clientY - resolvedRect.top } : null);
         setActiveDragId(order.id);
         setAnnouncement(`Tomaste ${orderId(order.publicNumber)} desde ${stageName(order.currentStageId)}. Elegí una etapa y soltá para moverlo, o presioná Escape para cancelar.`);
     }
@@ -798,16 +809,17 @@ export function OrderBoard({
     };
 
     const hasInvalidDeliveryRange = Boolean(deliveryFrom && deliveryTo && deliveryFrom > deliveryTo);
-    const visibleColumns = columns.map((column) => ({
+    const hasLocalFilters = Boolean(deliveryFrom || deliveryTo || labelFilter !== 'all');
+    const visibleColumns = useMemo(() => hasLocalFilters ? columns.map((column) => ({
         ...column,
         orders: column.orders.filter((order) => {
             const matchesLabel = labelFilter === 'all' || (labelFilter === 'none' ? order.label === null : order.label === labelFilter);
             const matchesDelivery = hasInvalidDeliveryRange || (!deliveryFrom || order.promisedDeliveryDate >= deliveryFrom) && (!deliveryTo || order.promisedDeliveryDate <= deliveryTo);
             return matchesLabel && matchesDelivery;
         }),
-    }));
-    const totalOrderCount = columns.reduce((count, column) => count + column.orders.length, 0);
-    const orderCount = visibleColumns.reduce((count, column) => count + column.orders.length, 0);
+    })) : columns, [columns, deliveryFrom, deliveryTo, hasInvalidDeliveryRange, labelFilter, hasLocalFilters]);
+    const totalOrderCount = useMemo(() => columns.reduce((count, column) => count + column.orders.length, 0), [columns]);
+    const orderCount = useMemo(() => visibleColumns.reduce((count, column) => count + column.orders.length, 0), [visibleColumns]);
     const paymentAmount = canConfirmPayment ? (paymentRequest?.order.totalAmount ?? null) : null;
     const hasActiveFilters = Boolean(initialSearch.trim() || deliveryFrom || deliveryTo || labelFilter !== 'all');
     const dragOverlay = (
@@ -973,7 +985,7 @@ export function OrderBoard({
                             }
                             closeQuickView();
                         }}
-                        stageNames={Object.fromEntries(columns.map((column) => [column.id, column.name]))}
+                        stageNames={stageNames}
                     />
                 ) : null}
                 <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
@@ -1017,13 +1029,14 @@ export function OrderBoard({
                                         <DraggableOrderCard
                                             canConfirmPayment={canConfirmPayment}
                                             canDeliverPaidOrders={canDeliverPaidOrders}
-                                            columns={columns}
                                             disableDragOnMobile={isMobileBoard}
+                                            availableDestinations={stageDestinationsByStage.get(order.currentStageId) ?? []}
                                             isPending={pendingOrderIds.has(order.id)}
                                             key={order.id}
                                             onMove={requestMove}
                                             onQuickView={openQuickView}
                                             order={order}
+                                            paidStageId={paidStageId}
                                         />
                                     ))}
                                 </BoardColumnView>
