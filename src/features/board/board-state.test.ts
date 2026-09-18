@@ -9,7 +9,6 @@ const first: BoardOrder = {
   customerName: "Primero",
   teamName: "Equipo primero",
   quantity: 1,
-  orderType: "individual",
   label: null,
   promisedDeliveryDate: "2026-08-02",
   currentStageId: "received",
@@ -65,5 +64,28 @@ describe("board movement state", () => {
     expect(replaced.flatMap((column) => column.orders).find((item) => item.id === first.id)).toEqual(snapshot);
     expect(replaced[0]?.orders).toHaveLength(0);
     expect(replaced[1]?.orders.find((item) => item.id === snapshot.id)?.paymentConfirmedAt).toBe(snapshot.paymentConfirmedAt);
+  });
+
+  it("preserves untouched column identity", () => {
+    const replaced = replaceBoardOrder(columns, { ...first, currentStageId: "design" });
+    expect(replaced[0]).not.toBe(columns[0]);
+    expect(replaced[1]).not.toBe(columns[1]);
+    const extra = { id: "cut", code: "cut", name: "Corte", position: 2, orders: [] } as BoardColumn;
+    const withExtra = [...columns, extra];
+    expect(moveBoardOrder(withExtra, first.id, "design")[2]).toBe(extra);
+  });
+
+  it("preserves structural sharing for an unchanged move", () => {
+    const moved = moveBoardOrder(columns, first.id, "design");
+    expect(moved[0]).not.toBe(columns[0]);
+    expect(moved[1]).not.toBe(columns[1]);
+    expect(moved).toHaveLength(columns.length);
+  });
+
+  it("preserves structural sharing for an unrelated replacement", () => {
+    const extra = { id: "cut", code: "cut", name: "Corte", position: 2, orders: [] } as BoardColumn;
+    const withExtra = [...columns, extra];
+    const replaced = replaceBoardOrder(withExtra, { ...first, currentStageId: "design" });
+    expect(replaced[2]).toBe(extra);
   });
 });

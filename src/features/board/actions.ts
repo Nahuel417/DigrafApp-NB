@@ -144,8 +144,8 @@ function reversalFormValues(formData: FormData) {
   };
 }
 
-async function paymentSnapshot(orderId: string, role: Parameters<typeof getOrderBoardSnapshot>[1]) {
-  const snapshot = await getOrderBoardSnapshot(orderId, role);
+async function paymentSnapshot(orderId: string) {
+  const snapshot = await getOrderBoardSnapshot(orderId);
   return snapshot ? { reconciledOrder: snapshot } : {};
 }
 
@@ -179,7 +179,7 @@ export async function confirmOrderPaymentAction(
     return {
       ...mutationResult("error", mapped.message),
       code: mapped.code,
-      ...(recoverable ? await paymentSnapshot(parsed.data.orderId, profile.role) : {}),
+      ...(recoverable ? await paymentSnapshot(parsed.data.orderId) : {}),
     };
   }
 
@@ -194,7 +194,7 @@ export async function confirmOrderPaymentAction(
     paymentId: payment.payment_id,
     cashMovementId: payment.cash_movement_id,
     confirmedAt: payment.confirmed_at,
-    ...(await paymentSnapshot(parsed.data.orderId, profile.role)),
+    ...(await paymentSnapshot(parsed.data.orderId)),
   };
 }
 
@@ -227,7 +227,7 @@ export async function reverseOrderPaymentAction(
     revalidatePath(`/orders/${parsed.data.orderId}`);
     revalidatePath("/cash");
     const recoverable = mapped.code !== "permission_denied" && mapped.code !== "invalid_request" && mapped.code !== "not_found";
-    return { ...mutationResult("error", mapped.message), code: mapped.code, ...(recoverable ? await paymentSnapshot(parsed.data.orderId, profile.role) : {}) };
+    return { ...mutationResult("error", mapped.message), code: mapped.code, ...(recoverable ? await paymentSnapshot(parsed.data.orderId) : {}) };
   }
 
   const reversal = data?.[0];
@@ -240,7 +240,7 @@ export async function reverseOrderPaymentAction(
     ...mutationResult("success", "El pago fue revertido y el pedido volvió a su etapa anterior."),
     paymentId: reversal.payment_id,
     reversalCashMovementId: reversal.reversal_cash_movement_id,
-    ...(await paymentSnapshot(parsed.data.orderId, profile.role)),
+    ...(await paymentSnapshot(parsed.data.orderId)),
   };
 }
 
@@ -324,7 +324,7 @@ export async function setOrderLabelAction(
 
   if (error) {
     const mapped = labelError(error.message);
-    const reconciledOrder = mapped.code === "version_conflict" ? await getOrderBoardSnapshot(parsed.data.orderId, profile.role) : null;
+    const reconciledOrder = mapped.code === "version_conflict" ? await getOrderBoardSnapshot(parsed.data.orderId) : null;
     revalidatePath("/orders");
     return { ...mutationResult("error", mapped.message), code: mapped.code, ...(reconciledOrder ? { reconciledOrder } : {}) };
   }
@@ -333,7 +333,7 @@ export async function setOrderLabelAction(
   if (!updated) return { ...mutationResult("error", "No se pudo actualizar la etiqueta. Intentá nuevamente."), code: "invalid_request" };
 
   revalidatePath("/orders");
-  const reconciledOrder = await getOrderBoardSnapshot(parsed.data.orderId, profile.role);
+  const reconciledOrder = await getOrderBoardSnapshot(parsed.data.orderId);
   return {
     ...mutationResult("success", "La etiqueta del pedido fue actualizada."),
     updatedOrder: { label: updated.label, updatedAt: updated.updated_at },
@@ -348,7 +348,7 @@ export async function reconcileOrderLabelAction(orderId: string) {
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive || profile.mustChangePassword || !canEditOrderLabels(profile.role)) return null;
 
-  return getOrderBoardSnapshot(parsed.data.orderId, profile.role);
+  return getOrderBoardSnapshot(parsed.data.orderId);
 }
 
 export type OrderQuickView = {

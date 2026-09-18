@@ -118,7 +118,7 @@ describe("confirm order payment action", () => {
     const result = await confirmOrderPaymentAction({}, validForm());
 
     expect(result).toMatchObject({ status: "error", code: "version_conflict", reconciledOrder: snapshot });
-    expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id, "attention");
+    expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id);
   });
 });
 
@@ -241,6 +241,6 @@ describe("set order label action", () => {
     const result = await setOrderLabelAction({}, validLabelForm());
 
     expect(result).toMatchObject({ status: "error", code: "version_conflict", reconciledOrder: snapshot });
-    expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id, "attention");
+    expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id);
   });
 });

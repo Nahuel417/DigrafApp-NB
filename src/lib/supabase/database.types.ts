@@ -2163,12 +2163,29 @@ export type Database = {
         Returns: {
           current_stage_id: string
           customer_name: string
-          has_design_image: boolean
           id: string
           image_updated_at: string
           label: Database["public"]["Enums"]["order_label"]
-          order_type: Database["public"]["Enums"]["order_type"]
           payment_confirmed_at: string
+          product_name: string
+          promised_delivery_date: string
+          public_number: number
+          quantity: number
+          team_name: string
+          total_amount: number
+          updated_at: string
+        }[]
+      }
+      get_order_board_snapshot: {
+        Args: { p_order_id: string }
+        Returns: {
+          current_stage_id: string
+          customer_name: string
+          id: string
+          image_updated_at: string
+          label: Database["public"]["Enums"]["order_label"]
+          payment_confirmed_at: string
+          product_name: string
           promised_delivery_date: string
           public_number: number
           quantity: number

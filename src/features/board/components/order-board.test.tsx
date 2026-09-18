@@ -8,7 +8,8 @@ import { OrderBoard } from "./order-board";
 
 vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
-vi.mock("./order-design-thumbnail", () => ({ OrderDesignThumbnail: () => null }));
+const thumbnailRenderCount = vi.hoisted(() => ({ value: 0 }));
+vi.mock("./order-design-thumbnail", () => ({ OrderDesignThumbnail: () => { thumbnailRenderCount.value += 1; return null; } }));
 vi.mock("./order-quick-view", async () => await vi.importActual<typeof import("./order-quick-view")>("./order-quick-view"));
 vi.mock("../actions", () => ({
   confirmOrderPaymentAction: vi.fn(),
@@ -28,7 +29,6 @@ const order = {
   customerName: "Equipo M11",
   teamName: "Equipo M11",
   quantity: 1,
-  orderType: "individual" as const,
   label: null,
   productName: "SUP1",
   promisedDeliveryDate: "2026-08-13",
@@ -46,6 +46,7 @@ const columns = [
 ];
 
 beforeEach(() => {
+  thumbnailRenderCount.value = 0;
   vi.mocked(confirmOrderPaymentAction).mockReset();
   vi.mocked(getOrderQuickViewAction).mockReset();
   vi.mocked(moveOrderAction).mockReset();
@@ -99,9 +100,11 @@ describe("order board payment confirmation", () => {
 
   it("opens the confirmation dialog without moving the card", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
+    const initialThumbnailRenderCount = thumbnailRenderCount.value;
 
     choosePaid();
 
+    expect(thumbnailRenderCount.value).toBe(initialThumbnailRenderCount);
     expect(screen.getByRole("alertdialog")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Confirmar cobro" })).toBeTruthy();
     expect(within(screen.getByRole("alertdialog")).getByText("Equipo M11", { exact: true })).toBeTruthy();
@@ -209,7 +212,7 @@ describe("order board payment confirmation", () => {
 
 describe("order board payment reversal", () => {
   it("requires confirmation, keeps cancellation side-effect free, and blocks duplicate submits", async () => {
-    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pagado", stageCode: "paid", expectedUpdatedAt: "2026-08-12T19:01:00.000Z", canReversePayment: true, paymentId: "44444444-4444-4444-8444-444444444444", canEditDescription: false, canEditSensitive: true, lastMovement: null, comments: [
+    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, orderType: "individual", description: null, stageName: "Pagado", stageCode: "paid", expectedUpdatedAt: "2026-08-12T19:01:00.000Z", canReversePayment: true, paymentId: "44444444-4444-4444-8444-444444444444", canEditDescription: false, canEditSensitive: true, lastMovement: null, comments: [
       { actor: "Último actor", body: "Comentario actual", occurredAt: "2026-08-12T19:01:00.000Z", id: "comment-1" },
       { actor: "Actor anterior", body: "Comentario anterior", occurredAt: "2026-08-11T19:01:00.000Z", id: "comment-2" },
     ] } });
@@ -266,7 +269,7 @@ describe("delivered order archive", () => {
 
 describe("order labels", () => {
   it("shows the quick view selector and persists an assigned label without a success notification", async () => {
-    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, description: null, stageName: "Pedido recibido", stageCode: "received", expectedUpdatedAt: order.updatedAt, canReversePayment: false, paymentId: null, canEditDescription: false, canEditSensitive: false, lastMovement: null, comments: [] } });
+    vi.mocked(getOrderQuickViewAction).mockResolvedValue({ data: { ...order, orderType: "individual", description: null, stageName: "Pedido recibido", stageCode: "received", expectedUpdatedAt: order.updatedAt, canReversePayment: false, paymentId: null, canEditDescription: false, canEditSensitive: false, lastMovement: null, comments: [] } });
     vi.mocked(setOrderLabelAction).mockResolvedValue({
       status: "success",
       message: "La etiqueta del pedido fue actualizada.",
