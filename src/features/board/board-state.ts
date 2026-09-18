@@ -20,12 +20,22 @@ function sortOrdersForColumn(column: BoardColumn, orders: BoardOrder[]) {
 }
 
 export function replaceBoardOrder(columns: BoardColumn[], replacement: BoardOrder): BoardColumn[] {
-  if (!columns.some((column) => column.id === replacement.currentStageId)) return columns;
+  const destination = columns.find((column) => column.id === replacement.currentStageId);
+  if (!destination) return columns;
+  const sourceIndex = columns.findIndex((column) => column.orders.some((order) => order.id === replacement.id));
+  if (sourceIndex === -1) return columns;
+  const destinationIndex = columns.indexOf(destination);
 
-  return columns.map((column) => {
-    const orders = column.orders.filter((order) => order.id !== replacement.id);
-    if (column.id !== replacement.currentStageId) return { ...column, orders };
-    return { ...column, orders: sortOrdersForColumn(column, [...orders, replacement]) };
+  if (sourceIndex === destinationIndex) {
+    return columns.map((column, index) => index === destinationIndex
+      ? { ...column, orders: sortOrdersForColumn(column, [...column.orders.filter((order) => order.id !== replacement.id), replacement]) }
+      : column);
+  }
+
+  return columns.map((column, index) => {
+    if (index === sourceIndex) return { ...column, orders: column.orders.filter((order) => order.id !== replacement.id) };
+    if (index === destinationIndex) return { ...column, orders: sortOrdersForColumn(column, [...column.orders, replacement]) };
+    return column;
   });
 }
 
@@ -41,20 +51,16 @@ export function moveBoardOrder(
   const destinationExists = columns.some((column) => column.id === stageId);
   if (!destinationExists) return columns;
 
-  return columns.map((column) => {
-    const ordersWithoutMoved = column.orders.filter((order) => order.id !== orderId);
-    if (column.id !== stageId) return { ...column, orders: ordersWithoutMoved };
+  const sourceIndex = columns.findIndex((column) => column.orders.some((order) => order.id === orderId));
+  const destinationIndex = columns.findIndex((column) => column.id === stageId);
+  const nextOrder = { ...movedOrder, currentStageId: stageId, updatedAt: updatedAt ?? movedOrder.updatedAt };
 
-    return {
-      ...column,
-      orders: sortOrdersForColumn(column, [
-        ...ordersWithoutMoved,
-        {
-          ...movedOrder,
-          currentStageId: stageId,
-          updatedAt: updatedAt ?? movedOrder.updatedAt,
-        },
-      ]),
-    };
+  return columns.map((column, index) => {
+    if (index === sourceIndex && index === destinationIndex) {
+      return { ...column, orders: sortOrdersForColumn(column, [...column.orders.filter((order) => order.id !== orderId), nextOrder]) };
+    }
+    if (index === sourceIndex) return { ...column, orders: column.orders.filter((order) => order.id !== orderId) };
+    if (index === destinationIndex) return { ...column, orders: sortOrdersForColumn(column, [...column.orders, nextOrder]) };
+    return column;
   });
 }
