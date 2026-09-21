@@ -1,5 +1,4 @@
 import { getCurrentProfile } from "@/lib/auth/current-profile";
-import { canCreateManualOrder } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -44,8 +43,8 @@ export async function getOrderFormCatalogs(): Promise<OrderFormCatalogs | null> 
   const profile = await getCurrentProfile();
   if (
     !profile
+    || !profile.isActive
     || profile.mustChangePassword
-    || !canCreateManualOrder(profile.role)
   ) {
     return null;
   }

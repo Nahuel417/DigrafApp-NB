@@ -176,6 +176,22 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Catálogos y alta m
     const employee = await signedClient(identitiesByRole.employee);
     expect((await employee.rpc("create_order", orderInput("m3-employee"))).error).not.toBeNull();
     expect((await employee.from("order_financials").select("order_id")).data).toEqual([]);
+
+    const savedLine = await employee
+      .from("order_lines")
+      .select("configuration")
+      .eq("order_id", orderIds[0]!)
+      .single();
+    expect(savedLine.error).toBeNull();
+    expect(savedLine.data?.configuration).toMatchObject({
+      legacy_options: {
+        neckline: { id: catalog.neckline },
+        upper_pattern: { id: catalog.upperPattern },
+        lower_pattern: { id: catalog.lowerPattern },
+        fabric: { id: catalog.fabric },
+        extras: [{ id: catalog.extra }],
+      },
+    });
   });
 
   it("crea prendas individuales superiores e inferiores mediante la RPC", async () => {
@@ -231,7 +247,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Catálogos y alta m
 
   it("limita la administración de catálogos a Super admin y Admin", async () => {
     const identitiesByRole = (globalThis as typeof globalThis & { __m3Identities: Record<string, { email: string }> }).__m3Identities;
-    const [adminClient, attentionClient, employeeClient] = await Promise.all([
+    const [superAdminClient, adminClient, attentionClient, employeeClient] = await Promise.all([
+      signedClient(identitiesByRole.superAdmin),
       signedClient(identitiesByRole.adminUser),
       signedClient(identitiesByRole.attention),
       signedClient(identitiesByRole.employee),
@@ -245,6 +262,12 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Catálogos y alta m
     expect(error).toBeNull();
     expect(targetId).toBeTruthy();
     if (targetId) catalogIds.push(targetId);
+
+    for (const client of [superAdminClient, adminClient, attentionClient, employeeClient]) {
+      const visible = await client.from("catalog_items").select("id, name").eq("id", targetId!).single();
+      expect(visible.error).toBeNull();
+      expect(visible.data).toEqual({ id: targetId, name: targetName });
+    }
 
     for (const client of [attentionClient, employeeClient]) {
       expect((await client.rpc("create_catalog_item", {
