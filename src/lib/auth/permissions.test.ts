@@ -107,21 +107,21 @@ describe("PR2 approved order authority", () => {
 });
 
 describe("order lifecycle permissions", () => {
-  it("limits cancellation, archive, and restoration to managers", () => {
+  it("allows Admin-equivalent Archive operations for Attention", () => {
     expect(canManageOrderLifecycle("super_admin")).toBe(true);
     expect(canManageOrderLifecycle("admin")).toBe(true);
-    expect(canManageOrderLifecycle("attention")).toBe(false);
+    expect(canManageOrderLifecycle("attention")).toBe(true);
     expect(canManageOrderLifecycle("employee")).toBe(false);
   });
 
-  it("allows managers to purge cancelled orders and keeps delivered archive authority separate", () => {
+  it("allows Attention to manage delivered and cancelled Archive records", () => {
     expect(canArchiveDeliveredOrder("super_admin")).toBe(true);
     expect(canArchiveDeliveredOrder("admin")).toBe(true);
-    expect(canArchiveDeliveredOrder("attention")).toBe(false);
+    expect(canArchiveDeliveredOrder("attention")).toBe(true);
     expect(canArchiveDeliveredOrder("employee")).toBe(false);
     expect(canPurgeCancelledOrder("super_admin")).toBe(true);
     expect(canPurgeCancelledOrder("admin")).toBe(true);
-    expect(canPurgeCancelledOrder("attention")).toBe(false);
+    expect(canPurgeCancelledOrder("attention")).toBe(true);
     expect(canPurgeCancelledOrder("employee")).toBe(false);
   });
 });

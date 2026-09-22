@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { canOperateCash } from "@/lib/auth/permissions";
 import { getOrderDetail } from "@/features/orders/detail-queries";
-import { getActiveOrderPayment, shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
+import { getActiveOrderPayment } from "@/features/orders/payment-receipt";
 import { renderPaymentReceiptPdf } from "@/features/orders/payment-receipt-pdf";
 import { formatOrderNumber } from "@/features/orders/detail-format";
 
@@ -27,8 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ord
       getOrderDetail(orderId.data),
       getActiveOrderPayment(orderId.data),
     ]);
-    if (!detail || !payment) return errorResponse(404, "No hay un comprobante de pago vigente para este pedido.");
-    if (!shouldShowPaymentReceipt(detail.order.currentStage.code, payment, true)) return errorResponse(404, "No hay un comprobante de pago vigente para este pedido.");
+    if (!detail) return errorResponse(404, "El pedido seleccionado no existe.");
 
     const pdf = await renderPaymentReceiptPdf({ ...detail, payment });
     const publicNumber = formatOrderNumber(detail.order.publicNumber);

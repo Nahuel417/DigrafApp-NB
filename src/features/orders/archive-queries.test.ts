@@ -210,10 +210,12 @@ describe("getOrderArchive pagination", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("returns null when the role cannot manage the lifecycle", async () => {
+  it("allows Attention to query cancelled orders", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
-    expect(await getOrderArchive(1)).toBeNull();
-    expect(createClient).not.toHaveBeenCalled();
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    expect(await getOrderArchive(1)).toMatchObject({ total: 1, page: 1 });
+    expect(createClient).toHaveBeenCalled();
   });
 
   it("maps a query error to a safe message without leaking database details", async () => {
@@ -294,10 +296,12 @@ describe("getArchivedDeliveredOrders pagination", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("returns null when the role cannot archive delivered orders", async () => {
+  it("allows Attention to query delivered archive orders", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
-    expect(await getArchivedDeliveredOrders(1)).toBeNull();
-    expect(createClient).not.toHaveBeenCalled();
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    expect(await getArchivedDeliveredOrders(1)).toMatchObject({ total: 1, page: 1 });
+    expect(createClient).toHaveBeenCalled();
   });
 
   it("maps a query error to a safe message without leaking database details", async () => {
@@ -335,14 +339,14 @@ describe("OrderArchivePage 308 shim", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("checks the cancelled authorization before reading searchParams", async () => {
+  it("allows Attention through the cancelled legacy shim", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({ page: "5" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=cancelled&cancelledPage=5");
     expect(createClient).not.toHaveBeenCalled();
-    expect(permanentRedirect).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
@@ -372,14 +376,14 @@ describe("DeliveredArchivePage 308 shim", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("checks the delivered authorization before reading searchParams", async () => {
+  it("allows Attention through the delivered legacy shim", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({ page: "2" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=delivered&deliveredPage=2");
     expect(createClient).not.toHaveBeenCalled();
-    expect(permanentRedirect).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
@@ -504,21 +508,26 @@ describe("OrdersArchivesPage (unified tabs) canonicalization", () => {
     expect(mock.range).toHaveBeenCalledTimes(1);
   });
 
-  it("checks branch-specific authorization: redirected on attention for delivered tab", async () => {
+  it("allows Attention on the delivered tab", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
 
     await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
-    expect(createClient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("archived_delivered_orders");
   });
 
-  it("checks branch-specific authorization: redirected on attention for cancelled tab", async () => {
+  it("allows Attention on the cancelled tab", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "cancelled" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
-    expect(createClient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("orders");
   });
 });

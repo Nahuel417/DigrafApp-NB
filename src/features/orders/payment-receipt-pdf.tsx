@@ -4,15 +4,15 @@ import path from "node:path";
 import { Document, Image, Page, Path, renderToBuffer, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
 
 import { buildOrderSpecificationSections } from "./components/order-specifications";
-import { formatArsFromNumber, formatDateTime, formatOrderNumber, orderTypeLabel, selectionLabel } from "./detail-format";
+import { formatArsFromString, formatDateTime, formatOrderNumber, orderTypeLabel, selectionLabel } from "./detail-format";
 import type { OrderDetailData } from "./detail-queries";
-import type { ActiveOrderPayment } from "./payment-receipt";
+import { getPaymentReceiptSummary, type ActiveOrderPayment } from "./payment-receipt";
 
 export const PAYMENT_RECEIPT_TITLE = "Comprobante de pago";
 export const PAYMENT_RECEIPT_DISCLAIMER = "Constancia interna de cobro. No es una factura fiscal.";
 
 export type PaymentReceiptData = OrderDetailData & {
-  payment: ActiveOrderPayment;
+  payment: ActiveOrderPayment | null;
 };
 
 const MARK = readFileSync(path.join(process.cwd(), "public", "brand", "digraf-mark.png"));
@@ -78,11 +78,15 @@ const styles = StyleSheet.create({
   description: { marginTop: 22, paddingLeft: 12, paddingVertical: 10, borderLeftWidth: 2, borderLeftColor: colors.green },
   descriptionText: { color: colors.muted, fontSize: 7.5, lineHeight: 1.5 },
   paymentSummary: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", alignItems: "stretch" },
-  confirmation: { width: "55%", paddingTop: 12, paddingRight: 22 },
+  confirmation: { width: "34%", paddingTop: 12, paddingRight: 22 },
   confirmationDate: { color: colors.ink, fontFamily: "Helvetica-Bold", fontSize: 9.5 },
-  totalCard: { width: "45%", backgroundColor: colors.sage, borderRadius: 8, padding: 16 },
-  totalLabel: { color: colors.muted, fontSize: 7.5, marginBottom: 9 },
-  totalValue: { color: colors.forest, fontFamily: "Helvetica-Bold", fontSize: 20 },
+  confirmationMeta: { color: colors.muted, fontSize: 7, lineHeight: 1.4, marginTop: 6 },
+  amountsCard: { width: "66%", backgroundColor: colors.sage, borderRadius: 8, padding: 12 },
+  amountRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  amountRowBorder: { borderTopWidth: 1, borderTopColor: colors.rule },
+  amountLabel: { color: colors.muted, fontSize: 7.5 },
+  amountValue: { color: colors.ink, fontFamily: "Helvetica-Bold", fontSize: 9.5 },
+  amountValueStrong: { color: colors.forest, fontSize: 12 },
   footer: { position: "absolute", left: 37, right: 37, bottom: 22, paddingTop: 13, borderTopWidth: 1, borderTopColor: colors.rule, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   footerTitle: { fontFamily: "Helvetica-Bold", fontSize: 8 },
   footerCaption: { color: colors.muted, fontSize: 5.8, marginTop: 5 },
@@ -104,7 +108,7 @@ function Grid() {
   );
 }
 
-function ReceiptHero({ amount }: { amount: number }) {
+function ReceiptHero({ amount, status }: { amount: string; status: string }) {
   return (
     <View style={styles.hero}>
       <View style={styles.heroMain}>
@@ -125,9 +129,9 @@ function ReceiptHero({ amount }: { amount: number }) {
         <Svg style={styles.paidIcon} viewBox="0 0 24 24">
           <Path d="M20 6 9 17l-5-5" fill="none" stroke="#f6f7f1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
         </Svg>
-        <Text style={styles.asideLabel}>MONTO COBRADO</Text>
-        <Text style={styles.asideAmount}>{formatArsFromNumber(amount)}</Text>
-        <Text style={styles.asideTitle}>Pago confirmado</Text>
+        <Text style={styles.asideLabel}>IMPORTE ABONADO</Text>
+        <Text style={styles.asideAmount}>{formatArsFromString(amount)}</Text>
+        <Text style={styles.asideTitle}>{status}</Text>
       </View>
     </View>
   );
@@ -180,14 +184,25 @@ function ReceiptFooter() {
   );
 }
 
+function PaymentAmountRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <View style={[styles.amountRow, strong ? {} : styles.amountRowBorder]}>
+      <Text style={styles.amountLabel}>{label}</Text>
+      <Text style={[styles.amountValue, strong ? styles.amountValueStrong : {}]}>{value}</Text>
+    </View>
+  );
+}
+
 export function PaymentReceiptDocument({ data }: { data: PaymentReceiptData }) {
   const { order, payment } = data;
+  const summary = getPaymentReceiptSummary(data.financials, payment);
+  const receiptStatus = payment ? "Pago registrado" : summary.depositPaid === true ? "Seña pagada" : summary.depositPaid === false ? "Seña no pagada" : "Sin pago registrado";
   const legacySelections = data.selections.length > 0 && order.lines.length === 0;
 
   return (
     <Document author="Digraf" subject={PAYMENT_RECEIPT_TITLE} title={`${PAYMENT_RECEIPT_TITLE} ${formatOrderNumber(order.publicNumber)}`}>
       <Page size="A4" style={styles.page} wrap>
-        <ReceiptHero amount={payment.amount} />
+        <ReceiptHero amount={summary.paidAmount} status={receiptStatus} />
 
         <View style={styles.main}>
           <View style={styles.identity}>
@@ -247,12 +262,15 @@ export function PaymentReceiptDocument({ data }: { data: PaymentReceiptData }) {
 
           <View wrap={false} style={styles.paymentSummary}>
             <View style={styles.confirmation}>
-              <Text style={styles.label}>PAGO REGISTRADO</Text>
-              <Text style={styles.confirmationDate}>{formatDateTime(payment.confirmedAt)}</Text>
+              <Text style={styles.label}>ESTADO DE SEÑA</Text>
+              <Text style={styles.confirmationDate}>{summary.depositPaid === null ? "Sin informar" : summary.depositPaid ? "Pagada" : "No pagada"}</Text>
+              {payment ? <Text style={styles.confirmationMeta}>Pago registrado el {formatDateTime(payment.confirmedAt)}</Text> : null}
             </View>
-            <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>TOTAL COBRADO</Text>
-              <Text style={styles.totalValue}>{formatArsFromNumber(payment.amount)}</Text>
+            <View style={styles.amountsCard}>
+              <PaymentAmountRow label="TOTAL DEL PEDIDO" value={summary.totalAmount ? formatArsFromString(summary.totalAmount) : "—"} />
+              <PaymentAmountRow label={summary.depositPaid === true ? "SEÑA PAGADA" : summary.depositPaid === false ? "SEÑA NO PAGADA" : "SEÑA"} value={summary.depositAmount ? formatArsFromString(summary.depositAmount) : "—"} />
+              <PaymentAmountRow label="PAGADO" value={formatArsFromString(summary.paidAmount)} />
+              <PaymentAmountRow label="SALDO PENDIENTE" strong value={summary.pendingAmount ? formatArsFromString(summary.pendingAmount) : "—"} />
             </View>
           </View>
         </View>
