@@ -2640,7 +2640,7 @@ export type Database = {
       catalog_option_selection_mode: "single" | "multiple"
       catalog_product_kind: "garment" | "flag" | "bag" | "shield"
       garment_layer: "upper" | "lower"
-      order_label: "urgent" | "returned" | "review"
+      order_label: "urgent" | "returned" | "review" | "ready_for_delivery" | "needs_finishing" | "needs_cleaning"
       order_line_type:
         | "individual"
         | "set"
@@ -2792,7 +2792,7 @@ export const Constants = {
       catalog_option_selection_mode: ["single", "multiple"],
       catalog_product_kind: ["garment", "flag", "bag", "shield"],
       garment_layer: ["upper", "lower"],
-      order_label: ["urgent", "returned", "review"],
+      order_label: ["urgent", "returned", "review", "ready_for_delivery", "needs_finishing", "needs_cleaning"],
       order_line_type: [
         "individual",
         "set",
@@ -2806,4 +2806,3 @@ export const Constants = {
     },
   },
 } as const
-
