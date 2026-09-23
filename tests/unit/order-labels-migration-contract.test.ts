@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const baseMigration = readFileSync(new URL("../../supabase/migrations/20260831000100_order_labels.sql", import.meta.url), "utf8");
-const migration = readFileSync(new URL("../../supabase/migrations/20260902000100_order_labels_without_audit.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../supabase/migrations/20260902000100_order_labels_without_audit.sql", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 describe("order labels migration contract", () => {
   it("stores only the approved optional label values", () => {
