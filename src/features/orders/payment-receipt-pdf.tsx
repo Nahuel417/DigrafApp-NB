@@ -15,7 +15,7 @@ export type PaymentReceiptData = OrderDetailData & {
   payment: ActiveOrderPayment | null;
 };
 
-const MARK = readFileSync(path.join(process.cwd(), "public", "brand", "digraf-mark.png"));
+const MARK = readFileSync(path.join(process.cwd(), "public", "brand", "digraf-favicon.png"));
 
 const colors = {
   ink: "#20261d",
@@ -33,10 +33,11 @@ const styles = StyleSheet.create({
   page: { backgroundColor: colors.paper, color: colors.ink, fontFamily: "Helvetica", fontSize: 8, paddingBottom: 58 },
   hero: { height: 222, flexDirection: "row" },
   heroMain: { width: "65%", paddingTop: 34, paddingLeft: 37, paddingRight: 28 },
-  brandLockup: { flexDirection: "row", alignItems: "center", marginBottom: 29 },
-  brandMark: { width: 34, height: 34, objectFit: "contain", marginRight: 10 },
-  brandName: { fontFamily: "Helvetica-Bold", fontSize: 12.5 },
-  brandCaption: { color: colors.muted, fontSize: 6.2, marginTop: 3 },
+  brandLockup: { flexDirection: "row", alignItems: "center", marginBottom: 21 },
+  brandMarkFrame: { width: 64, height: 64, alignItems: "center", justifyContent: "center", backgroundColor: colors.forest, borderRadius: 12, marginRight: 14 },
+  brandMark: { width: 50, height: 50, objectFit: "contain" },
+  brandName: { fontFamily: "Helvetica-Bold", fontSize: 15 },
+  brandCaption: { color: colors.muted, fontSize: 7, marginTop: 4 },
   kicker: { color: colors.green, fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.3, marginBottom: 9 },
   title: { fontFamily: "Helvetica-Bold", fontSize: 27, letterSpacing: -0.7 },
   subtitle: { color: colors.muted, fontSize: 8.5, lineHeight: 1.55, marginTop: 11, width: 260 },
@@ -113,8 +114,10 @@ function ReceiptHero({ amount, status }: { amount: string; status: string }) {
     <View style={styles.hero}>
       <View style={styles.heroMain}>
         <View style={styles.brandLockup}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          <Image src={MARK} style={styles.brandMark} />
+          <View style={styles.brandMarkFrame}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={MARK} style={styles.brandMark} />
+          </View>
           <View>
             <Text style={styles.brandName}>Digraf</Text>
             <Text style={styles.brandCaption}>Impresión textil</Text>

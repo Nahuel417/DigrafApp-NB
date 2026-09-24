@@ -921,20 +921,28 @@ export function OrderBoard({
                     </details>
                     {hasActiveFilters ? <Button className="h-9 rounded-xl px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={clearFilters} type="button" variant="ghost">Limpiar filtros</Button> : null}
                 </div>
-                <details className="group/label-reference w-fit max-w-full">
-                    <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                <details className="group/label-reference relative w-fit max-w-full">
+                    <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground shadow-xs outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
                         <Tag aria-hidden="true" className="size-3.5 text-primary" />
                         Referencia de etiquetas
-                        <ChevronDown aria-hidden="true" className="size-3.5 transition-transform duration-150 group-open/label-reference:rotate-180 motion-reduce:transition-none" />
+                        <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/label-reference:rotate-180 motion-reduce:transition-none" />
                     </summary>
-                    <ul className="mt-2 grid gap-1.5 rounded-xl border border-border bg-card p-3 text-xs shadow-sm sm:grid-cols-3">
-                        {orderLabelReferenceOptions.map((option) => (
-                            <li className="flex min-w-0 items-start gap-2" key={option.value}>
-                                <span aria-hidden="true" className={`mt-0.5 size-2.5 shrink-0 rounded-full ${orderLabelCardClassName(option.value)}`} />
-                                <span className="min-w-0"><strong className="font-medium text-foreground">{orderLabelName(option.value)}:</strong> {option.description}</span>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="absolute left-0 top-full z-20 mt-2 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                        <div className="border-b border-border bg-surface-muted px-4 py-3">
+                            <p className="text-sm font-medium text-foreground">Qué significa cada color</p>
+                            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Estas etiquetas señalan qué necesita el pedido antes de entregarlo.</p>
+                        </div>
+                        <ul className="divide-y divide-border">
+                            {orderLabelReferenceOptions.map((option) => (
+                                <li className="grid min-w-0 gap-1.5 px-4 py-3 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-4" key={option.value}>
+                                    <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold leading-none ${orderLabelClassName(option.value)}`}>
+                                        {orderLabelName(option.value)}
+                                    </span>
+                                    <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </details>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count data-testid="board-count">

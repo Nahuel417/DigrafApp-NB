@@ -82,7 +82,7 @@ describe("order board payment confirmation", () => {
   it("renders the new label with a full-card color and reference", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, label: "ready_for_delivery" }] }, columns[1], columns[2]]} />);
 
-    expect(screen.getByText("APROBADO PARA ENTREGA")).toBeTruthy();
+    expect(within(getOrderCard()).getByText("APROBADO PARA ENTREGA")).toBeTruthy();
     expect(getOrderCard().className).toContain("bg-success");
 
     fireEvent.click(screen.getByText("Referencia de etiquetas"));
