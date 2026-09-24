@@ -135,22 +135,43 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     }
   });
 
-  it("rechaza anulación y Archivo sin filtrar para sesión ausente, perfiles inválidos y roles operativos", async () => {
+  it("rechaza anulación para sesión ausente y Employee, pero permite el Archivo a Atención", async () => {
     const order = await createOrder();
     const anonymous = createClient<Database>(localUrl, publishableKey ?? "test-key", { auth: { persistSession: false } });
     const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
     const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
 
-    for (const client of [anonymous, employee, attention]) {
+    for (const client of [anonymous, employee]) {
       const result = await cancel(client, order, "Motivo válido");
       expect(result.error?.message.toLowerCase()).toMatch(/permiso|permission denied/);
     }
 
-    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
-    expect((await cancel(admin, order, "Motivo válido")).error).toBeNull();
+    expect((await cancel(attention, order, "Motivo válido")).error).toBeNull();
     const { data: directData, error: directError } = await employee.from("orders").select("id").eq("id", order.id).maybeSingle();
     expect(directError).toBeNull();
     expect(directData).toBeNull();
+    const { data: archiveData, error: archiveError } = await attention.from("orders").select("id, lifecycle_state").eq("id", order.id).single();
+    expect(archiveError).toBeNull();
+    expect(archiveData).toEqual({ id: order.id, lifecycle_state: "cancelled" });
+  });
+
+  it("limita los nombres de actores del Archivo a roles autorizados y pedidos anulados", async () => {
+    const order = await createOrder();
+    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    expect((await cancel(attention, order, "Consulta de actor")).error).toBeNull();
+
+    const cancelledActors = await attention.rpc("get_cancelled_order_actor_names", { p_order_ids: [order.id] });
+    expect(cancelledActors.error).toBeNull();
+    expect(cancelledActors.data).toEqual([{ id: identities.find((identity) => identity.role === "attention")!.id, display_name: "M15 attention" }]);
+
+    const activeOrder = await createOrder();
+    const activeActors = await attention.rpc("get_cancelled_order_actor_names", { p_order_ids: [activeOrder.id] });
+    expect(activeActors.error).toBeNull();
+    expect(activeActors.data).toEqual([]);
+
+    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    const denied = await employee.rpc("get_cancelled_order_actor_names", { p_order_ids: [order.id] });
+    expect(denied.error?.message).toMatch(/permiso/i);
   });
 
   it("normaliza el motivo, exige 2–500 caracteres y reproduce el replay idéntico", async () => {
@@ -314,7 +335,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
     expect((await cancel(admin, order, "Preservar especificaciones")).error).toBeNull();
 
-    for (const role of ["admin", "super_admin"] as const) {
+    for (const role of ["admin", "super_admin", "attention"] as const) {
       const manager = await signedClient(identities.find((identity) => identity.role === role)!);
       const [managerLine, managerShield] = await Promise.all([
         manager.from("order_lines").select("id, product_name_snapshot").eq("order_id", order.id),
@@ -326,7 +347,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
       expect(managerShield.data).toEqual([{ id: shield.data!.id, shield_name_snapshot: "Escudo histórico" }]);
     }
 
-    for (const role of ["attention", "employee"] as const) {
+    for (const role of ["employee"] as const) {
       const operational = await signedClient(identities.find((identity) => identity.role === role)!);
       const [operationalLine, operationalShield] = await Promise.all([
         operational.from("order_lines").select("id").eq("order_id", order.id),
@@ -435,9 +456,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     expect(comment.error?.message).toContain("congelado");
 
     const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
-    const deniedRestore = await restore(attention, { ...order, updated_at: String(cancelled.updated_at) });
-    expect(deniedRestore.error?.message).toMatch(/permission denied|permiso/);
-    const hiddenTimeline = await attention.rpc("get_order_timeline", { p_order_id: order.id });
-    expect(hiddenTimeline.error?.message).toContain("no existe");
+    const restored = await restore(attention, { ...order, updated_at: String(cancelled.updated_at) });
+    expect(restored.error).toBeNull();
+    const visibleTimeline = await attention.rpc("get_order_timeline", { p_order_id: order.id });
+    expect(visibleTimeline.error).toBeNull();
   });
 });

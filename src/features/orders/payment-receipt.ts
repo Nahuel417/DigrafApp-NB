@@ -8,12 +8,39 @@ export type ActiveOrderPayment = {
   actorDisplayName: string;
 };
 
-export function shouldShowPaymentReceipt(
-  stageCode: string,
+export type PaymentReceiptSummary = {
+  totalAmount: string | null;
+  depositAmount: string | null;
+  depositPaid: boolean | null;
+  paidAmount: string;
+  pendingAmount: string | null;
+};
+
+export function shouldShowPaymentReceipt(canOperate: boolean) {
+  return canOperate;
+}
+
+function centsToMoney(cents: bigint) {
+  return `${cents / BigInt(100)}.${(cents % BigInt(100)).toString().padStart(2, "0")}`;
+}
+
+export function getPaymentReceiptSummary(
+  financials: { totalAmount: number; depositAmount: number; depositPaid: boolean } | null,
   payment: ActiveOrderPayment | null,
-  canOperate: boolean,
-) {
-  return canOperate && payment !== null && (stageCode === "paid" || stageCode === "delivered");
+): PaymentReceiptSummary {
+  const depositAmount = financials?.depositAmount.toFixed(2) ?? null;
+  const paid = (payment?.amount ?? (financials?.depositPaid ? financials.depositAmount : 0)).toFixed(2);
+  if (financials === null) return { totalAmount: null, depositAmount, depositPaid: null, paidAmount: paid, pendingAmount: null };
+
+  const totalCents = BigInt(financials.totalAmount.toFixed(2).replace(".", ""));
+  const paidCents = BigInt(paid.replace(".", ""));
+  return {
+    totalAmount: financials.totalAmount.toFixed(2),
+    depositAmount,
+    depositPaid: financials.depositPaid,
+    paidAmount: paid,
+    pendingAmount: centsToMoney(totalCents > paidCents ? totalCents - paidCents : BigInt(0)),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

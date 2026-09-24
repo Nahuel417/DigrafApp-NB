@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const migration = readFileSync(new URL("../../supabase/migrations/20260823000100_early_manual_cancelled_purge.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../supabase/migrations/20260823000100_early_manual_cancelled_purge.sql", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 describe("early manual cancelled purge migration contract", () => {
   it("replaces the old callable purge signatures in dependency-safe order", () => {

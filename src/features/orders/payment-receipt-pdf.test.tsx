@@ -66,7 +66,7 @@ const data: PaymentReceiptData = {
   catalogs,
   payment: {
     id: "payment-1",
-    amount: 150,
+    amount: 100,
     cashMovementId: "movement-1",
     confirmedAt: "2026-09-04T12:00:00.000Z",
     actorDisplayName: "Atención",
@@ -79,5 +79,15 @@ describe("payment receipt PDF", () => {
 
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect(pdf.byteLength).toBeGreaterThan(1000);
+  });
+
+  it("renders a receipt without an active payment", async () => {
+    const pdf = await renderPaymentReceiptPdf({
+      ...data,
+      financials: { totalAmount: 150, depositAmount: 50, depositPaid: true },
+      payment: null,
+    });
+
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });

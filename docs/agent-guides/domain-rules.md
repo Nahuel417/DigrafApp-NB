@@ -159,7 +159,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 - La caja cerrada bloquea toda edición y debe mostrar un mensaje claro.
 - Los movimientos anulados se conservan con actor y timestamp de anulación.
 - El historial diferencia ingresos por pedido, ingresos manuales y egresos manuales.
-- Un comprobante de pago es una constancia interna no fiscal. Solo se descarga desde el detalle de un pedido en `paid` o `delivered` con un pago activo, por Super admin, Admin o Atención. Usa el identificador `PED-XXXXXX`; si el pago se revierte, el botón desaparece, pero el ingreso original y su auditoría se conservan. Los comprobantes ya descargados no se invalidan técnicamente.
+- Un comprobante de pago es una constancia interna no fiscal. Se descarga desde el detalle de un pedido en cualquier etapa por Super admin, Admin o Atención, aunque no exista un pago activo. Usa el identificador `PED-XXXXXX`, muestra total, estado y monto de seña, pagado y saldo pendiente; un pago revertido no se toma como pago vigente. Los comprobantes no persisten el PDF.
 
 ## Comentarios, imágenes y auditoría
 
@@ -169,12 +169,12 @@ Toda operación sensible registra el actor autenticado y la hora del servidor. N
 
 ## Pedidos anulados
 
-- M15 permite a Admin/Super admin anular un pedido indicando un motivo normalizado de 2 a 500 caracteres; un pago activo debe revertirse primero mediante M12.
+- M15 permite a Admin/Atención/Super admin anular un pedido indicando un motivo normalizado de 2 a 500 caracteres; un pago activo debe revertirse primero mediante M12.
 - La anulación conserva el pedido en `orders` con `lifecycle_state = cancelled`, excluye el pedido del tablero y congela las operaciones normales. Archivo deriva de ese estado y no es una transición adicional.
-- Los anulados se ven en un Archivo histórico solo para Admin/Super admin. El acceso directo no autorizado responde como recurso no accesible.
+- Los anulados se ven en un Archivo histórico para Admin/Atención/Super admin. Esos tres roles comparten las operaciones de Archivo: consultar, restaurar, archivar/desarchivar entregados y purgar anulados. El acceso directo no autorizado responde como recurso no accesible.
 - La restauración devuelve el pedido a su etapa operativa previa antes de `cancelled_at + 30×24 horas` en UTC. La fecha exacta de vencimiento ya no admite restauración.
 - M15 conserva relaciones, eventos append-only, finanzas, imágenes y Storage; no elimina ni purga datos y nunca escribe caja.
-- M16 permite la purga manual inmediata únicamente a Admin/Super admin sobre `lifecycle_state = cancelled`, con motivo recortado solo en los extremos y de 2 a 500 caracteres. El actor, la hora y la fuente se derivan en servidor; la auditoría conserva el motivo completo y un snapshot inmutable para replay.
+- M16 permite la purga manual inmediata a Admin/Atención/Super admin sobre `lifecycle_state = cancelled`, con motivo recortado solo en los extremos y de 2 a 500 caracteres. El actor, la hora y la fuente se derivan en servidor; la auditoría conserva el motivo completo y un snapshot inmutable para replay.
 - La purga automática de M16 sigue siendo exclusiva de `service_role` y solo procede desde `cancelled_at + 30×24 horas` en UTC. La purga conserva el tombstone de `orders`, finanzas, pagos, caja y auditoría; elimina únicamente los datos operativos permitidos y deja los fallos de Storage en reintento durable.
 
 ## Fuera del MVP

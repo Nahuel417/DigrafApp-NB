@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const migration = readFileSync(new URL("../../supabase/migrations/20260822000100_m16_archive_purge.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../supabase/migrations/20260822000100_m16_archive_purge.sql", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const migrationsDirectory = fileURLToPath(new URL("../../supabase/migrations", import.meta.url));
 const m16MigrationNames = readdirSync(migrationsDirectory).filter((name) => /^20260822000[1-5]00_m16_/.test(name));
 

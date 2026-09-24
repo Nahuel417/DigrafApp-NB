@@ -255,7 +255,7 @@ test.describe("Navegación de Caja M9", () => {
 
     const ordersNavigation = await openAppNavigation(page);
     await expect(ordersNavigation.getByRole("link", { name: "Caja", exact: true })).toHaveCount(1);
-    await expect(ordersNavigation.getByRole("link")).toHaveText(["Panel", "Pedidos", "Caja", "Nuevo pedido", "Cotizador"]);
+    await expect(ordersNavigation.getByRole("link")).toHaveText(["Panel", "Pedidos", "Archivo", "Caja", "Nuevo pedido", "Cotizador"]);
     await ordersNavigation.getByRole("link", { name: "Caja", exact: true }).click();
     await expect(page).toHaveURL(/\/cash$/);
   });

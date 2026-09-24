@@ -4,24 +4,32 @@ import { ArchiveRestore, ArrowLeft, Ban, ShieldCheck } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ArchiveFilterControls } from '@/features/orders/components/archive-filter-controls';
 import { DeliveredArchiveList, OrderArchiveList } from '@/features/orders/components/order-archive-list';
-import { ARCHIVE_PAGE_SIZE, getArchivedDeliveredOrders, getOrderArchive, type ArchivedDeliveredOrder, type ArchivedOrder } from '@/features/orders/archive-queries';
+import { ARCHIVE_PAGE_SIZE, getArchivedDeliveredOrders, getOrderArchive, hasInvalidArchiveDateRange, normalizeArchiveFilters, type ArchiveFilters, type ArchivedDeliveredOrder, type ArchivedOrder } from '@/features/orders/archive-queries';
 import { canArchiveDeliveredOrder, canManageOrderLifecycle, canPurgeCancelledOrder } from '@/lib/auth/permissions';
 import { requireActiveProfile } from '@/lib/auth/guards';
 import { cn } from '@/lib/utils';
 
 type ArchiveTab = 'delivered' | 'cancelled';
-type SearchParams = { tab?: string; deliveredPage?: string; cancelledPage?: string };
+type SearchParams = { tab?: string; deliveredPage?: string; cancelledPage?: string; search?: string; from?: string; to?: string };
 
 function normalizeTab(raw: string | undefined): ArchiveTab {
     return raw === 'cancelled' ? 'cancelled' : 'delivered';
 }
 
-function tabHref(target: ArchiveTab, rawDeliveredPage: string | undefined, rawCancelledPage: string | undefined): string {
+function addFilterParams(params: URLSearchParams, filters: ArchiveFilters) {
+    if (filters.search) params.set('search', filters.search);
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+}
+
+function tabHref(target: ArchiveTab, rawDeliveredPage: string | undefined, rawCancelledPage: string | undefined, filters: ArchiveFilters): string {
     const params = new URLSearchParams();
     params.set('tab', target);
     if (rawDeliveredPage !== undefined) params.set('deliveredPage', rawDeliveredPage);
     if (rawCancelledPage !== undefined) params.set('cancelledPage', rawCancelledPage);
+    addFilterParams(params, filters);
     return `/orders/archives?${params.toString()}`;
 }
 
@@ -32,6 +40,7 @@ function canonicalize(
     resolvedPage: number,
     rawDeliveredPage: string | undefined,
     rawCancelledPage: string | undefined,
+    filters: ArchiveFilters,
 ): string | null {
     const tabInvalid = rawTab !== undefined && rawTab !== tab;
     const activePageInvalid = activeRawPage !== undefined && activeRawPage !== String(resolvedPage);
@@ -47,12 +56,13 @@ function canonicalize(
     }
     if (tab === 'cancelled' && rawDeliveredPage !== undefined) params.set('deliveredPage', rawDeliveredPage);
     if (tab === 'delivered' && rawCancelledPage !== undefined) params.set('cancelledPage', rawCancelledPage);
+    addFilterParams(params, filters);
     return `/orders/archives?${params.toString()}`;
 }
 
-function PageHeader({ tab, total, rawDeliveredPage, rawCancelledPage }: { tab: ArchiveTab; total: number; rawDeliveredPage: string | undefined; rawCancelledPage: string | undefined }) {
-    const deliveredHref = tabHref('delivered', rawDeliveredPage, rawCancelledPage);
-    const cancelledHref = tabHref('cancelled', rawDeliveredPage, rawCancelledPage);
+function PageHeader({ tab, total, rawDeliveredPage, rawCancelledPage, filters }: { tab: ArchiveTab; total: number; rawDeliveredPage: string | undefined; rawCancelledPage: string | undefined; filters: ArchiveFilters }) {
+    const deliveredHref = tabHref('delivered', rawDeliveredPage, rawCancelledPage, filters);
+    const cancelledHref = tabHref('cancelled', rawDeliveredPage, rawCancelledPage, filters);
     const linkClass = (active: boolean) =>
         cn(
             'inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
@@ -101,26 +111,29 @@ function PageHeader({ tab, total, rawDeliveredPage, rawCancelledPage }: { tab: A
                     ) : null}
                 </Link>
             </nav>
+            <div className="mt-5">
+                <ArchiveFilterControls filters={filters} hasInvalidDateRange={hasInvalidArchiveDateRange(filters)} tab={tab} />
+            </div>
         </header>
     );
 }
 
 type Profile = Awaited<ReturnType<typeof requireActiveProfile>>;
-type Props = { rawTab: string | undefined; rawDeliveredPage: string | undefined; rawCancelledPage: string | undefined; profile: Profile; tab: ArchiveTab };
+type Props = { rawTab: string | undefined; rawDeliveredPage: string | undefined; rawCancelledPage: string | undefined; profile: Profile; tab: ArchiveTab; filters: ArchiveFilters };
 
-async function renderCancelledTab({ rawTab, rawDeliveredPage, rawCancelledPage, profile, tab }: Props) {
+async function renderCancelledTab({ rawTab, rawDeliveredPage, rawCancelledPage, profile, tab, filters }: Props) {
     if (!canManageOrderLifecycle(profile.role)) redirect('/orders');
-    const result = await getOrderArchive(Number(rawCancelledPage));
+    const result = await getOrderArchive(Number(rawCancelledPage), ARCHIVE_PAGE_SIZE, filters);
     if (!result) redirect('/orders');
-    const canonical = canonicalize('cancelled', rawTab, rawCancelledPage, result.page, rawDeliveredPage, rawCancelledPage);
+    const canonical = canonicalize('cancelled', rawTab, rawCancelledPage, result.page, rawDeliveredPage, rawCancelledPage, filters);
     if (canonical) redirect(canonical);
     return (
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-            <PageHeader rawCancelledPage={rawCancelledPage} rawDeliveredPage={rawDeliveredPage} tab={tab} total={result.total} />
+            <PageHeader filters={filters} rawCancelledPage={rawCancelledPage} rawDeliveredPage={rawDeliveredPage} tab={tab} total={result.total} />
             <OrderArchiveList
                 basePath="/orders/archives"
                 pageParam="cancelledPage"
-                extraParams={rawDeliveredPage !== undefined ? { tab: 'cancelled', deliveredPage: rawDeliveredPage } : { tab: 'cancelled' }}
+                extraParams={{ ...filters, ...(rawDeliveredPage !== undefined ? { tab: 'cancelled', deliveredPage: rawDeliveredPage } : { tab: 'cancelled' }) }}
                 canPurge={canPurgeCancelledOrder(profile.role)}
                 orders={result.orders satisfies ArchivedOrder[]}
                 page={result.page}
@@ -132,19 +145,19 @@ async function renderCancelledTab({ rawTab, rawDeliveredPage, rawCancelledPage, 
     );
 }
 
-async function renderDeliveredTab({ rawTab, rawDeliveredPage, rawCancelledPage, profile, tab }: Props) {
+async function renderDeliveredTab({ rawTab, rawDeliveredPage, rawCancelledPage, profile, tab, filters }: Props) {
     if (!canArchiveDeliveredOrder(profile.role)) redirect('/orders');
-    const result = await getArchivedDeliveredOrders(Number(rawDeliveredPage));
+    const result = await getArchivedDeliveredOrders(Number(rawDeliveredPage), ARCHIVE_PAGE_SIZE, filters);
     if (!result) redirect('/orders');
-    const canonical = canonicalize('delivered', rawTab, rawDeliveredPage, result.page, rawDeliveredPage, rawCancelledPage);
+    const canonical = canonicalize('delivered', rawTab, rawDeliveredPage, result.page, rawDeliveredPage, rawCancelledPage, filters);
     if (canonical) redirect(canonical);
     return (
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-            <PageHeader rawCancelledPage={rawCancelledPage} rawDeliveredPage={rawDeliveredPage} tab={tab} total={result.total} />
+            <PageHeader filters={filters} rawCancelledPage={rawCancelledPage} rawDeliveredPage={rawDeliveredPage} tab={tab} total={result.total} />
             <DeliveredArchiveList
                 basePath="/orders/archives"
                 pageParam="deliveredPage"
-                extraParams={rawCancelledPage !== undefined ? { tab: 'delivered', cancelledPage: rawCancelledPage } : { tab: 'delivered' }}
+                extraParams={{ ...filters, ...(rawCancelledPage !== undefined ? { tab: 'delivered', cancelledPage: rawCancelledPage } : { tab: 'delivered' }) }}
                 orders={result.orders satisfies ArchivedDeliveredOrder[]}
                 page={result.page}
                 pageSize={ARCHIVE_PAGE_SIZE}
@@ -157,9 +170,10 @@ async function renderDeliveredTab({ rawTab, rawDeliveredPage, rawCancelledPage, 
 
 export default async function OrdersArchivesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
     const profile = await requireActiveProfile();
-    const { tab: rawTab, deliveredPage: rawDeliveredPage, cancelledPage: rawCancelledPage } = await searchParams;
+    const { tab: rawTab, deliveredPage: rawDeliveredPage, cancelledPage: rawCancelledPage, search, from, to } = await searchParams;
     const tab = normalizeTab(rawTab);
-    const props: Props = { profile, rawCancelledPage, rawDeliveredPage, rawTab, tab };
+    const filters = normalizeArchiveFilters({ search, from, to });
+    const props: Props = { filters, profile, rawCancelledPage, rawDeliveredPage, rawTab, tab };
     if (tab === 'cancelled') return renderCancelledTab(props);
     return renderDeliveredTab(props);
 }
