@@ -448,7 +448,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     }
   });
 
-  it("archives and unarchives only delivered orders for managers", async () => {
+  it("archives and unarchives only delivered orders for Archive managers", async () => {
     const fixture = await createRetentionFixture("delivered");
     const order = { id: fixture.orderId, updated_at: fixture.orderUpdatedAt };
     const admin = await signedClient(identity("admin"));
@@ -472,7 +472,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     for (const [role, client, allowed] of [
       ["super_admin", superAdmin, true],
       ["admin", admin, true],
-      ["attention", attention, false],
+       ["attention", attention, true],
       ["employee", employee, false],
     ] as const) {
       const result = await client.from("archived_delivered_orders").select("id").eq("id", order.id);
@@ -485,7 +485,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     for (const [role, client, allowed] of [
       ["super_admin", superAdmin, true],
       ["admin", admin, true],
-      ["attention", attention, false],
+       ["attention", attention, true],
       ["employee", employee, false],
     ] as const) {
       const data = await queryArchivedOrderData(client, fixture.orderId, fixture.paymentId);
@@ -532,14 +532,32 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect(after.lifecycleEvents.map((event) => event.event_type)).toEqual(expect.arrayContaining(["delivered_archived", "delivered_unarchived"]));
   });
 
-  it("purges a cancelled order immediately for Admin and preserves the full reason snapshot", async () => {
+  it("allows Attention to execute delivered archive transitions", async () => {
+    const fixture = await createRetentionFixture("delivered");
+    const attention = await signedClient(identity("attention"));
+    const archived = await invoke(attention, "archive_delivered_order", {
+      p_order_id: fixture.orderId,
+      p_expected_updated_at: fixture.orderUpdatedAt,
+      p_idempotency_key: `m16-attention-archive-${randomUUID()}`,
+    });
+    expect(archived.error).toBeNull();
+    const restored = await invoke(attention, "unarchive_delivered_order", {
+      p_order_id: fixture.orderId,
+      p_expected_updated_at: (archived.data as Record<string, string>).updated_at,
+      p_idempotency_key: `m16-attention-unarchive-${randomUUID()}`,
+    });
+    expect(restored.error).toBeNull();
+    expect(restored.data).toMatchObject({ order_id: fixture.orderId, lifecycle_state: "active" });
+  });
+
+  it("purges a cancelled order immediately for an Archive manager and preserves the full reason snapshot", async () => {
     const order = await createOrder();
     const cancelled = await cancelOrder(order, "M16 immediate purge fixture");
     expect(cancelled.error).toBeNull();
 
-    const admin = await signedClient(identity("admin"));
+    const attention = await signedClient(identity("attention"));
     const reason = "  Cliente pidió purgarlo  ";
-    const purged = await invoke(admin, "purge_cancelled_order", {
+    const purged = await invoke(attention, "purge_cancelled_order", {
       p_order_id: order.id,
       p_idempotency_key: `m16-immediate-${randomUUID()}`,
       p_reason: reason,
@@ -561,7 +579,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
 
     const invalid = await invoke(admin, "purge_cancelled_order", { p_order_id: order.id, p_idempotency_key: key, p_reason: " " });
     expect(invalid.error?.message).toMatch(/motivo|reason/i);
-    for (const role of ["attention", "employee"] as const) {
+    for (const role of ["employee"] as const) {
       const denied = await invoke(await signedClient(identity(role)), "purge_cancelled_order", {
         p_order_id: order.id,
         p_idempotency_key: `m16-denied-purge-${role}-${randomUUID()}`,

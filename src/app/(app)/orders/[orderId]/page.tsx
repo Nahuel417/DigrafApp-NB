@@ -8,7 +8,7 @@ import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, f
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
 import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
-import { getActiveOrderPayment, shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
+import { shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,13 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const { orderId } = await params;
   const { view } = await searchParams;
 
-  const [data, timelineEvents, stageNames, designImagesResult, payment] = await Promise.all([
+  const [data, timelineEvents, stageNames, designImagesResult] = await Promise.all([
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
     getOrderDesignImagesReadUrls(orderId)
       .then((images) => ({ error: null, images }))
       .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", images: [] })),
-    getActiveOrderPayment(orderId),
   ]);
 
   if (!data) {
@@ -48,7 +47,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const isReadOnly = isCancelled || isArchivedDelivered;
   const canManageDesignImage = !isReadOnly && canManageOrderDesignImages(profile.role);
   const balance = canReadFinances ? visibleBalanceString(financials) : null;
-  const canDownloadPaymentReceipt = shouldShowPaymentReceipt(order.currentStage.code, payment, canOperateCash(profile));
+  const canDownloadPaymentReceipt = shouldShowPaymentReceipt(canOperateCash(profile));
 
   const timelineItems = timelineEvents.map((event) => ({
     id: event.id,

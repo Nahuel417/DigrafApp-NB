@@ -76,6 +76,9 @@ describe("set order label schema", () => {
 
   it("accepts supported labels and an empty value for removal", () => {
     expect(setOrderLabelSchema.safeParse(labelChange).success).toBe(true);
+    expect(setOrderLabelSchema.safeParse({ ...labelChange, label: "ready_for_delivery" }).success).toBe(true);
+    expect(setOrderLabelSchema.safeParse({ ...labelChange, label: "needs_finishing" }).success).toBe(true);
+    expect(setOrderLabelSchema.safeParse({ ...labelChange, label: "needs_cleaning" }).success).toBe(true);
     expect(setOrderLabelSchema.parse({ ...labelChange, label: "" }).label).toBeNull();
   });
 

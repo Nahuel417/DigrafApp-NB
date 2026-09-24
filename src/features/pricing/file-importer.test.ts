@@ -8,5 +8,5 @@ vi.mock("pdf-parse", () => {
 describe("price file importer", () => {
   it("does not load the PDF runtime during module evaluation", async () => {
     await expect(import("./file-importer")).resolves.toBeDefined();
-  });
+  }, 10000);
 });

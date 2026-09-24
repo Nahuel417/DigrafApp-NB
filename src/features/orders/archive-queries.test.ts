@@ -9,13 +9,15 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getArchivedDeliveredOrders,
   getOrderArchive,
+  hasInvalidArchiveDateRange,
   mapArchiveRows,
   mapArchivedDeliveredRows,
+  normalizeArchiveFilters,
 } from "./archive-queries";
 import OrderArchivePage from "@/app/(app)/orders/archive/page";
 import DeliveredArchivePage from "@/app/(app)/orders/archive/delivered/page";
 import OrdersArchivesPage from "@/app/(app)/orders/archives/page";
-import { OrderArchiveList } from "@/features/orders/components/order-archive-list";
+import { DeliveredArchiveList, OrderArchiveList } from "@/features/orders/components/order-archive-list";
 
 vi.mock("@/lib/auth/current-profile", () => ({ getCurrentProfile: vi.fn() }));
 vi.mock("@/lib/auth/guards", () => ({ requireActiveProfile: vi.fn() }));
@@ -32,7 +34,7 @@ vi.mock("next/navigation", () => {
     error.digest = `NEXT_REDIRECT;replace;${url};308`;
     throw error;
   };
-  return { permanentRedirect: vi.fn(nextPermanentRedirect), redirect: vi.fn(nextRedirect) };
+  return { permanentRedirect: vi.fn(nextPermanentRedirect), redirect: vi.fn(nextRedirect), useRouter: () => ({ push: vi.fn() }) };
 });
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/features/orders/components/order-archive-list", () => ({ OrderArchiveList: vi.fn(), DeliveredArchiveList: vi.fn() }));
@@ -72,12 +74,15 @@ function buildArchiveMock(rangeResponses: Array<{ data: unknown[] | null; count:
   });
   const order = vi.fn(() => chain);
   const eq = vi.fn(() => chain);
-  const inFn = vi.fn(() => Promise.resolve({ data: [], error: null }));
+  const or = vi.fn(() => chain);
+  const gte = vi.fn(() => chain);
+  const lte = vi.fn(() => chain);
   const select = vi.fn(() => chain);
-  const chain: { range: typeof range; order: typeof order; eq: typeof eq; in: typeof inFn; select: typeof select } = { range, order, eq, in: inFn, select };
+  const chain: { range: typeof range; order: typeof order; eq: typeof eq; or: typeof or; gte: typeof gte; lte: typeof lte; select: typeof select } = { range, order, eq, or, gte, lte, select };
   const fromResult = { select };
   const from = vi.fn(() => fromResult);
-  return { from, range, order, eq, select };
+  const rpc = vi.fn(() => Promise.resolve({ data: [{ id: "profile-1", display_name: "Admin" }], error: null }));
+  return { from, rpc, range, order, eq, or, gte, lte, select };
 }
 
 function isNextRedirectError(error: unknown): boolean {
@@ -93,6 +98,17 @@ async function invokeRoute(fn: () => Promise<unknown>) {
 }
 
 describe("order archive query mapping", () => {
+  it("normalizes search and date range filters without accepting unsafe values", () => {
+    expect(normalizeArchiveFilters({ search: "  PED-000012,  ", from: "", to: "" })).toEqual({
+      search: "PED-000012",
+      from: undefined,
+      to: undefined,
+    });
+    const invalidRange = normalizeArchiveFilters({ search: "Equipo", from: "2026-08-20", to: "2026-08-10" });
+    expect(invalidRange).toEqual({ search: "Equipo", from: "2026-08-20", to: "2026-08-10" });
+    expect(hasInvalidArchiveDateRange(invalidRange)).toBe(true);
+  });
+
   it("maps a cancelled order with its historical stage and actor", () => {
     expect(mapArchiveRows(
       [{ id: "order-1", public_number: 12, customer_name: "Equipo Norte", current_stage_id: "stage-1", cancelled_at: "2026-08-14T12:00:00.000Z", cancelled_by: "profile-1", cancellation_reason: "Cliente pidió pausa", updated_at: "2026-08-14T12:00:00.000Z" }],
@@ -204,16 +220,38 @@ describe("getOrderArchive pagination", () => {
     expect(mock.order).toHaveBeenCalledWith("id", { ascending: false });
   });
 
+  it("loads cancellation actor names through the bounded RPC", async () => {
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await getOrderArchive(1);
+
+    expect(mock.rpc).toHaveBeenCalledWith("get_cancelled_order_actor_names", { p_order_ids: ["order-1"] });
+  });
+
+  it("applies customer/order and cancellation date filters before pagination", async () => {
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await getOrderArchive(1, 10, { search: "PED-000012", from: "2026-08-10", to: "2026-08-20" });
+
+    expect(mock.or).toHaveBeenCalledWith("customer_name.ilike.%PED-000012%,public_number.eq.12");
+    expect(mock.gte).toHaveBeenCalledWith("cancelled_at", "2026-08-10T00:00:00-03:00");
+    expect(mock.lte).toHaveBeenCalledWith("cancelled_at", "2026-08-20T23:59:59.999-03:00");
+  });
+
   it("returns null when the profile is missing", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue(null);
     expect(await getOrderArchive(1)).toBeNull();
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("returns null when the role cannot manage the lifecycle", async () => {
+  it("allows Attention to query cancelled orders", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
-    expect(await getOrderArchive(1)).toBeNull();
-    expect(createClient).not.toHaveBeenCalled();
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    expect(await getOrderArchive(1)).toMatchObject({ total: 1, page: 1 });
+    expect(createClient).toHaveBeenCalled();
   });
 
   it("maps a query error to a safe message without leaking database details", async () => {
@@ -288,16 +326,29 @@ describe("getArchivedDeliveredOrders pagination", () => {
     expect(mock.order).toHaveBeenCalledWith("id", { ascending: false });
   });
 
+  it("applies client/order and archive date filters before pagination", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await getArchivedDeliveredOrders(1, 10, { search: "Club Oeste", from: "2026-08-01", to: "2026-08-10" });
+
+    expect(mock.or).toHaveBeenCalledWith("client_name.ilike.%Club Oeste%,customer_name.ilike.%Club Oeste%");
+    expect(mock.gte).toHaveBeenCalledWith("updated_at", "2026-08-01T00:00:00-03:00");
+    expect(mock.lte).toHaveBeenCalledWith("updated_at", "2026-08-10T23:59:59.999-03:00");
+  });
+
   it("returns null when the profile is missing", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue(null);
     expect(await getArchivedDeliveredOrders(1)).toBeNull();
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("returns null when the role cannot archive delivered orders", async () => {
+  it("allows Attention to query delivered archive orders", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
-    expect(await getArchivedDeliveredOrders(1)).toBeNull();
-    expect(createClient).not.toHaveBeenCalled();
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    expect(await getArchivedDeliveredOrders(1)).toMatchObject({ total: 1, page: 1 });
+    expect(createClient).toHaveBeenCalled();
   });
 
   it("maps a query error to a safe message without leaking database details", async () => {
@@ -335,14 +386,14 @@ describe("OrderArchivePage 308 shim", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("checks the cancelled authorization before reading searchParams", async () => {
+  it("allows Attention through the cancelled legacy shim", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => OrderArchivePage({ searchParams: Promise.resolve({ page: "5" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=cancelled&cancelledPage=5");
     expect(createClient).not.toHaveBeenCalled();
-    expect(permanentRedirect).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
@@ -372,14 +423,14 @@ describe("DeliveredArchivePage 308 shim", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("checks the delivered authorization before reading searchParams", async () => {
+  it("allows Attention through the delivered legacy shim", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => DeliveredArchivePage({ searchParams: Promise.resolve({ page: "2" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
+    expect(permanentRedirect).toHaveBeenCalledWith("/orders/archives?tab=delivered&deliveredPage=2");
     expect(createClient).not.toHaveBeenCalled();
-    expect(permanentRedirect).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
@@ -504,21 +555,39 @@ describe("OrdersArchivesPage (unified tabs) canonicalization", () => {
     expect(mock.range).toHaveBeenCalledTimes(1);
   });
 
-  it("checks branch-specific authorization: redirected on attention for delivered tab", async () => {
+  it("allows Attention on the delivered tab", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
 
     await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
-    expect(createClient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("archived_delivered_orders");
   });
 
-  it("checks branch-specific authorization: redirected on attention for cancelled tab", async () => {
+  it("preserves active filters in pagination links", async () => {
+    const mock = buildArchiveMock([{ data: [baseDeliveredRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await invokeRoute(() =>
+      OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "delivered", search: "Club Oeste", from: "2026-08-01", to: "2026-08-10" }) }).then((jsx) => renderToString(jsx as never)),
+    );
+
+    expect(DeliveredArchiveList).toHaveBeenCalledWith(expect.objectContaining({
+      extraParams: expect.objectContaining({ search: "Club Oeste", from: "2026-08-01", to: "2026-08-10", tab: "delivered" }),
+    }), undefined);
+  });
+
+  it("allows Attention on the cancelled tab", async () => {
     vi.mocked(requireActiveProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
 
     await invokeRoute(() => OrdersArchivesPage({ searchParams: Promise.resolve({ tab: "cancelled" }) }));
 
-    expect(redirect).toHaveBeenCalledWith("/orders");
-    expect(createClient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mock.from).toHaveBeenCalledWith("orders");
   });
 });
