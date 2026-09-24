@@ -79,6 +79,19 @@ function getOrderCard() {
 }
 
 describe("order board payment confirmation", () => {
+  it("renders the new label with a full-card color and reference", () => {
+    render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, label: "ready_for_delivery" }] }, columns[1], columns[2]]} />);
+
+    expect(within(getOrderCard()).getByText("APROBADO PARA ENTREGA")).toBeTruthy();
+    expect(getOrderCard().className).toContain("bg-success");
+
+    fireEvent.click(screen.getByText("Referencia de etiquetas"));
+
+    expect(screen.getByText("Pedido listo para entregar.")).toBeTruthy();
+    expect(screen.getByText("Falta completar la terminación.")).toBeTruthy();
+    expect(screen.getByText("Falta limpiar antes de entregar.")).toBeTruthy();
+  });
+
   it("selects one stage and supports arrow-key navigation", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={columns} />);
 

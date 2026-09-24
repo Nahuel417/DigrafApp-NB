@@ -22,6 +22,7 @@ test.describe("Anulación, Archivo y restauración M15", () => {
   const orderIds: string[] = [];
   let admin: Identity;
   let superAdmin: Identity;
+  let attention: Identity;
   let employee: Identity;
   let order: { id: string; publicNumber: number; updatedAt: string; customerName: string };
   let receivedStageId = "";
@@ -51,6 +52,7 @@ test.describe("Anulación, Archivo y restauración M15", () => {
     receivedStageId = stage.id;
     admin = await createIdentity("admin");
     superAdmin = await createIdentity("super_admin");
+    attention = await createIdentity("attention");
     employee = await createIdentity("employee");
     const customerName = `Cliente M15 E2E ${randomUUID().slice(0, 8)}`;
     const { data: created, error } = await service.from("orders").insert({
@@ -145,6 +147,18 @@ test.describe("Anulación, Archivo y restauración M15", () => {
     await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
     await expect(page.locator("[data-order-specifications]").getByText("Prenda histórica E2E", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Restaurar pedido" })).toBeVisible();
+  });
+
+  test("Atención consulta y opera el Archivo con el alcance de Admin", async ({ page }) => {
+    await login(page, attention);
+    await page.goto("/orders/archive");
+    const archiveCard = page.getByRole("listitem").filter({ hasText: order.customerName });
+    await expect(archiveCard.getByRole("button", { name: "Restaurar pedido" })).toBeVisible();
+    await expect(archiveCard.getByRole("button", { name: "Borrar pedido" })).toBeVisible();
+    await archiveCard.getByRole("link", { name: `PED-${String(order.publicNumber).padStart(6, "0")}` }).click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
+    await expect(page.getByRole("button", { name: "Restaurar pedido" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Borrar pedido" })).toBeVisible();
   });
 
   test("Empleado no puede filtrar un pedido anulado por acceso directo", async ({ page }) => {

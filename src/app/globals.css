@@ -30,6 +30,8 @@
   --warning-foreground: oklch(0.35 0.09 65);
   --label-review: oklch(0.94 0.045 305);
   --label-review-foreground: oklch(0.42 0.14 305);
+  --label-returned: oklch(0.94 0.05 350);
+  --label-returned-foreground: oklch(0.42 0.14 350);
   --info: oklch(0.93 0.035 240);
   --info-foreground: oklch(0.35 0.08 245);
   --chart-1: oklch(0.5745 0.1033 130.8937);
@@ -85,6 +87,8 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-label-review: var(--label-review);
   --color-label-review-foreground: var(--label-review-foreground);
+  --color-label-returned: var(--label-returned);
+  --color-label-returned-foreground: var(--label-returned-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-chart-1: var(--chart-1);

@@ -2124,6 +2124,13 @@ export type Database = {
         }
         Returns: Json
       }
+      get_cancelled_order_actor_names: {
+        Args: { p_order_ids: string[] }
+        Returns: {
+          display_name: string
+          id: string
+        }[]
+      }
       get_cash_day_summary: {
         Args: { p_cash_day_id: string }
         Returns: {
@@ -2640,7 +2647,13 @@ export type Database = {
       catalog_option_selection_mode: "single" | "multiple"
       catalog_product_kind: "garment" | "flag" | "bag" | "shield"
       garment_layer: "upper" | "lower"
-      order_label: "urgent" | "returned" | "review"
+      order_label:
+        | "urgent"
+        | "returned"
+        | "review"
+        | "ready_for_delivery"
+        | "needs_finishing"
+        | "needs_cleaning"
       order_line_type:
         | "individual"
         | "set"
@@ -2792,7 +2805,14 @@ export const Constants = {
       catalog_option_selection_mode: ["single", "multiple"],
       catalog_product_kind: ["garment", "flag", "bag", "shield"],
       garment_layer: ["upper", "lower"],
-      order_label: ["urgent", "returned", "review"],
+      order_label: [
+        "urgent",
+        "returned",
+        "review",
+        "ready_for_delivery",
+        "needs_finishing",
+        "needs_cleaning",
+      ],
       order_line_type: [
         "individual",
         "set",

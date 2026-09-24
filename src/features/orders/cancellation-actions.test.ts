@@ -78,11 +78,11 @@ describe("M15 cancellation actions", () => {
     expect(result).toMatchObject({ status: "error", message });
   });
 
-  it("denies non-manager profiles before creating the client", async () => {
+  it("allows Attention before creating the client", async () => {
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
     const result = await cancelOrderAction({}, validCancel());
-    expect(result).toMatchObject({ status: "error", message: "No tenés permiso para anular pedidos." });
-    expect(createClient).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", message: "Pedido anulado y enviado al Archivo." });
+    expect(createClient).toHaveBeenCalled();
   });
 });
 
@@ -102,6 +102,13 @@ describe("M15 restore action", () => {
       p_expected_updated_at: "2026-08-14T12:00:00.000Z",
       p_idempotency_key: "restore-key",
     });
+  });
+
+  it("allows Attention to restore an archived order", async () => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const result = await restoreOrderAction({}, validRestore());
+    expect(result).toMatchObject({ status: "success", message: "Pedido restaurado y retirado del Archivo." });
+    expect(rpc).toHaveBeenCalledWith("restore_order", expect.any(Object));
   });
 
   it.each([
@@ -149,7 +156,7 @@ describe("M16 delivered archive and purge actions", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("allows Admin and Super admin, passes the reason, and rejects actor fields", async () => {
+  it("allows Archive managers, passes the reason, and rejects actor fields", async () => {
     rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled" }, error: null });
     const result = await purgeCancelledOrderAction({}, validPurge());
     expect(result).toMatchObject({ status: "success", message: "Pedido anulado borrado." });
@@ -167,8 +174,9 @@ describe("M16 delivered archive and purge actions", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
 
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
-    const denied = await purgeCancelledOrderAction({}, validPurge());
-    expect(denied).toMatchObject({ status: "error", message: "No tenés permiso para borrar pedidos anulados." });
+    rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
+    const attention = await purgeCancelledOrderAction({}, validPurge());
+    expect(attention).toMatchObject({ status: "success", message: "Pedido anulado borrado." });
 
     vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "super_admin" });
     rpc.mockResolvedValueOnce({ data: { order_id: "11111111-1111-4111-8111-111111111111", public_number: 12, lifecycle_state: "purged_cancelled", updated_at: "2026-08-14T12:01:00.000Z" }, error: null });
@@ -179,6 +187,14 @@ describe("M16 delivered archive and purge actions", () => {
       p_idempotency_key: "purge-key",
       p_reason: "Motivo del borrado",
     });
+  });
+
+  it("allows Attention to archive and unarchive delivered orders", async () => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeAdmin, role: "attention" });
+    const archived = await archiveDeliveredOrderAction({}, validArchive());
+    expect(archived).toMatchObject({ status: "success" });
+    const unarchived = await unarchiveDeliveredOrderAction({}, validArchive());
+    expect(unarchived).toMatchObject({ status: "success" });
   });
 
   it.each(["archive_delivered_order", "unarchive_delivered_order"])("rejects %s results without updated_at", async (rpcName) => {

@@ -53,7 +53,7 @@ import {
     type SetOrderLabelActionState,
 } from '../actions';
 import { moveBoardOrder, replaceBoardOrder } from '../board-state';
-import { orderLabelAccentClassName, orderLabelClassName, orderLabelName, orderLabelOptions } from '../labels';
+import { orderLabelAccentClassName, orderLabelCardClassName, orderLabelClassName, orderLabelName, orderLabelOptions, orderLabelReferenceOptions } from '../labels';
 import type { BoardColumn, BoardOrder } from '../queries';
 import type { OrderLabel } from '../schemas';
 import { OrderDesignThumbnail } from './order-design-thumbnail';
@@ -239,7 +239,7 @@ function DraggableOrderCardContent({
         <article
             {...listeners}
             aria-busy={isPending || undefined}
-            className={`group relative overflow-hidden rounded-xl border border-border bg-card p-2.5 shadow-xs transition-[border-color,opacity,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none motion-reduce:transition-none ${isDragging ? 'opacity-40' : 'opacity-100'}`}
+            className={`group relative overflow-hidden rounded-xl border border-border p-2.5 shadow-xs transition-[border-color,opacity,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none motion-reduce:transition-none ${orderLabelCardClassName(order.label)} ${isDragging ? 'opacity-40' : 'opacity-100'}`}
             data-order-id={order.id}
             ref={setNodeRef}>
             {order.label ? <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-1.5 rounded-t-xl ${orderLabelAccentClassName(order.label)}`} /> : null}
@@ -826,7 +826,7 @@ export function OrderBoard({
         <DragOverlay dropAnimation={null}>
             {activeOrder ? (
                 <div
-                    className="absolute w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-primary bg-card p-4 shadow-lg forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight]"
+                    className={`absolute w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-primary p-4 shadow-lg forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight] ${orderLabelCardClassName(activeOrder.label)}`}
                     data-testid="drag-overlay"
                     style={{ left: dragPreviewAnchor?.x ?? '50%', top: dragPreviewAnchor?.y ?? '50%' }}>
                     <OrderSummary order={activeOrder} />
@@ -921,6 +921,29 @@ export function OrderBoard({
                     </details>
                     {hasActiveFilters ? <Button className="h-9 rounded-xl px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={clearFilters} type="button" variant="ghost">Limpiar filtros</Button> : null}
                 </div>
+                <details className="group/label-reference relative w-fit max-w-full">
+                    <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground shadow-xs outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                        <Tag aria-hidden="true" className="size-3.5 text-primary" />
+                        Referencia de etiquetas
+                        <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/label-reference:rotate-180 motion-reduce:transition-none" />
+                    </summary>
+                    <div className="absolute left-0 top-full z-20 mt-2 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                        <div className="border-b border-border bg-surface-muted px-4 py-3">
+                            <p className="text-sm font-medium text-foreground">Qué significa cada color</p>
+                            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Estas etiquetas señalan qué necesita el pedido antes de entregarlo.</p>
+                        </div>
+                        <ul className="divide-y divide-border">
+                            {orderLabelReferenceOptions.map((option) => (
+                                <li className="grid min-w-0 gap-1.5 px-4 py-3 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-4" key={option.value}>
+                                    <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold leading-none ${orderLabelClassName(option.value)}`}>
+                                        {orderLabelName(option.value)}
+                                    </span>
+                                    <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </details>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count data-testid="board-count">
                         <Package aria-hidden="true" className="size-3.5 text-primary" />

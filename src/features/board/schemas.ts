@@ -29,7 +29,14 @@ export const reversePaymentSchema = z.object({
   reason: z.string().trim().max(500, "El motivo de reversión no puede superar los 500 caracteres.").optional(),
 });
 
-export const orderLabelSchema = z.enum(["urgent", "returned", "review"]);
+export const orderLabelSchema = z.enum([
+  "urgent",
+  "returned",
+  "review",
+  "ready_for_delivery",
+  "needs_finishing",
+  "needs_cleaning",
+]);
 
 export const setOrderLabelSchema = z.object({
   orderId: z.string().uuid("El pedido seleccionado no es válido."),
