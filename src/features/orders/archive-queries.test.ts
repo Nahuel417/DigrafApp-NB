@@ -77,12 +77,12 @@ function buildArchiveMock(rangeResponses: Array<{ data: unknown[] | null; count:
   const or = vi.fn(() => chain);
   const gte = vi.fn(() => chain);
   const lte = vi.fn(() => chain);
-  const inFn = vi.fn(() => Promise.resolve({ data: [], error: null }));
   const select = vi.fn(() => chain);
-  const chain: { range: typeof range; order: typeof order; eq: typeof eq; or: typeof or; gte: typeof gte; lte: typeof lte; in: typeof inFn; select: typeof select } = { range, order, eq, or, gte, lte, in: inFn, select };
+  const chain: { range: typeof range; order: typeof order; eq: typeof eq; or: typeof or; gte: typeof gte; lte: typeof lte; select: typeof select } = { range, order, eq, or, gte, lte, select };
   const fromResult = { select };
   const from = vi.fn(() => fromResult);
-  return { from, range, order, eq, or, gte, lte, select };
+  const rpc = vi.fn(() => Promise.resolve({ data: [{ id: "profile-1", display_name: "Admin" }], error: null }));
+  return { from, rpc, range, order, eq, or, gte, lte, select };
 }
 
 function isNextRedirectError(error: unknown): boolean {
@@ -218,6 +218,15 @@ describe("getOrderArchive pagination", () => {
 
     expect(mock.order).toHaveBeenCalledWith("updated_at", { ascending: false });
     expect(mock.order).toHaveBeenCalledWith("id", { ascending: false });
+  });
+
+  it("loads cancellation actor names through the bounded RPC", async () => {
+    const mock = buildArchiveMock([{ data: [baseArchiveRow], count: 1, error: null }]);
+    vi.mocked(createClient).mockResolvedValue(mock as never);
+
+    await getOrderArchive(1);
+
+    expect(mock.rpc).toHaveBeenCalledWith("get_cancelled_order_actor_names", { p_order_ids: ["order-1"] });
   });
 
   it("applies customer/order and cancellation date filters before pagination", async () => {

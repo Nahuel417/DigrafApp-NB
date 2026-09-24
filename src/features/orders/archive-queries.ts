@@ -206,7 +206,7 @@ export async function getOrderArchive(page: number, pageSize: number = ARCHIVE_P
     supabase.from("workflow_stages").select("id, name"),
     empty
       ? Promise.resolve({ data: [] as LookupRow[] | null, error: null as QueryError })
-      : supabase.from("profiles").select("id, display_name").in("id", result.orders.map((row) => row.cancelled_by).filter((id): id is string => Boolean(id))),
+      : supabase.rpc("get_cancelled_order_actor_names", { p_order_ids: result.orders.map((row) => row.id) }),
   ]);
   return { ...result, orders: mapArchiveRows(result.orders, (stages ?? []) as LookupRow[], (profiles ?? []) as LookupRow[]) };
 }

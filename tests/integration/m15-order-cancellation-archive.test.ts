@@ -155,6 +155,25 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     expect(archiveData).toEqual({ id: order.id, lifecycle_state: "cancelled" });
   });
 
+  it("limita los nombres de actores del Archivo a roles autorizados y pedidos anulados", async () => {
+    const order = await createOrder();
+    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    expect((await cancel(attention, order, "Consulta de actor")).error).toBeNull();
+
+    const cancelledActors = await attention.rpc("get_cancelled_order_actor_names", { p_order_ids: [order.id] });
+    expect(cancelledActors.error).toBeNull();
+    expect(cancelledActors.data).toEqual([{ id: identities.find((identity) => identity.role === "attention")!.id, display_name: "M15 attention" }]);
+
+    const activeOrder = await createOrder();
+    const activeActors = await attention.rpc("get_cancelled_order_actor_names", { p_order_ids: [activeOrder.id] });
+    expect(activeActors.error).toBeNull();
+    expect(activeActors.data).toEqual([]);
+
+    const employee = await signedClient(identities.find((identity) => identity.role === "employee")!);
+    const denied = await employee.rpc("get_cancelled_order_actor_names", { p_order_ids: [order.id] });
+    expect(denied.error?.message).toMatch(/permiso/i);
+  });
+
   it("normaliza el motivo, exige 2–500 caracteres y reproduce el replay idéntico", async () => {
     const order = await createOrder();
     const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);

@@ -2124,6 +2124,13 @@ export type Database = {
         }
         Returns: Json
       }
+      get_cancelled_order_actor_names: {
+        Args: { p_order_ids: string[] }
+        Returns: {
+          display_name: string
+          id: string
+        }[]
+      }
       get_cash_day_summary: {
         Args: { p_cash_day_id: string }
         Returns: {
