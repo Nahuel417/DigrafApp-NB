@@ -17,6 +17,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1B: búsqueda de
   const service = createClient<Database>(url ?? "", serviceRoleKey ?? "", { auth: { persistSession: false } });
   const identities: Identity[] = [];
   const orderIds: string[] = [];
+  let publicNumber = 0;
 
   async function createIdentity(role: Role) {
     const email = `pr1b-${role}-${randomUUID()}@example.test`;
@@ -47,9 +48,10 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1B: búsqueda de
     const employee = await createIdentity("employee");
     const { data: stage } = await service.from("workflow_stages").select("id").eq("code", "received").single();
     if (!stage) throw new Error("No existe la etapa received.");
-    const { data: order, error } = await service.from("orders").insert({ client_name: "Club Andino PR1B", team_name: "Las Montañas", phone: "+54 (351) 555-0199", quantity: 2, order_type: "individual", order_date: "2026-08-17", promised_delivery_date: "2026-08-20", current_stage_id: stage.id, created_by: superAdmin.id, idempotency_key: `pr1b-${randomUUID()}`, idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32) }).select("id").single();
+    const { data: order, error } = await service.from("orders").insert({ client_name: "Club Andino PR1B", team_name: "Las Montañas", phone: "+54 (351) 555-0199", quantity: 2, order_type: "individual", order_date: "2026-08-17", promised_delivery_date: "2026-08-20", current_stage_id: stage.id, created_by: superAdmin.id, idempotency_key: `pr1b-${randomUUID()}`, idempotency_fingerprint: randomUUID().replaceAll("-", "").slice(0, 32) }).select("id, public_number").single();
     if (error || !order) throw error ?? new Error("No se creó el pedido sintético PR1B.");
     orderIds.push(order.id);
+    publicNumber = order.public_number;
     const { error: financialError } = await service.from("order_financials").insert({ order_id: order.id, total_amount: 900, deposit_amount: 0, deposit_paid: false });
     if (financialError) throw financialError;
     await signedClient(employee);
@@ -65,6 +67,12 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("PR 1B: búsqueda de
     const admin = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
     expect((await board(admin, "andino")).map((order) => order.id)).toEqual(orderIds);
     expect((await board(admin, "3515550199")).map((order) => order.id)).toEqual(orderIds);
+  });
+
+  it("searches by public number and formatted PED identifier", async () => {
+    const admin = await signedClient(identities.find((identity) => identity.role === "super_admin")!);
+    expect((await board(admin, String(publicNumber))).map((order) => order.id)).toEqual(orderIds);
+    expect((await board(admin, `PED-${String(publicNumber).padStart(6, "0")}`)).map((order) => order.id)).toEqual(orderIds);
   });
 
   it("keeps financial fields null for Employee while preserving search", async () => {

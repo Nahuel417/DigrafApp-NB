@@ -1,6 +1,6 @@
 # Contratos de imágenes de pedidos
 
-M7/PR2 mantiene el bucket `order-designs` privado, una colección de 0 a 3 imágenes por pedido y no persiste URLs firmadas. Los cuatro roles internos pueden agregar, reemplazar, eliminar y administrar la imagen principal.
+M7/PR2 mantiene el bucket `order-designs` privado, una colección de 0 a 3 imágenes por pedido y no persiste URLs firmadas. La primera imagen se selecciona automáticamente como principal; las siguientes no cambian esa selección. Los cuatro roles internos pueden agregar, reemplazar, eliminar y seleccionar o limpiar manualmente la imagen principal.
 
 ## Flujo
 
