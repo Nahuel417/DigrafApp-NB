@@ -62,6 +62,7 @@ const data: PaymentReceiptData = {
     }],
   },
   financials: { totalAmount: 150, depositAmount: 0, depositPaid: false },
+  hasActivePayment: true,
   selections: [],
   catalogs,
   payment: {

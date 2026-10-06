@@ -222,7 +222,7 @@ export async function startOrderDesignImageUploadAction(
       expectedImageUpdatedAt: currentUpdatedAt,
       objectPath,
       orderId: parsed.data.orderId,
-      imageId: currentImage?.id ?? null,
+      imageId: parsed.data.action === "replace" ? currentImage?.id ?? null : null,
     },
   };
 }

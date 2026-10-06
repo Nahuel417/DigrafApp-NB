@@ -16,7 +16,7 @@ export default async function NewOrderPage() {
   if (!catalogs) redirect("/dashboard");
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+    <main className="mx-auto flex w-full max-w-[80rem] flex-col px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Link
