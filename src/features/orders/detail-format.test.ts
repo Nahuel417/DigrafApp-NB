@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { OrderDetailLine, OrderSelection } from "./detail-queries";
-import { operationalHistoryDetails, operationalHistorySummary, orderLinesForEdit, selectionsForEdit, timelineStageName } from "./detail-format";
+import { operationalHistoryDetails, operationalHistorySummary, orderLinesForEdit, paymentStatusLabel, selectionsForEdit, timelineStageName } from "./detail-format";
 
 function historicalSelection(selectionKey: string, catalogKind: OrderSelection["catalogKind"]): OrderSelection {
   return {
@@ -43,6 +43,11 @@ describe("order detail formatting", () => {
   it("prefers a stage snapshot and falls back to the current name for legacy events", () => {
     expect(timelineStageName("Diseño original", "Diseño actual")).toBe("Diseño original");
     expect(timelineStageName(null, "Diseño actual")).toBe("Diseño actual");
+  });
+
+  it("marks only an active payment as paid", () => {
+    expect(paymentStatusLabel(true)).toBe("Pagado");
+    expect(paymentStatusLabel(false)).toBe("No pagado");
   });
 
   it("round-trips legacy options and multiple shield ids", () => {

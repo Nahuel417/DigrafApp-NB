@@ -124,7 +124,7 @@ Solo Super admin, Admin y Atención pueden cambiar cliente, cantidad, fechas, es
 
 Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicamente para la edición aprobada del pedido, la gestión de imágenes y la reversión de pagos. Empleado recibe la misma autoridad operativa sobre imágenes, sin permisos para la edición sensible ni administración no relacionada, como administrar catálogos, etapas, usuarios o cerrar caja. El servidor y RLS son la frontera final de autorización.
 
-- El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primaria es opcional; tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
+- El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primera imagen se selecciona automáticamente como principal; las siguientes no reemplazan esa selección. La primaria puede cambiarse o limpiarse manualmente, por lo que sigue siendo opcional. Tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
 
 ## Pago y caja
 

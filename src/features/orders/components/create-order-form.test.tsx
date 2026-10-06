@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const actionState = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const imageMocks = vi.hoisted(() => ({
+  confirm: vi.fn(),
+  start: vi.fn(),
+  upload: vi.fn(),
+}));
 
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
@@ -11,7 +16,14 @@ vi.mock("react", async () => {
 });
 
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
+vi.mock("@/lib/supabase/browser", () => ({
+  createClient: () => ({ storage: { from: () => ({ upload: imageMocks.upload }) } }),
+}));
 vi.mock("../actions", () => ({ createOrderAction: vi.fn() }));
+vi.mock("../image-actions", () => ({
+  mutateOrderDesignImageAction: imageMocks.confirm,
+  startOrderDesignImageUploadAction: imageMocks.start,
+}));
 
 import type { OrderFormCatalogs } from "../queries";
 import { CreateOrderForm } from "./create-order-form";
@@ -32,6 +44,7 @@ describe("CreateOrderForm", () => {
   afterEach(() => {
     cleanup();
     actionState.current = {};
+    vi.clearAllMocks();
   });
 
   it("preserves the draft after a failed creation and clears only the edited field error", () => {
@@ -123,5 +136,79 @@ describe("CreateOrderForm", () => {
     expect(screen.getByLabelText("Cliente")).toHaveProperty("value", "");
     expect(screen.getByLabelText("Total del pedido")).toHaveProperty("value", "");
     expect(document.querySelector('input[name="depositPaid"]')).toHaveProperty("checked", false);
+  });
+
+  it("prepares an optional design without submitting the order", () => {
+    const requestSubmit = vi.spyOn(HTMLFormElement.prototype, "requestSubmit");
+    const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:design-preview");
+    const view = render(<CreateOrderForm catalogs={catalogs} initialOrderDate="2026-08-31" />);
+
+    expect(screen.getByRole("heading", { name: "Diseño vigente" })).toBeTruthy();
+    expect(screen.getByText("Todavía no hay un diseño cargado.")).toBeTruthy();
+
+    const file = new File(["design"], "design.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Archivo de diseño"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Cargar diseño" }));
+
+    expect(requestSubmit).not.toHaveBeenCalled();
+    expect(createObjectUrl).toHaveBeenCalledWith(file);
+    expect(screen.getByRole("img", { name: "Vista previa del diseño seleccionado" })).toHaveProperty("src", "blob:design-preview");
+
+    fireEvent.change(screen.getByLabelText("Archivo de diseño"), { target: { files: [] } });
+    fireEvent.click(screen.getByRole("button", { name: "Cargar diseño" }));
+    const form = view.container.querySelector("form");
+    if (!form) throw new Error("No se encontró el formulario de pedido.");
+    fireEvent.submit(form);
+    expect(screen.queryByText("Seleccioná una imagen para continuar.")).toBeNull();
+    expect(screen.getByLabelText("Archivo de diseño").getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("uploads the prepared design after the order is created even if the file input resets", async () => {
+    let resolveUploadIntent!: (value: Record<string, unknown>) => void;
+    imageMocks.start.mockImplementation(() => new Promise((resolve) => { resolveUploadIntent = resolve; }));
+    const uploadIntent = {
+      status: "success",
+      uploadIntent: {
+        bucketId: "order-designs",
+        byteSize: 6,
+        contentType: "image/png",
+        expectedImageUpdatedAt: null,
+        objectPath: "orders/order-1/design.png",
+      },
+    };
+    imageMocks.upload.mockResolvedValue({ error: null });
+    imageMocks.confirm.mockResolvedValue({ status: "success" });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:design-preview");
+    const view = render(<CreateOrderForm catalogs={catalogs} initialOrderDate="2026-08-31" />);
+    const input = screen.getByLabelText("Archivo de diseño");
+    const client = screen.getByLabelText("Cliente");
+    const file = new File(["design"], "design.png", { type: "image/png" });
+
+    fireEvent.change(client, { target: { value: "Cliente pendiente" } });
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Cargar diseño" }));
+    Object.defineProperty(input, "files", { configurable: true, value: [] });
+    const form = view.container.querySelector("form");
+    if (!form) throw new Error("No se encontró el formulario de pedido.");
+    fireEvent.submit(form);
+
+    actionState.current = {
+      status: "success",
+      toastId: "created-order",
+      createdOrder: { id: "order-1", publicNumber: 1 },
+    };
+    view.rerender(<CreateOrderForm catalogs={catalogs} initialOrderDate="2026-08-31" />);
+
+    await waitFor(() => expect(imageMocks.start).toHaveBeenCalledOnce());
+    expect(screen.queryByText("Pedido PED-000001 creado")).toBeNull();
+    expect(screen.getByRole("button", { name: "Cargando imagen..." })).toHaveProperty("disabled", true);
+    expect(screen.getByLabelText("Cliente")).toHaveProperty("value", "Cliente pendiente");
+
+    await act(async () => resolveUploadIntent(uploadIntent));
+    await waitFor(() => expect(imageMocks.confirm).toHaveBeenCalledOnce());
+
+    expect(imageMocks.upload).toHaveBeenCalledWith("orders/order-1/design.png", file, { contentType: "image/png", upsert: false });
+    expect(screen.getByText("Pedido PED-000001 creado")).toBeTruthy();
+    expect(screen.getByLabelText("Cliente")).toHaveProperty("value", "");
   });
 });

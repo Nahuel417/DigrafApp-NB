@@ -24,6 +24,74 @@ type Preview = Pick<OrderDesignImageReadUrl, "expiresAt" | "id" | "isPrimary" | 
 type Feedback = { description: string; kind: "error" | "success"; title: string } | null;
 type Operation = "idle" | "mutating" | "renewing" | "uploading";
 
+export function OrderDesignImageEmptyState({ canManage = true }: { canManage?: boolean }) {
+  return (
+    <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted/40 p-5 text-center">
+      <FileImage aria-hidden="true" className="text-muted-foreground" />
+      <p className="mt-3 text-sm font-medium">Todavía no hay un diseño cargado.</p>
+      <p className="mt-1 max-w-xs text-sm leading-5 text-muted-foreground">
+        {canManage ? "Cargá una imagen para dejarla disponible al equipo." : "Cuando se cargue una imagen, va a aparecer en este panel."}
+      </p>
+    </div>
+  );
+}
+
+export function OrderDesignImageUploadControl({
+  buttonLabel,
+  disabled,
+  error,
+  hasImages,
+  inputId,
+  inputRef,
+  onChange,
+  onSubmit,
+  pending,
+  showButton = true,
+}: {
+  buttonLabel: string;
+  disabled?: boolean;
+  error?: string | null;
+  hasImages?: boolean;
+  inputId: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  onSubmit: () => void;
+  pending?: boolean;
+  showButton?: boolean;
+}) {
+  const helpId = `${inputId}-help`;
+  const errorId = `${inputId}-error`;
+
+  return (
+    <div className="border-t border-border pt-4">
+      <Field className="gap-2" data-invalid={Boolean(error)}>
+        <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={inputId}>Archivo de diseño</FieldLabel>
+        <Input
+          accept="image/jpeg,image/png,image/webp"
+          aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
+          aria-invalid={Boolean(error)}
+          className="h-9 rounded-xl bg-surface-muted px-2 text-xs shadow-none file:mr-2 file:rounded-lg file:border-0 file:bg-card file:px-2 file:py-1 file:text-xs"
+          disabled={disabled}
+          id={inputId}
+          onChange={onChange}
+          ref={inputRef}
+          type="file"
+        />
+        <FieldDescription className="text-[11px] leading-5" id={helpId}>JPEG, PNG o WebP. Máximo 10 MiB. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
+        {error ? <FieldError id={errorId}>{error}</FieldError> : null}
+      </Field>
+      {showButton ? (
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <Button className="h-9 rounded-xl px-3 text-xs shadow-xs" disabled={disabled} onClick={onSubmit} size="sm" type="button">
+            {pending ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : hasImages ? <ImagePlus aria-hidden="true" data-icon="inline-start" /> : <Upload aria-hidden="true" data-icon="inline-start" />}
+            {pending ? "Procesando diseño..." : buttonLabel}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function makeFormData(values: Record<string, string | null | undefined>) {
   const formData = new FormData();
   for (const [key, value] of Object.entries(values)) {
@@ -270,15 +338,7 @@ export function OrderDesignImagePanel({
               </figure>
             ))}
           </div>
-        ) : (
-          <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted/40 p-5 text-center">
-            <FileImage aria-hidden="true" className="text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">Todavía no hay un diseño cargado.</p>
-            <p className="mt-1 max-w-xs text-sm leading-5 text-muted-foreground">
-              {canManage ? "Cargá una imagen para dejarla disponible al equipo." : "Cuando se cargue una imagen, va a aparecer en este panel."}
-            </p>
-          </div>
-        )}
+        ) : <OrderDesignImageEmptyState canManage={canManage} />}
 
         {images.length > 0 && !primaryImage ? (
           <div className="flex min-h-28 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted/40 p-5 text-center">
@@ -306,31 +366,17 @@ export function OrderDesignImagePanel({
         ) : null}
 
         {canManage ? (
-          <div className="border-t border-border pt-4">
-            <Field className="gap-2" data-invalid={Boolean(fieldError)}>
-              <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={`order-design-file-${orderId}`}>Archivo de diseño</FieldLabel>
-              <Input
-                accept="image/jpeg,image/png,image/webp"
-                aria-describedby={`order-design-help-${orderId}${fieldError ? ` order-design-error-${orderId}` : ""}`}
-                aria-invalid={Boolean(fieldError)}
-                disabled={pending}
-                id={`order-design-file-${orderId}`}
-                className="h-9 rounded-xl bg-surface-muted px-2 text-xs shadow-none file:mr-2 file:rounded-lg file:border-0 file:bg-card file:px-2 file:py-1 file:text-xs"
-                ref={fileInputRef}
-                type="file"
-              />
-              <FieldDescription className="text-[11px] leading-5" id={`order-design-help-${orderId}`}>JPEG, PNG o WebP. Máximo 10 MiB. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
-              {fieldError ? <FieldError id={`order-design-error-${orderId}`}>{fieldError}</FieldError> : null}
-            </Field>
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {images.length < 3 ? (
-                <Button className="h-9 rounded-xl px-3 text-xs shadow-xs" disabled={pending} onClick={() => submitImage(null)} size="sm" type="button">
-                  {operation === "uploading" ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : images.length ? <ImagePlus aria-hidden="true" data-icon="inline-start" /> : <Upload aria-hidden="true" data-icon="inline-start" />}
-                  {operation === "uploading" ? "Procesando diseño..." : images.length ? "Agregar diseño" : "Cargar diseño"}
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <OrderDesignImageUploadControl
+            buttonLabel={images.length ? "Agregar diseño" : "Cargar diseño"}
+            disabled={pending}
+            error={fieldError}
+            hasImages={images.length > 0}
+            inputId={`order-design-file-${orderId}`}
+            inputRef={fileInputRef}
+            onSubmit={() => submitImage(null)}
+            pending={operation === "uploading"}
+            showButton={images.length < 3}
+          />
         ) : null}
       </div>
 

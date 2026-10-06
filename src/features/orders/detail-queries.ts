@@ -59,6 +59,7 @@ export type OrderDetailCatalogs = OrderFormCatalogs;
 export type OrderDetailData = {
   order: OrderDetail;
   financials: OrderFinancials | null;
+  hasActivePayment: boolean;
   selections: OrderSelection[];
   catalogs: OrderDetailCatalogs;
 };
@@ -127,8 +128,9 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
   const mappedOrder = mapOrderDetailRow(order, { id: stage.id, code: stage.code, name: stage.name });
   if (!mappedOrder) return null;
 
-  const [{ data: financials }, { data: selections }, { data: lines }, formCatalogs] = await Promise.all([
+  const [{ data: financials }, { data: activePayment }, { data: selections }, { data: lines }, formCatalogs] = await Promise.all([
     supabase.from("order_financials").select("total_amount, deposit_amount, deposit_paid").eq("order_id", orderId).single(),
+    supabase.from("order_payments").select("id").eq("order_id", orderId).is("reversed_at", null).maybeSingle(),
     supabase.from("order_catalog_items").select("id, selection_key, catalog_kind, garment_layer, item_name, catalog_item_id").eq("order_id", orderId),
     supabase.from("order_lines").select("id, position, line_type, product_id, product_name_snapshot, quantity, color, configuration, order_line_shields(shield_product_id, shield_name_snapshot)").eq("order_id", orderId).order("position"),
     getOrderFormCatalogs(),
@@ -158,6 +160,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetailData |
     financials: financials
       ? { totalAmount: financials.total_amount, depositAmount: financials.deposit_amount, depositPaid: financials.deposit_paid }
       : null,
+    hasActivePayment: Boolean(activePayment),
     selections: (selections ?? []).map((item) => ({
       id: item.id,
       selectionKey: item.selection_key,

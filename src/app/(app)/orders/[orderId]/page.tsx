@@ -4,7 +4,7 @@ import { ArrowLeft, BadgeDollarSign, CalendarDays, CheckCircle2, ClipboardList, 
 
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitive, canManageOrderDesignImages, canManageOrderLifecycle, canOperateCash, canPurgeCancelledOrder, canReadOrderFinancials } from "@/lib/auth/permissions";
-import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
+import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, paymentStatusLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
 import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
@@ -214,7 +214,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
                 <dl className="divide-y divide-border">
                   <FinancialRow label="Total" value={financials ? formatArsFromNumber(financials.totalAmount) : "—"} />
                   <FinancialRow label="Seña" status={financials ? financials.depositPaid ? "Pagada" : "No pagada" : undefined} value={financials ? formatArsFromNumber(financials.depositAmount) : "—"} />
-                  <FinancialRow label="Saldo pendiente" strong value={balance ? formatArsFromString(balance) : "—"} />
+                  <FinancialRow label="Saldo pendiente" status={paymentStatusLabel(data.hasActivePayment)} strong value={balance ? formatArsFromString(balance) : "—"} />
                 </dl>
               </section>
             ) : null}
@@ -259,13 +259,22 @@ function DetailItem({ icon: Icon, label, mono = false, value }: { icon: LucideIc
   );
 }
 
-function FinancialRow({ label, status, strong = false, value }: { label: string; status?: string; strong?: boolean; value: string }) {
+function FinancialRow({ label, status, strong = false, value }: { label: string; status?: "Pagada" | "No pagada" | "Pagado" | "No pagado"; strong?: boolean; value: string }) {
+  const isPaid = status === "Pagada" || status === "Pagado";
+  const isUnpaid = status === "No pagada" || status === "No pagado";
+  const statusClass = isPaid
+    ? "inline-flex items-center gap-1 rounded-full border border-success-foreground/30 bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success-foreground"
+    : isUnpaid
+      ? "inline-flex items-center rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive"
+      : "inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
+  const valueClass = isPaid ? "text-success-foreground" : isUnpaid ? "text-destructive" : strong ? "text-primary" : "text-foreground";
+
   return (
     <div className="flex items-center justify-between gap-3 px-5 py-3">
       <dt className={strong ? "text-xs font-medium text-foreground" : "text-xs text-muted-foreground"}>{label}</dt>
       <div className="flex min-w-0 items-center justify-end gap-2">
-        {status ? <span className={status === "Pagada" ? "inline-flex items-center gap-1 rounded-full border border-success-foreground/30 bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success-foreground" : "inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"}>{status === "Pagada" ? <CheckCircle2 aria-hidden="true" className="size-3" /> : null}{status}</span> : null}
-        <dd className={strong ? "font-mono text-sm font-semibold text-primary" : "font-mono text-sm text-foreground"}>{value}</dd>
+        {status ? <span className={statusClass}>{isPaid ? <CheckCircle2 aria-hidden="true" className="size-3" /> : null}{status}</span> : null}
+        <dd className={`font-mono text-sm ${strong ? "font-semibold" : ""} ${valueClass}`}>{value}</dd>
       </div>
     </div>
   );
