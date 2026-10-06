@@ -132,6 +132,8 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Reversión de pago 
     expect(result).toMatchObject({ order_id: order.id, payment_id: order.paymentId });
     const { data: payment } = await service.from("order_payments").select("id, amount, cash_movement_id, reversed_at, reversal_cash_movement_id").eq("id", order.paymentId).single();
     expect(payment).toMatchObject({ amount: 125.5, cash_movement_id: expect.any(String), reversal_cash_movement_id: expect.any(String), reversed_at: expect.any(String) });
+    const { data: activePayment } = await service.from("order_payments").select("id").eq("order_id", order.id).is("reversed_at", null).maybeSingle();
+    expect(activePayment).toBeNull();
     movementIds.push(payment!.reversal_cash_movement_id!);
     const { data: timeline } = await admin.rpc("get_order_timeline", { p_order_id: order.id });
     expect(timeline?.find((event) => event.event_type === "payment_reversed")?.details).toMatchObject({ amount: 125.5 });

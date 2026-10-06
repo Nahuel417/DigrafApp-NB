@@ -79,6 +79,15 @@ function getOrderCard() {
 }
 
 describe("order board payment confirmation", () => {
+  it("renders the promised delivery date with the operational card format", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={columns} />);
+
+    const card = getOrderCard();
+    expect(within(card).getByText("13 - 08 - 2026")).toBeTruthy();
+    expect(within(card).getByText("Entrega prometida")).toBeTruthy();
+    expect(within(card).getByText("Entrega prometida").parentElement?.className).toContain("bg-warning");
+  });
+
   it("renders the new label with a full-card color and reference", () => {
     render(<OrderBoard canConfirmPayment canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, label: "ready_for_delivery" }] }, columns[1], columns[2]]} />);
 

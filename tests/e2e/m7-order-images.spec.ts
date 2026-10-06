@@ -222,8 +222,9 @@ test.describe("Diseño vigente M7", () => {
     await page.getByRole("button", { name: "Cargar diseño" }).click();
     await expect(page.getByRole("button", { name: "Procesando diseño..." })).toBeDisabled();
     await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño cargado" })).toBeFocused();
-    await expect(page.getByRole("img", { name: "Diseño adicional del pedido 1" })).toBeVisible();
-    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
+    await expect(page.getByRole("img", { name: "Diseño vigente del pedido" })).toBeVisible();
+    await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText("orders/");
   });
 
@@ -376,10 +377,15 @@ test.describe("Diseño vigente M7", () => {
     }
 
     await expect(designPanel(page).locator("[data-design-image]")).toHaveCount(3);
+    await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
+    await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toHaveCount(0);
+
+    await designPanel(page).locator("[data-design-image]").first().getByRole("button", { name: "Quitar como principal" }).click();
+    await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño principal actualizado" })).toBeFocused();
     await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(0);
     await expect(designPanel(page).getByText("No hay un diseño principal seleccionado.")).toBeVisible();
 
-    await designPanel(page).locator("[data-design-image]").first().getByRole("button", { name: "Seleccionar como principal" }).click();
+    await designPanel(page).locator("[data-design-image]").nth(1).getByRole("button", { name: "Seleccionar como principal" }).click();
     await expect(designPanel(page).getByRole("status").filter({ hasText: "Diseño principal actualizado" })).toBeFocused();
     await expect(designPanel(page).getByText("Principal", { exact: true })).toHaveCount(1);
 

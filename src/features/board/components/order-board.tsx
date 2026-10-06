@@ -87,6 +87,11 @@ function orderId(publicNumber: number) {
     return `PED-${String(publicNumber).padStart(6, '0')}`;
 }
 
+function formatBoardDate(value: string) {
+    const [year, month, day] = value.split('-');
+    return `${day} - ${month} - ${year}`;
+}
+
 function orderDetailPath(orderId: string) {
     return `/orders/${orderId}`;
 }
@@ -136,10 +141,12 @@ const OrderSummary = memo(function OrderSummary({ order, showThumbnail }: { orde
                     <dt className="sr-only">Producto</dt>
                     <dd className="max-w-[9rem] truncate">{order.productName ?? 'Sin producto'}</dd>
                 </div>
-                <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-0.5">
-                    <CalendarDays aria-hidden="true" className="size-3" />
-                    <dt className="sr-only">Entrega prometida</dt>
-                    <dd className="font-mono tabular-nums">{order.promisedDeliveryDate}</dd>
+                <div className="inline-flex items-center gap-2 rounded-full border border-warning-foreground/40 bg-warning px-2 py-0.5 text-warning-foreground">
+                    <dt className="flex items-center gap-1 text-[10px] font-semibold">
+                        <CalendarDays aria-hidden="true" className="size-3" />
+                        Entrega prometida
+                    </dt>
+                    <dd className="font-mono text-[10px] font-semibold tracking-data tabular-nums">{formatBoardDate(order.promisedDeliveryDate)}</dd>
                 </div>
             </dl>
         </>
@@ -864,8 +871,8 @@ export function OrderBoard({
                         </summary>
                         <form action="/orders" className="absolute left-0 top-full z-20 mt-2 flex w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-xl border border-border bg-card p-3 shadow-lg" method="get" role="search">
                             <label className="relative min-w-0 flex-1" htmlFor="order-board-search">
-                                <span className="sr-only">Buscar por cliente, equipo o teléfono</span>
-                                <Input autoFocus={Boolean(initialSearch)} className="h-9 rounded-lg bg-background pr-2" defaultValue={initialSearch} id="order-board-search" name="search" placeholder="Cliente, equipo o teléfono" />
+                                <span className="sr-only">Buscar por cliente, equipo, teléfono o número de pedido</span>
+                                <Input autoFocus={Boolean(initialSearch)} className="h-9 rounded-lg bg-background pr-2" defaultValue={initialSearch} id="order-board-search" name="search" placeholder="Cliente, equipo, teléfono o PED-000001" />
                             </label>
                             <Button className="h-9 shrink-0 rounded-lg px-3" type="submit">Buscar</Button>
                         </form>

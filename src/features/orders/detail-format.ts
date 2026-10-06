@@ -23,6 +23,10 @@ export function timelineStageName(snapshotName: string | null, currentName: stri
   return snapshotName ?? currentName;
 }
 
+export function paymentStatusLabel(hasActivePayment: boolean) {
+  return hasActivePayment ? "Pagado" : "No pagado";
+}
+
 export function orderTypeLabel(orderType: OrderDetail["orderType"]) {
   if (orderType === null) return "Tipo histórico no disponible";
   return orderType === "set" ? "Conjunto" : "Prenda individual";

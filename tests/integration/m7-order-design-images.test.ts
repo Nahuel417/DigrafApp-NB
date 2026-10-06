@@ -451,6 +451,9 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Imagen vigente prot
     const secondId = second.mutation.data?.[0]?.image_id;
     if (!firstId || !secondId) throw new Error("La carga no devolvió identificadores de imagen.");
 
+    expect(first.mutation.data?.[0]?.is_primary).toBe(true);
+    expect(second.mutation.data?.[0]?.is_primary).toBe(false);
+
     expect((await mutate(actor, order, "set_primary", { imageId: firstId })).error).toBeNull();
     expect((await mutate(actor, order, "set_primary", { imageId: secondId })).error).toBeNull();
     let current = await images(order);
