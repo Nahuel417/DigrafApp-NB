@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(new URL("../../supabase/migrations/20260917000100_optimize_order_board.sql", import.meta.url), "utf8");
 const searchMigration = readFileSync(new URL("../../supabase/migrations/20261002000100_order_board_public_number_search.sql", import.meta.url), "utf8");
+const precedenceMigration = readFileSync(new URL("../../supabase/migrations/20261005000200_order_board_public_number_search_precedence.sql", import.meta.url), "utf8");
 
 describe("order board migration contract", () => {
   it("returns only active orders with a primary image and aggregated products", () => {
@@ -24,5 +25,12 @@ describe("order board migration contract", () => {
     expect(searchMigration).toContain("search_text ~* '^ped[- ]?[0-9]+$'");
     expect(searchMigration).toContain("search_public_number := search_digits::bigint;");
     expect(searchMigration).toContain("target_order.public_number = search_public_number");
+  });
+
+  it("prioritizes an exact public number over phone substring matches", () => {
+    expect(precedenceMigration).toContain("formatted_public_number boolean := false;");
+    expect(precedenceMigration).toContain("has_active_public_number boolean := false;");
+    expect(precedenceMigration).toContain("exact_order.public_number = search_public_number");
+    expect(precedenceMigration).toContain("not has_active_public_number");
   });
 });
