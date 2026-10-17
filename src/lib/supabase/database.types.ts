@@ -546,6 +546,56 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"order_incident_events": {
+                  Row: {
+                    "actor_id": string,"incident_id": string,"kind": string,"occurred_at": string,"reasons": (string)[],"request_id": string,"version": number
+                  }
+                  Insert: {
+                    "actor_id": string,"incident_id": string,"kind": string,"occurred_at"?: string,"reasons": (string)[],"request_id": string,"version": number
+                  }
+                  Update: {
+                    "actor_id"?: string,"incident_id"?: string,"kind"?: string,"occurred_at"?: string,"reasons"?: (string)[],"request_id"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_incident_events_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "order_incident_events_incident_id_fkey"
+      columns: ["incident_id"]
+isOneToOne: false
+      referencedRelation: "order_incidents"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"order_incidents": {
+                  Row: {
+                    "created_at": string,"id": string,"kind": string,"order_id": string,"reasons": (string)[],"version": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"id": string,"kind": string,"order_id": string,"reasons": (string)[],"version"?: number
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"kind"?: string,"order_id"?: string,"reasons"?: (string)[],"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_incidents_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "archived_delivered_orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "order_incidents_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"order_lifecycle_events": {
                   Row: {
                     "actor_id": string,"event_type": string,"fingerprint": string,"from_state": string,"id": string,"idempotency_key": string,"occurred_at": string,"order_id": string,"reason": string,"result_snapshot": NonNullable<Json>,"to_state": string,"version": number
@@ -1200,6 +1250,9 @@ isOneToOne: false
 { Args: { "p_expected_updated_at": string,"p_idempotency_key": string,"p_order_id": string,"p_payment_id": string,"p_reason"?: string }; Returns: {
               "amount": number,"event_id": string,"from_stage_id": string,"order_id": string,"payment_id": string,"reversal_cash_movement_id": string,"stage_code": string,"to_stage_id": string,"updated_at": string
             }[]
+                           },
+"save_order_incident":
+{ Args: { "p_expected_version": number,"p_incident_id": string,"p_kind": string,"p_order_id": string,"p_reasons": (string)[],"p_request_id": string }; Returns: Json
                            },
 "set_cash_opening":
 { Args: { "p_amount": number,"p_expected_opening_updated_at": string,"p_idempotency_key": string }; Returns: {
