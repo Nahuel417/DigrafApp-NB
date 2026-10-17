@@ -1,0 +1,50 @@
+.detail,
+:global(body):has(.detail) :global([role="alertdialog"]) {
+  @media (prefers-reduced-motion: no-preference) {
+    :where(button, a[href], summary):not(:disabled, [aria-disabled="true"], [aria-busy="true"]) svg:not(:global(.animate-spin), :global(.lucide-chevron-down), :global(.lucide-chevron-up)) {
+      translate: calc(var(--icon-x, 0px) * var(--icon-feedback, 0)) calc(var(--icon-y, -1px) * var(--icon-feedback, 0));
+      rotate: calc(var(--icon-turn, 0deg) * var(--icon-feedback, 0));
+      scale: calc(1 + var(--icon-zoom, 0.02) * var(--icon-feedback, 0));
+      transition: translate 180ms ease-out, rotate 180ms ease-out, scale 180ms ease-out;
+      transform-origin: center;
+    }
+
+    :where(button, a[href], summary):not(:disabled, [aria-disabled="true"], [aria-busy="true"]):focus-visible {
+      --icon-feedback: 1;
+    }
+
+    @media (hover: hover) {
+      :where(button, a[href], summary):not(:disabled, [aria-disabled="true"], [aria-busy="true"]):hover {
+        --icon-feedback: 1;
+      }
+    }
+
+    :where(button, a[href], summary):active {
+      --icon-feedback: 0;
+    }
+
+    :global(.lucide-arrow-left) { --icon-x: -2px; --icon-y: 0px; --icon-zoom: 0; }
+    :global(.lucide-file-down) { --icon-y: 2px; --icon-zoom: 0; }
+    :global(.lucide-pencil), :global(.lucide-pencil-line) { --icon-turn: -7deg; --icon-x: 1px; --icon-y: 0px; }
+    :global(.lucide-plus) { --icon-turn: 12deg; --icon-y: 0px; }
+    :global(.lucide-save) { --icon-y: 1px; --icon-zoom: 0.03; }
+    :global(.lucide-archive) { --icon-y: 1.5px; --icon-zoom: 0; }
+    :global(.lucide-trash-2) { --icon-turn: 6deg; --icon-y: 0px; --icon-zoom: 0; }
+    :global(.lucide-rotate-ccw) { --icon-turn: -15deg; --icon-y: 0px; --icon-zoom: 0; }
+    :global(.lucide-refresh-cw) { --icon-turn: 15deg; --icon-y: 0px; --icon-zoom: 0; }
+    :global(.lucide-upload), :global(.lucide-image-plus) { --icon-y: -2px; --icon-zoom: 0; }
+    :global(.lucide-star), :global(.lucide-star-off) { --icon-turn: 7deg; --icon-y: 0px; --icon-zoom: 0.04; }
+    :global(.lucide-x) { --icon-turn: 10deg; --icon-y: 0px; --icon-zoom: 0; }
+    :global(.lucide-eye) { --icon-y: 0px; --icon-zoom: 0.04; }
+    :global(.lucide-message-square-plus) { --icon-x: 1px; --icon-y: -1px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(button, a[href], summary) svg:not(:global(.animate-spin)) {
+      translate: none;
+      scale: none;
+      transition: none;
+      animation: none;
+    }
+  }
+}

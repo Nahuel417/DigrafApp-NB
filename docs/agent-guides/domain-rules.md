@@ -126,6 +126,14 @@ Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicam
 
 - El MVP conserva hasta tres imágenes actuales de diseño, sin orden manual ni interfaz de historial. La primera imagen se selecciona automáticamente como principal; las siguientes no reemplazan esa selección. La primaria puede cambiarse o limpiarse manualmente, por lo que sigue siendo opcional. Tablero y vista rápida solo pueden proyectarla o mostrar un placeholder, y el detalle puede mostrar la colección privada completa.
 
+## Incidencias del pedido
+
+- Cada pedido admite incidencias independientes, visibles únicamente en su detalle. Cada una conserva fecha de carga del servidor, un tipo (`internal`, `complaint_without_return` o `complaint_with_return`) y uno o varios motivos fijos: Falla de costura, Diseño, Pedido incompleto y Problema en calandrado. No hay notas, adjuntos ni campo de quién detectó la falla.
+- Empleado registra únicamente incidencias internas en pedidos que ya puede consultar. Super admin, Admin y Atención registran cualquier tipo y pueden corregir tipo y motivos; cada revisión conserva los valores anteriores, actor técnico y hora de servidor. Empleado no puede corregir. No hay eliminación de incidencias.
+- Se pueden cargar en cualquier etapa operativa, sin modificar etapas, pagos ni caja. Los entregados archivados admiten carga y corrección para los roles con acceso actual; no se amplía el acceso de Empleado al Archivo. Anulados y purgados rechazan toda carga o corrección.
+- Las incidencias y sus revisiones se conservan vinculadas al tombstone del pedido tras la purga, sin copiar datos del cliente. No se agrega una pantalla de métricas en esta entrega. En futuras métricas cada incidencia cuenta una vez en el total y una vez por cada motivo elegido; la fecha es la de carga y las correcciones no crean incidencias adicionales.
+- La RPC `save_order_incident` usa el actor autenticado, idempotencia por solicitud y revisión esperada. El bloqueo del pedido serializa las escrituras con anulación/purga; una corrección desactualizada se rechaza sin perder la revisión vigente. Tablas y revisiones no admiten escrituras directas de usuarios autenticados.
+
 ## Pago y caja
 
 Al mover a `Pagado`, Super admin/Admin/Atención deben confirmar explícitamente el cobro. El movimiento, la confirmación y la creación del ingreso automático deben ocurrir como una operación atómica e idempotente.
