@@ -9,7 +9,6 @@
     }
   },
   "plugin": [
-    "context-mode",
     "@dietrichgebert/ponytail"
   ]
 }
