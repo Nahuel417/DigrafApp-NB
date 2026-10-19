@@ -9,6 +9,8 @@ import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orde
 import { updateOrderAction } from "@/features/orders/detail-actions";
 import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
 import { shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
+import { getOrderIncidents } from "@/features/orders/incident-queries";
+import { OrderIncidents } from "@/features/orders/components/order-incidents";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,19 +21,21 @@ import { OrderDetailTabList, OrderDetailTabPanel, OrderDetailTabs } from "@/feat
 import { OrderDesignImagePanel } from "@/features/orders/components/order-design-image-panel";
 import { OrderSpecifications } from "@/features/orders/components/order-specifications";
 import { ArchiveDeliveredOrderDialog, CancelOrderDialog, PurgeCancelledOrderDialog, RestoreOrderDialog, UnarchiveDeliveredOrderDialog } from "@/features/orders/components/order-lifecycle-dialogs";
+import styles from "./order-detail-motion.module.css";
 
 export default async function OrderDetailPage({ params, searchParams }: { params: Promise<{ orderId: string }>; searchParams: Promise<{ view?: string }> }) {
   const profile = await requireActiveProfile();
   const { orderId } = await params;
   const { view } = await searchParams;
 
-  const [data, timelineEvents, stageNames, designImagesResult] = await Promise.all([
+  const [data, timelineEvents, stageNames, designImagesResult, incidentsResult] = await Promise.all([
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
     getOrderDesignImagesReadUrls(orderId)
       .then((images) => ({ error: null, images }))
       .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", images: [] })),
+    getOrderIncidents(orderId),
   ]);
 
   if (!data) {
@@ -65,7 +69,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
   const historyItems = timelineItems.filter((item) => item.type !== "commented");
 
   return (
-    <main className="mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+    <main className={`${styles.detail} mx-auto flex w-full max-w-[80rem] flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10 lg:py-8`}>
       <header className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -169,6 +173,8 @@ export default async function OrderDetailPage({ params, searchParams }: { params
                   />
                 </div>
               </section>
+
+              <OrderIncidents error={incidentsResult.error} incidents={incidentsResult.incidents} orderId={order.id} readOnly={order.lifecycleState !== "active" && order.lifecycleState !== "archived_delivered"} role={profile.role} />
 
               <section className="rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
                 <DetailSectionHeader hint="Movimientos registrados." icon={History} title="Historial de etapas" />
