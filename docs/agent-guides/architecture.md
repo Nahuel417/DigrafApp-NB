@@ -73,6 +73,10 @@ Las funciones SQL sensibles deben validar autorización, usar un `search_path` s
 
 ## Dependencias y configuración
 
+- El proyecto usa Node.js 22 LTS, con mínimo de seguridad `22.23.4` (publicado el 21 de octubre de 2026). `.nvmrc` y GitHub Actions fijan ese parche; `engines.node` limita la compatibilidad a `>=22.23.4 <23`. La declaración no reemplaza instalar la versión corregida en cada entorno.
+- Vercel administra los parches del runtime: seleccionar `22.x` y comprobar la versión efectiva en los logs de un despliegue autorizado. No se puede garantizar su parche efectivo únicamente desde el repositorio ni actualizar un despliegue existente sin un nuevo deploy autorizado. No usar un rango abierto que permita saltar a otra versión mayor.
+- Referencia de seguridad: https://nodejs.org/en/blog/vulnerability/october-2026-security-releases. Antes de adoptar otro parche, contrastar el aviso oficial y actualizar conjuntamente las referencias de versión. No ejecutar el workflow de staging como prueba de un cambio de Node.
+
 - Usar versiones estables fijadas en lockfile. No incorporar previews sin aprobación.
 - Antes de sumar una dependencia, revisar si Next.js, shadcn/ui, Zod o una librería existente resuelven el caso.
 - Mantener secretos fuera del repositorio. Documentar variables requeridas en `.env.example` con valores seguros.

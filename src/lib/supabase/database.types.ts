@@ -27,6 +27,7 @@ export type Database = {
                   Row: {
                     "action": string,"actor_id": string,"created_at": string,"details": NonNullable<Json>,"id": string,"target_user_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "action": string,"actor_id": string,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string,"target_user_id": string
                   }
@@ -52,6 +53,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string | null,"cash_day_id": string,"closing_balance": number | null,"closure_kind": string | null,"created_at": string,"event_type": string,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"reason": string | null,"sequence_no": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id"?: string | null,"cash_day_id": string,"closing_balance"?: number | null,"closure_kind"?: string | null,"created_at"?: string,"event_type": string,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"reason"?: string | null,"sequence_no": number
                   }
@@ -77,6 +79,7 @@ isOneToOne: false
                   Row: {
                     "closed_at": string | null,"closed_by": string | null,"closing_balance": number | null,"closure_idempotency_fingerprint": string | null,"closure_idempotency_key": string | null,"closure_kind": string | null,"created_at": string,"id": string,"opening_balance": number,"opening_updated_at": string,"operational_date": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "closed_at"?: string | null,"closed_by"?: string | null,"closing_balance"?: number | null,"closure_idempotency_fingerprint"?: string | null,"closure_idempotency_key"?: string | null,"closure_kind"?: string | null,"created_at"?: string,"id"?: string,"opening_balance"?: number,"opening_updated_at"?: string,"operational_date": string
                   }
@@ -96,6 +99,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"created_at": string,"id": string,"is_active": boolean,"name": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string
                   }
@@ -109,6 +113,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"cash_day_id": string,"created_at": string,"event_type": string,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"movement_id": string,"new_state": Json | null,"previous_state": NonNullable<Json>,"reason": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"cash_day_id": string,"created_at"?: string,"event_type": string,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"movement_id": string,"new_state"?: Json | null,"previous_state": NonNullable<Json>,"reason"?: string | null
                   }
@@ -140,6 +145,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"amount": number,"cash_day_id": string,"created_at": string,"description": string | null,"direction": string,"expense_category_code": string | null,"expense_category_id": string | null,"expense_category_name": string | null,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"is_payment_reversal": boolean
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"amount": number,"cash_day_id": string,"created_at"?: string,"description"?: string | null,"direction": string,"expense_category_code"?: string | null,"expense_category_id"?: string | null,"expense_category_name"?: string | null,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"is_payment_reversal"?: boolean
                   }
@@ -171,6 +177,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"cash_day_id": string,"created_at": string,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"new_amount": number,"previous_amount": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"cash_day_id": string,"created_at"?: string,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"new_amount": number,"previous_amount": number
                   }
@@ -196,6 +203,7 @@ isOneToOne: false
                   Row: {
                     "action": string,"actor_id": string,"catalog_item_id": string | null,"catalog_item_name": string,"created_at": string,"details": NonNullable<Json>,"id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "action": string,"actor_id": string,"catalog_item_id"?: string | null,"catalog_item_name": string,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string
                   }
@@ -221,6 +229,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"created_by": string,"garment_layer": Database["public"]['Enums']["garment_layer"] | null,"id": string,"is_active": boolean,"kind": Database["public"]['Enums']["catalog_item_kind"],"name": string,"name_key": string | null,"updated_at": string,"updated_by": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"created_by": string,"garment_layer"?: Database["public"]['Enums']["garment_layer"] | null,"id"?: string,"is_active"?: boolean,"kind": Database["public"]['Enums']["catalog_item_kind"],"name": string,"name_key"?: never,"updated_at"?: string,"updated_by": string
                   }
@@ -246,6 +255,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"created_by": string,"id": string,"is_active": boolean,"option_id": string,"position": number,"updated_at": string,"updated_by": string,"value": string,"value_key": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"created_by": string,"id"?: string,"is_active"?: boolean,"option_id": string,"position"?: number,"updated_at"?: string,"updated_by": string,"value": string,"value_key"?: never
                   }
@@ -277,6 +287,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"created_at": string,"created_by": string,"id": string,"is_active": boolean,"name": string,"position": number,"product_id": string,"selection_mode": Database["public"]['Enums']["catalog_option_selection_mode"],"updated_at": string,"updated_by": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"created_at"?: string,"created_by": string,"id"?: string,"is_active"?: boolean,"name": string,"position"?: number,"product_id": string,"selection_mode": Database["public"]['Enums']["catalog_option_selection_mode"],"updated_at"?: string,"updated_by": string
                   }
@@ -308,6 +319,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"created_by": string,"garment_layer": Database["public"]['Enums']["garment_layer"] | null,"id": string,"is_active": boolean,"kind": Database["public"]['Enums']["catalog_product_kind"],"legacy_catalog_item_id": string | null,"name": string,"name_key": string | null,"section_id": string,"updated_at": string,"updated_by": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"created_by": string,"garment_layer"?: Database["public"]['Enums']["garment_layer"] | null,"id"?: string,"is_active"?: boolean,"kind": Database["public"]['Enums']["catalog_product_kind"],"legacy_catalog_item_id"?: string | null,"name": string,"name_key"?: never,"section_id": string,"updated_at"?: string,"updated_by": string
                   }
@@ -345,6 +357,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"created_at": string,"created_by": string | null,"id": string,"is_active": boolean,"name": string,"updated_at": string,"updated_by": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"is_active"?: boolean,"name": string,"updated_at"?: string,"updated_by"?: string | null
                   }
@@ -370,6 +383,7 @@ isOneToOne: false
                   Row: {
                     "catalog_item_id": string | null,"catalog_kind": Database["public"]['Enums']["catalog_item_kind"],"created_at": string,"garment_layer": Database["public"]['Enums']["garment_layer"] | null,"id": string,"item_name": string,"order_id": string,"selection_key": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "catalog_item_id"?: string | null,"catalog_kind": Database["public"]['Enums']["catalog_item_kind"],"created_at"?: string,"garment_layer"?: Database["public"]['Enums']["garment_layer"] | null,"id"?: string,"item_name": string,"order_id": string,"selection_key": string
                   }
@@ -401,6 +415,7 @@ isOneToOne: false
                   Row: {
                     "action": string,"actor_id": string,"change_note": string | null,"created_at": string,"details": NonNullable<Json>,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"order_id": string,"order_updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "action": string,"actor_id": string,"change_note"?: string | null,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"order_id": string,"order_updated_at": string
                   }
@@ -432,6 +447,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"body": string,"created_at": string,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"order_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"body": string,"created_at"?: string,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"order_id": string
                   }
@@ -463,6 +479,7 @@ isOneToOne: false
                   Row: {
                     "action": string,"actor_id": string,"created_at": string,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"image_id": string | null,"image_updated_at": string,"object_path": string,"order_id": string,"previous_object_path": string | null,"result": NonNullable<Json>
                   }
+                  ComputedFields: never
                   Insert: {
                     "action": string,"actor_id": string,"created_at"?: string,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"image_id"?: string | null,"image_updated_at": string,"object_path": string,"order_id": string,"previous_object_path"?: string | null,"result"?: NonNullable<Json>
                   }
@@ -494,6 +511,7 @@ isOneToOne: false
                   Row: {
                     "byte_size": number,"content_type": string,"created_at": string,"id": string,"is_primary": boolean,"object_path": string,"order_id": string,"updated_at": string,"uploaded_by": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "byte_size": number,"content_type": string,"created_at"?: string,"id"?: string,"is_primary"?: boolean,"object_path": string,"order_id": string,"updated_at"?: string,"uploaded_by": string
                   }
@@ -525,6 +543,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"deposit_amount": number,"deposit_paid": boolean,"order_id": string,"total_amount": number,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"deposit_amount": number,"deposit_paid"?: boolean,"order_id": string,"total_amount": number,"updated_at"?: string
                   }
@@ -550,6 +569,7 @@ isOneToOne: true
                   Row: {
                     "actor_id": string,"incident_id": string,"kind": string,"occurred_at": string,"reasons": (string)[],"request_id": string,"version": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"incident_id": string,"kind": string,"occurred_at"?: string,"reasons": (string)[],"request_id": string,"version": number
                   }
@@ -575,6 +595,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"id": string,"kind": string,"order_id": string,"reasons": (string)[],"version": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"id": string,"kind": string,"order_id": string,"reasons": (string)[],"version"?: number
                   }
@@ -600,6 +621,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"event_type": string,"fingerprint": string,"from_state": string,"id": string,"idempotency_key": string,"occurred_at": string,"order_id": string,"reason": string,"result_snapshot": NonNullable<Json>,"to_state": string,"version": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"event_type": string,"fingerprint": string,"from_state": string,"id"?: string,"idempotency_key": string,"occurred_at"?: string,"order_id": string,"reason": string,"result_snapshot": NonNullable<Json>,"to_state": string,"version"?: number
                   }
@@ -631,6 +653,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"id": string,"order_line_id": string,"position": number,"shield_name_snapshot": string,"shield_product_id": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"id"?: string,"order_line_id": string,"position": number,"shield_name_snapshot": string,"shield_product_id"?: string | null
                   }
@@ -656,6 +679,7 @@ isOneToOne: false
                   Row: {
                     "color": string | null,"configuration": NonNullable<Json>,"created_at": string,"id": string,"line_type": Database["public"]['Enums']["order_line_type"],"order_id": string,"position": number,"product_id": string | null,"product_name_snapshot": string,"quantity": number,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "color"?: string | null,"configuration"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"line_type": Database["public"]['Enums']["order_line_type"],"order_id": string,"position": number,"product_id"?: string | null,"product_name_snapshot": string,"quantity": number,"updated_at"?: string
                   }
@@ -687,6 +711,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"event_type": string,"fingerprint": string,"id": string,"idempotency_key": string,"occurred_at": string,"order_payment_id": string,"order_snapshot": NonNullable<Json>,"payment_snapshot": NonNullable<Json>,"stage": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"event_type": string,"fingerprint": string,"id"?: string,"idempotency_key": string,"occurred_at"?: string,"order_payment_id": string,"order_snapshot": NonNullable<Json>,"payment_snapshot": NonNullable<Json>,"stage": string
                   }
@@ -712,6 +737,7 @@ isOneToOne: false
                   Row: {
                     "actor_id": string,"amount": number,"cash_movement_id": string | null,"confirmed_at": string,"fingerprint": string,"id": string,"idempotency_key": string,"order_id": string,"reversal_cash_movement_id": string | null,"reversed_at": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"amount": number,"cash_movement_id"?: string | null,"confirmed_at"?: string,"fingerprint": string,"id"?: string,"idempotency_key": string,"order_id": string,"reversal_cash_movement_id"?: string | null,"reversed_at"?: string | null
                   }
@@ -755,6 +781,7 @@ isOneToOne: false
                   Row: {
                     "attempts": number,"created_at": string,"id": string,"idempotency_fingerprint": string | null,"last_error": string | null,"lease_expires_at": string | null,"lease_token": string | null,"next_attempt_at": string | null,"object_paths": NonNullable<Json>,"order_id": string,"result": Json | null,"status": string,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "attempts"?: number,"created_at"?: string,"id"?: string,"idempotency_fingerprint"?: string | null,"last_error"?: string | null,"lease_expires_at"?: string | null,"lease_token"?: string | null,"next_attempt_at"?: string | null,"object_paths"?: NonNullable<Json>,"order_id": string,"result"?: Json | null,"status": string,"updated_at"?: string
                   }
@@ -780,6 +807,7 @@ isOneToOne: true
                   Row: {
                     "actor_id": string,"created_at": string,"from_stage_id": string | null,"from_stage_name": string | null,"id": string,"idempotency_fingerprint": string | null,"idempotency_key": string | null,"order_id": string,"to_stage_id": string,"to_stage_name": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "actor_id": string,"created_at"?: string,"from_stage_id"?: string | null,"from_stage_name"?: string | null,"id"?: string,"idempotency_fingerprint"?: string | null,"idempotency_key"?: string | null,"order_id": string,"to_stage_id": string,"to_stage_name"?: string | null
                   }
@@ -823,6 +851,7 @@ isOneToOne: false
                   Row: {
                     "cancellation_reason": string | null,"cancelled_at": string | null,"cancelled_by": string | null,"client_name": string | null,"created_at": string,"created_by": string,"current_stage_id": string | null,"customer_name": string | null,"description": string | null,"dni": string | null,"id": string,"idempotency_fingerprint": string | null,"idempotency_key": string | null,"label": Database["public"]['Enums']["order_label"] | null,"lifecycle_state": string,"order_date": string | null,"order_type": Database["public"]['Enums']["order_type"] | null,"phone": string | null,"promised_delivery_date": string | null,"public_number": number,"quantity": number | null,"team_name": string | null,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "cancellation_reason"?: string | null,"cancelled_at"?: string | null,"cancelled_by"?: string | null,"client_name"?: string | null,"created_at"?: string,"created_by": string,"current_stage_id"?: string | null,"customer_name"?: string | null,"description"?: string | null,"dni"?: string | null,"id"?: string,"idempotency_fingerprint"?: string | null,"idempotency_key"?: string | null,"label"?: Database["public"]['Enums']["order_label"] | null,"lifecycle_state"?: string,"order_date"?: string | null,"order_type"?: Database["public"]['Enums']["order_type"] | null,"phone"?: string | null,"promised_delivery_date"?: string | null,"public_number"?: number,"quantity"?: number | null,"team_name"?: string | null,"updated_at"?: string
                   }
@@ -854,6 +883,7 @@ isOneToOne: false
                   Row: {
                     "code": string | null,"code_key": string | null,"created_at": string,"created_by": string,"group_name": Database["public"]['Enums']["price_group"],"id": string,"is_active": boolean,"name": string,"price": number,"unit": string,"updated_at": string,"updated_by": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "code"?: string | null,"code_key"?: never,"created_at"?: string,"created_by": string,"group_name": Database["public"]['Enums']["price_group"],"id"?: string,"is_active"?: boolean,"name": string,"price": number,"unit": string,"updated_at"?: string,"updated_by": string
                   }
@@ -879,6 +909,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"display_name": string,"id": string,"is_active": boolean,"must_change_password": boolean,"role": Database["public"]['Enums']["app_role"],"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"display_name"?: string,"id": string,"is_active"?: boolean,"must_change_password"?: boolean,"role": Database["public"]['Enums']["app_role"],"updated_at"?: string
                   }
@@ -892,6 +923,7 @@ isOneToOne: false
                   Row: {
                     "action": string,"actor_id": string,"created_at": string,"details": NonNullable<Json>,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"workflow_stage_id": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "action": string,"actor_id": string,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string,"idempotency_fingerprint": string,"idempotency_key": string,"workflow_stage_id"?: string | null
                   }
@@ -917,6 +949,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"created_at": string,"id": string,"is_active": boolean,"name": string,"position": number,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"position": number,"updated_at"?: string
                   }
@@ -933,6 +966,7 @@ isOneToOne: false
                   Row: {
                     "client_name": string | null,"created_at": string | null,"created_by": string | null,"current_stage_id": string | null,"customer_name": string | null,"description": string | null,"id": string | null,"lifecycle_state": string | null,"order_date": string | null,"order_type": Database["public"]['Enums']["order_type"] | null,"phone": string | null,"promised_delivery_date": string | null,"public_number": number | null,"quantity": number | null,"team_name": string | null,"updated_at": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                            "client_name"?: string | null,"created_at"?: string | null,"created_by"?: string | null,"current_stage_id"?: string | null,"customer_name"?: string | null,"description"?: string | null,"id"?: string | null,"lifecycle_state"?: string | null,"order_date"?: string | null,"order_type"?: Database["public"]['Enums']["order_type"] | null,"phone"?: string | null,"promised_delivery_date"?: string | null,"public_number"?: number | null,"quantity"?: number | null,"team_name"?: string | null,"updated_at"?: string | null
                          }
