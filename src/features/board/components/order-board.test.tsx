@@ -79,6 +79,19 @@ function getOrderCard() {
 }
 
 describe("order board payment confirmation", () => {
+  it("marks mixed orders with both bag and flag badges without replacing existing labels", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, specialProductTypes: ["bag", "flag"], label: "urgent" }] }, columns[1], columns[2]]} />);
+    const card = getOrderCard();
+    expect(within(card).getByLabelText("Contiene bolsos").textContent).toContain("Bolso");
+    expect(within(card).getByLabelText("Contiene banderas").textContent).toContain("Bandera");
+    expect(within(card).getByText("Entrega prometida")).toBeTruthy();
+  });
+
+  it("does not infer special product types from product names", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[{ ...columns[0], orders: [{ ...order, productName: "Bolso y bandera estampados" }] }, columns[1], columns[2]]} />);
+    expect(within(getOrderCard()).queryByLabelText("Contiene bolsos")).toBeNull();
+    expect(within(getOrderCard()).queryByLabelText("Contiene banderas")).toBeNull();
+  });
   it("renders the promised delivery date with the operational card format", () => {
     render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={columns} />);
 
