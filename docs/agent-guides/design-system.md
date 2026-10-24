@@ -256,6 +256,8 @@ No duplicar DOM accesible. Permitir overflow horizontal solo cuando comparar col
 
 ## Kanban
 
+Las tarjetas distinguen los pedidos que contienen bolsos o banderas con badges compactos de icono y texto: `Bolso` en verde operativo y `Bandera` con los tokens de información. Si un pedido combina ambos tipos, muestra los dos distintivos; no reemplazan la etiqueta operativa ni el nombre del producto. La clasificación proviene de los tipos de renglón, nunca del texto del nombre, y conserva la misma presentación en mobile y durante el arrastre.
+
 Desktop usa columnas desplazables horizontalmente, etapa y cantidad visibles, tarjetas compactas y drag preview estable. Un rechazo del servidor revierte el cambio optimista y comunica el error.
 
 Teclado y mobile tienen alternativa completa al drag: selector explícito de destino, grupos por etapa y navegación rápida. Las reglas no se deducen del nombre o color de una etapa.

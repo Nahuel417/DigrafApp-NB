@@ -24,7 +24,7 @@ type Role = Database["public"]["Enums"]["app_role"];
 function kindLabel(kind: string) { return incidentKinds[kind as IncidentKind] ?? kind; }
 function reasonLabel(reason: string) { return incidentReasons[reason as IncidentReason] ?? reason; }
 const kindIcons = { internal: AlertCircle, complaint_without_return: MessageSquareWarning, complaint_with_return: RotateCcw };
-const reasonIcons = { sewing: Scissors, design: Sparkles, incomplete: Package, calendering: Waves };
+const reasonIcons = { sewing: Scissors, design: Sparkles, incomplete: Package, calendering: Waves, customer_service: MessageSquareWarning };
 
 function IncidentForm({ orderId, role, incident }: { orderId: string; role: Role; incident?: OrderIncident }) {
   const router = useRouter();

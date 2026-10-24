@@ -18,7 +18,7 @@ import {
     type DragStartEvent,
     type CollisionDetection,
 } from '@dnd-kit/core';
-import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, GripVertical, Package, PackageOpen, Search, Shirt, Tag } from 'lucide-react';
+import { AlertCircle, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CircleCheck, Eye, FileText, Flag, GripVertical, Package, PackageOpen, Search, Shirt, ShoppingBag, Tag } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
@@ -34,6 +34,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -130,6 +131,10 @@ const OrderSummary = memo(function OrderSummary({ order, showThumbnail }: { orde
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{order.teamName ?? 'Equipo sin completar'}</p>
                 </div>
             </div>
+            {order.specialProductTypes?.length ? <div className="mt-2 flex flex-wrap gap-1.5">
+                {order.specialProductTypes.includes('bag') ? <Badge aria-label="Contiene bolsos" className="gap-1.5 border-primary bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground" variant="outline"><ShoppingBag aria-hidden="true" className="size-3 shrink-0" />Bolso</Badge> : null}
+                {order.specialProductTypes.includes('flag') ? <Badge aria-label="Contiene banderas" className="gap-1.5 border-info-foreground/25 bg-info px-2 py-1 text-[10px] font-semibold text-info-foreground" variant="outline"><Flag aria-hidden="true" className="size-3 shrink-0" />Bandera</Badge> : null}
+            </div> : null}
             <dl className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
                 <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-0.5">
                     <Package aria-hidden="true" className="size-3" />
