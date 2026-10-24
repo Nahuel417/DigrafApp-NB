@@ -19,6 +19,7 @@ export type BoardOrder = {
   quantity: number;
   label: OrderLabel | null;
   productName?: string | null;
+  specialProductTypes?: ("bag" | "flag")[];
   promisedDeliveryDate: string;
   currentStageId: string;
   updatedAt: string;
@@ -60,7 +61,7 @@ export function buildBoardColumns(stages: BoardStage[], orders: BoardOrder[]): B
 
 type BoardRpcRow = Database["public"]["Functions"]["get_order_board"]["Returns"][number];
 
-function mapBoardRpcRow(order: BoardRpcRow): BoardOrder {
+function mapBoardRpcRow(order: BoardRpcRow, specialProductTypes: ("bag" | "flag")[] = []): BoardOrder {
   return {
     id: order.id,
     publicNumber: order.public_number,
@@ -69,6 +70,7 @@ function mapBoardRpcRow(order: BoardRpcRow): BoardOrder {
     quantity: order.quantity,
     label: order.label,
     productName: order.product_name,
+    specialProductTypes,
     promisedDeliveryDate: order.promised_delivery_date,
     currentStageId: order.current_stage_id,
     updatedAt: order.updated_at,
@@ -76,6 +78,22 @@ function mapBoardRpcRow(order: BoardRpcRow): BoardOrder {
     totalAmount: order.total_amount,
     paymentConfirmedAt: order.payment_confirmed_at,
   };
+}
+
+async function getSpecialProductTypes(supabase: Awaited<ReturnType<typeof createClient>>, orderIds: string[]) {
+  const types = new Map<string, ("bag" | "flag")[]>();
+  if (!orderIds.length) return types;
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from("order_lines").select("order_id, line_type")
+      .in("order_id", orderIds).order("id").range(offset, offset + 999);
+    if (error) throw new Error("No se pudieron cargar los tipos de producto del tablero.");
+    for (const line of data ?? []) {
+      if (line.line_type !== "bag" && line.line_type !== "flag") continue;
+      const existing = types.get(line.order_id) ?? [];
+      if (!existing.includes(line.line_type)) types.set(line.order_id, [...existing, line.line_type].sort());
+    }
+    if (!data || data.length < 1000) return types;
+  }
 }
 
 export async function getOrderBoard(search = ""): Promise<OrderBoard> {
@@ -89,7 +107,8 @@ export async function getOrderBoard(search = ""): Promise<OrderBoard> {
 
   const stages = stagesResult.data as BoardStage[];
   const boardRows: BoardRpcRow[] = ordersResult.data;
-  const orders = boardRows.map(mapBoardRpcRow);
+  const types = await getSpecialProductTypes(supabase, boardRows.map((order) => order.id));
+  const orders = boardRows.map((order) => mapBoardRpcRow(order, types.get(order.id)));
 
   return { columns: buildBoardColumns(stages, orders) };
 }
@@ -100,7 +119,8 @@ export async function getOrderBoardSnapshot(orderId: string): Promise<BoardOrder
   if (error) throw new Error("No se pudo cargar el pedido del tablero.");
   const order = data[0];
   if (!order) return null;
-  return mapBoardRpcRow(order);
+  const types = await getSpecialProductTypes(supabase, [order.id]);
+  return mapBoardRpcRow(order, types.get(order.id));
 }
 
 export type OrderMovementSnapshot = Pick<BoardOrder, "currentStageId" | "updatedAt">;

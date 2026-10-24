@@ -117,6 +117,24 @@ describe("order incidents — simultaneous local sessions", () => {
 });
 
 describe("order incidents — local database transaction probes", () => {
+  it("records customer service issues and corrections with all five reasons without changing prior history", () => probe(`
+    set local role authenticated;
+    ${save("complaint_with_return", "array['customer_service']")};
+    ${save("complaint_without_return", "array['sewing','design','incomplete','calendering','customer_service']", 1, "55555555-5555-4555-8555-555555555555")};
+    select pg_temp.check((select version = 2 and cardinality(reasons) = 5 from public.order_incidents where id = ${incident}));
+    select pg_temp.check((select reasons = array['customer_service'] from public.order_incident_events where incident_id = ${incident} and version = 1));
+    select pg_temp.check((select count(*) = 2 from public.order_incident_events where incident_id = ${incident}));
+    reset role;
+    create temporary table before_rejected_reason as
+      select md5(to_jsonb(i)::text) incident_hash,
+        (select md5(jsonb_agg(to_jsonb(e) order by e.version)::text) from public.order_incident_events e where e.incident_id = i.id) events_hash
+      from public.order_incidents i where i.id = ${incident};
+    set local role authenticated;
+    ${reject(save("complaint_without_return", "array['sewing','design','incomplete','calendering','customer_service','customer_service']", 2, "66666666-6666-4666-8666-666666666666"))}
+    reset role;
+    select pg_temp.check((select incident_hash = (select md5(to_jsonb(i)::text) from public.order_incidents i where i.id = ${incident})
+      and events_hash = (select md5(jsonb_agg(to_jsonb(e) order by e.version)::text) from public.order_incident_events e where e.incident_id = ${incident}) from before_rejected_reason));
+  `));
   it("normalizes reasons, replays once, and leaves both ledgers unchanged after rejected writes", () => probe(`
     set local role authenticated;
     ${save("internal", "array['sewing','sewing','design']")};

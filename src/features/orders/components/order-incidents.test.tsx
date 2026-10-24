@@ -20,7 +20,8 @@ describe("order incident section", () => {
     render(<OrderIncidents {...props} />);
     fireEvent.click(screen.getByText("Registrar incidencia"));
     expect(screen.getAllByRole("radio")).toHaveLength(1);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(5);
+    expect(screen.getByRole("checkbox", { name: "Atención al público" })).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
     fireEvent.click(screen.getByLabelText("Falla de costura"));
     fireEvent.click(screen.getByLabelText("Diseño"));

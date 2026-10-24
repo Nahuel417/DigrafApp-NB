@@ -8,6 +8,12 @@ const valid = {
 };
 
 describe("incident input", () => {
+  it("accepts public-facing service issues alone and alongside all existing reasons", () => {
+    for (const kind of Object.keys(incidentKinds)) {
+      expect(incidentSchema.safeParse({ ...valid, kind, reasons: ["customer_service"] }).success).toBe(true);
+      expect(incidentSchema.safeParse({ ...valid, kind, reasons: ["sewing", "design", "incomplete", "calendering", "customer_service"] }).success).toBe(true);
+    }
+  });
   it("accepts all three types and one or multiple fixed reasons", () => {
     for (const kind of Object.keys(incidentKinds)) {
       expect(incidentSchema.safeParse({ ...valid, kind }).success).toBe(true);
@@ -15,7 +21,7 @@ describe("incident input", () => {
     }
   });
   it("rejects missing or unknown classification, invalid identifiers and invalid revisions", () => {
-    for (const change of [{ kind: "other" }, { reasons: [] }, { reasons: ["other"] }, { reasons: [null] }, { reasons: ["sewing", "sewing", "sewing", "sewing", "sewing"] }, { orderId: "bad" }, { incidentId: "bad" }, { requestId: "bad" }, { expectedVersion: -1 }, { expectedVersion: 1.5 }, { expectedVersion: "" }]) {
+    for (const change of [{ kind: "other" }, { reasons: [] }, { reasons: ["other"] }, { reasons: [null] }, { reasons: ["sewing", "sewing", "sewing", "sewing", "sewing", "sewing"] }, { orderId: "bad" }, { incidentId: "bad" }, { requestId: "bad" }, { expectedVersion: -1 }, { expectedVersion: 1.5 }, { expectedVersion: "" }]) {
       expect(incidentSchema.safeParse({ ...valid, ...change }).success).toBe(false);
     }
   });

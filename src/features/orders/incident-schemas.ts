@@ -13,6 +13,7 @@ export const incidentReasons = {
   design: "Diseño",
   incomplete: "Pedido incompleto",
   calendering: "Problema en calandrado",
+  customer_service: "Atención al público",
 } as const;
 export type IncidentKind = keyof typeof incidentKinds;
 export type IncidentReason = keyof typeof incidentReasons;
@@ -26,7 +27,7 @@ export const incidentSchema = z.object({
   incidentId: z.uuid("La incidencia no es válida."),
   requestId: z.uuid("La solicitud no es válida."),
   kind: z.enum(["internal", "complaint_without_return", "complaint_with_return"], { error: "Seleccione un tipo de incidencia." }),
-  reasons: z.array(z.enum(["sewing", "design", "incomplete", "calendering"], { error: "Seleccione motivos válidos." }))
-    .min(1, "Seleccione al menos un motivo.").max(4, "Seleccione como máximo cuatro motivos."),
+  reasons: z.array(z.enum(["sewing", "design", "incomplete", "calendering", "customer_service"], { error: "Seleccione motivos válidos." }))
+    .min(1, "Seleccione al menos un motivo.").max(5, "Seleccione como máximo cinco motivos."),
   expectedVersion: z.preprocess((value) => value === "" ? undefined : value, z.coerce.number().int().min(0).max(2147483646)),
 });
