@@ -164,10 +164,11 @@ test.describe("Order incidents", () => {
     await expect(panel.getByRole("radio")).toHaveCount(1);
     await expect(panel.getByRole("radio", { name: "Interna", exact: true })).toBeChecked();
     await expect(panel.getByText("Corregir incidencia", { exact: true })).toHaveCount(0);
-    await panel.getByRole("checkbox", { name: "Problema en calandrado" }).check();
+    await panel.getByRole("checkbox", { name: "Atención al público", exact: true }).check();
     await panel.getByRole("button", { name: "Guardar incidencia" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Confirmar", exact: true }).click();
     await expect(panel.getByRole("heading", { name: "Interna", exact: true })).toBeVisible();
+    await expect(panel.locator("ol > li").first().getByText("Atención al público", { exact: true })).toBeVisible();
     await expect(panel.getByText("Corregir incidencia", { exact: true })).toHaveCount(0);
     await noOverflow(page);
     await panel.screenshot({ path: info.outputPath("incidents-employee.png") });
