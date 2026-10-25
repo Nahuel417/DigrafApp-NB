@@ -91,13 +91,15 @@ Digraf opera en cuatro entornos con separación estricta:
 | Local | `pnpm dev` | Supabase local | Sintéticos | `http://127.0.0.1:3000` |
 | Preview por rama | Vercel Preview, proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos, prefijo `STG-<rama>-<fecha>-<caso>`, correos `@example.test` | Subdominio generado por Vercel |
 | Staging estable | Vercel Preview, rama `staging` del proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos | Subdominio generado por Vercel |
-| Producción futura | Otro proyecto Vercel y otro Supabase, fuera de INF-01 | Fuera de alcance | Reales | No configurar en INF-01 |
+| Producción | Proyecto Vercel y Supabase de producción asociados a `main` | Supabase de producción separado de staging | Reales | Según configuración externa |
 
 Reglas de separación:
 
-- `staging` se crea una sola vez desde `develop` y se mantiene como Preview branch estable del proyecto `digraf-staging`. El slot Production del proyecto queda sin uso y `main` se excluye del deploy mediante `git.deploymentEnabled` en `vercel.json`.
+- Las ramas `feat/*`, `fix/*` y `chore/*` nacen desde `develop`; el trabajo habitual ocurre allí y se integra mediante PR: rama de tarea → `develop` → `staging` → `main`. `staging` valida en la nube y `main` es producción; producción usa proyectos separados de staging.
+- Antes de cada integración, el usuario revisa el diff, los controles CI aplicables y realiza la validación humana. Commits, pushes, PR y merges los ejecuta manualmente el usuario. Excepcionalmente, puede hacer push directo a `staging`.
+- `staging` es la Preview branch estable del proyecto `digraf-staging`; el proyecto y sus previews siguen protegidos con Vercel Authentication. El enrutamiento de deployments de producción se configura fuera de este repositorio.
 - Vercel Authentication se activa en `Production Environment` (con tipo `prod_deployment_urls_and_all_previews`) o, si la protección no alcanza, en `Preview` y en `All` para que tanto `staging` como las previews requieran autenticación.
-- Producción futura nunca reutilizará este proyecto ni `staging`; tendrá su propio proyecto Vercel, su propio Supabase y su propio `main` con deployments productivos.
+- No reutilizar el proyecto `digraf-staging` ni sus datos en producción.
 
 ## Variables de entorno
 

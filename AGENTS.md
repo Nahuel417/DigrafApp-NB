@@ -6,11 +6,13 @@ trazabilidad, claridad y baja carga cognitiva.
 
 ## Límites críticos
 
-- No ejecutar `git commit` ni crear tags hasta que el usuario lo solicite
-  explícitamente. Aprobar un plan o implementación no autoriza un commit.
+- El usuario realiza todos los commits, pushes, PR y merges. El agente puede
+  preparar cambios y sugerir comandos, pero nunca ejecutar esas acciones.
+- No crear tags salvo solicitud explícita del usuario.
 - Trello es de solo lectura por defecto. Excepcionalmente, se permiten escrituras cuando el usuario autorice explícitamente la acción concreta y su destino. La autorización vale únicamente para esa operación; no habilita otras modificaciones.
-- `push`, PR, merge, deploy, release, migraciones remotas y configuración externa
-  requieren una solicitud explícita para esa acción concreta.
+- Deploy, release, migraciones remotas y configuración externa requieren solicitud
+  explícita para esa acción concreta. El único push directo permitido en el flujo
+  Git es la excepción manual del usuario a `staging`.
 - No modificar producción, datos reales, credenciales ni infraestructura como
   efecto colateral de una tarea local.
 
@@ -90,7 +92,7 @@ directamente; un módulo comienza solo tras su aprobación.
 Antes de editar:
 
 1. Revisar `git status`, rama y cambios existentes.
-2. Crear o usar una rama `feat/*` para el módulo aprobado.
+2. Crear o usar una rama `feat/*`, `fix/*` o `chore/*` basada en `develop`.
 3. Identificar guías, permisos y verificaciones aplicables.
 
 Implementar secuencialmente: invariantes/autorización/migraciones, servidor, UI,
@@ -120,9 +122,12 @@ comprobaciones omitidas. Recomendar el cambio en Trello sin realizarlo.
 ## Git, skills y herramientas
 
 - Usar `git` para el repositorio y `gh` para GitHub; no usar GitHub MCP.
-- `main` es estable: nunca hacer push directo. Usar Conventional Commits.
-- Tras implementar, presentar cambios y verificaciones y esperar la orden de
-  commit. Esa orden no autoriza push, PR, merge, deploy ni Trello.
+- Flujo normal: rama de tarea → PR a `develop` → PR a `staging` → PR a `main`.
+  Revisar cambios, controles CI aplicables y validación humana antes de cada merge.
+- `develop` integra trabajo; `staging` es validación en nube; `main` es producción.
+  El usuario puede hacer push directo manual a `staging` como excepción.
+- Usar Conventional Commits. El agente presenta cambios y checks; no ejecuta
+  commits, pushes, PR ni merges, aunque el usuario le pida preparar su contenido.
 - No usar `git reset --hard`, `git clean`, `git checkout --`, force push ni
   reescribir historial sin autorización explícita.
 - Cargar `frontend-design` para cambios visuales importantes; `shadcn` para sus
