@@ -101,6 +101,12 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     return data as Record<string, unknown>;
   }
 
+  async function lifecycleEventCount(orderId: string) {
+    const { count, error } = await service.from("order_lifecycle_events").select("id", { count: "exact", head: true }).eq("order_id", orderId);
+    if (error) throw error;
+    return count ?? 0;
+  }
+
   beforeAll(async () => {
     const { data, error } = await service.from("workflow_stages").select("id, code");
     if (error) throw error;
@@ -115,6 +121,16 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
 
   afterAll(async () => {
     if (orderIds.length) {
+      const { data: payments, error: paymentReadError } = await service.from("order_payments")
+        .select("id, cash_movement_id, reversal_cash_movement_id")
+        .in("order_id", orderIds);
+      if (paymentReadError) throw paymentReadError;
+      const paymentIds = payments?.map((payment) => payment.id) ?? [];
+      const movementIds = [...new Set(payments?.flatMap((payment) => [payment.cash_movement_id, payment.reversal_cash_movement_id]).filter((id): id is string => id !== null) ?? [])];
+      if (paymentIds.length) await service.from("order_payment_events").delete().in("order_payment_id", paymentIds);
+      if (movementIds.length) await service.from("cash_movement_events").delete().in("movement_id", movementIds);
+      if (paymentIds.length) await service.from("order_payments").delete().in("id", paymentIds);
+      if (movementIds.length) await service.from("cash_movements").delete().in("id", movementIds);
       const { error: restoreError } = await service.from("orders").update({
         lifecycle_state: "active",
         cancelled_at: null,
@@ -210,12 +226,69 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("Anulación, Archivo
     expect(payment.error).toBeNull();
     const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
     const current = await currentOrder(order.id);
+    const eventsBefore = await lifecycleEventCount(order.id);
     const result = await cancel(admin, { ...order, updated_at: String(current.updated_at) }, "No continúa");
     expect(result.error?.message).toContain("M12");
     const unchanged = await currentOrder(order.id);
-    expect(unchanged.lifecycle_state).toBe("active");
-    const { count } = await service.from("order_lifecycle_events").select("id", { count: "exact", head: true }).eq("order_id", order.id);
-    expect(count).toBe(0);
+    expect(unchanged).toMatchObject({ lifecycle_state: "active", current_stage_id: stageIds.paid, updated_at: current.updated_at });
+    expect(await lifecycleEventCount(order.id)).toBe(eventsBefore);
+  });
+
+  it("rechaza anular pedidos en Pagado por su código estable aunque no haya pago activo", async () => {
+    const order = await createOrder("paid");
+    const before = await currentOrder(order.id);
+    const eventsBefore = await lifecycleEventCount(order.id);
+    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
+
+    const result = await cancel(admin, { ...order, updated_at: String(before.updated_at) }, "No continúa");
+
+    expect(result.error?.message ?? "").toContain("Revertí el pago mediante M12 antes de anularlo.");
+    expect(await currentOrder(order.id)).toMatchObject({ lifecycle_state: "active", current_stage_id: stageIds.paid, updated_at: before.updated_at });
+    expect(await lifecycleEventCount(order.id)).toBe(eventsBefore);
+  });
+
+  it("rechaza anular pedidos en Entregado y conserva pedido, timestamp y auditoría", async () => {
+    const order = await createOrder("delivered");
+    const before = await currentOrder(order.id);
+    const eventsBefore = await lifecycleEventCount(order.id);
+    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
+
+    const result = await cancel(admin, { ...order, updated_at: String(before.updated_at) }, "No continúa");
+
+    expect(result.error?.message ?? "").toContain("El pedido está en Entregado. Movelo a otra etapa antes de anularlo.");
+    expect(await currentOrder(order.id)).toMatchObject({ lifecycle_state: "active", current_stage_id: stageIds.delivered, updated_at: before.updated_at });
+    expect(await lifecycleEventCount(order.id)).toBe(eventsBefore);
+  });
+
+  it("permite anular después de revertir el pago y volver a una etapa operativa", async () => {
+    const order = await createOrder();
+    const attention = await signedClient(identities.find((identity) => identity.role === "attention")!);
+    const confirmed = await attention.rpc("confirm_order_payment", {
+      p_order_id: order.id,
+      p_expected_updated_at: order.updated_at,
+      p_idempotency_key: `m15-reversible-payment-${randomUUID()}`,
+    });
+    expect(confirmed.error).toBeNull();
+    const paymentId = confirmed.data?.[0]?.payment_id;
+    if (!paymentId) throw new Error("No se confirmó el pago M15.");
+    const paidOrder = await currentOrder(order.id);
+    const admin = await signedClient(identities.find((identity) => identity.role === "admin")!);
+    const reversed = await admin.rpc("reverse_order_payment", {
+      p_order_id: order.id,
+      p_payment_id: paymentId,
+      p_expected_updated_at: String(paidOrder.updated_at),
+      p_idempotency_key: `m15-reverse-payment-${randomUUID()}`,
+      p_reason: "Corrección de pago",
+    });
+    expect(reversed.error).toBeNull();
+    const reversedOrder = await currentOrder(order.id);
+    expect(reversedOrder.current_stage_id).toBe(stageIds.received);
+
+    const result = await cancel(admin, { ...order, updated_at: String(reversedOrder.updated_at) }, "Cancelación tras reversión");
+
+    expect(result.error).toBeNull();
+    expect(result.data?.[0]).toMatchObject({ lifecycle_state: "cancelled" });
+    expect(await lifecycleEventCount(order.id)).toBe(1);
   });
 
   it("anula, excluye del tablero, conserva relaciones y expone un único evento en timeline", async () => {

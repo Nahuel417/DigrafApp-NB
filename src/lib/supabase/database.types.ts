@@ -947,14 +947,14 @@ isOneToOne: false
                   ]
                 },"workflow_stages": {
                   Row: {
-                    "code": string,"created_at": string,"id": string,"is_active": boolean,"name": string,"position": number,"updated_at": string
+                    "code": string,"created_at": string,"id": string,"is_active": boolean,"name": string,"position": number,"requires_design_image": boolean,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "code": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"position": number,"updated_at"?: string
+                    "code": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"position": number,"requires_design_image"?: boolean,"updated_at"?: string
                   }
                   Update: {
-                    "code"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"position"?: number,"updated_at"?: string
+                    "code"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"position"?: number,"requires_design_image"?: boolean,"updated_at"?: string
                   }
                   Relationships: [
                     

@@ -35,11 +35,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMutationToast } from '@/hooks/use-mutation-toast';
 import { formatArs } from '@/lib/money/decimal';
+import { archiveDeliveredOrderAction, cancelOrderAction } from '@/features/orders/cancellation-actions';
 
 import {
     confirmOrderPaymentAction,
@@ -57,6 +59,8 @@ import { moveBoardOrder, replaceBoardOrder } from '../board-state';
 import { orderLabelAccentClassName, orderLabelCardClassName, orderLabelClassName, orderLabelName, orderLabelOptions, orderLabelReferenceOptions } from '../labels';
 import type { BoardColumn, BoardOrder } from '../queries';
 import type { OrderLabel } from '../schemas';
+import { BoardBulkActions } from './board-bulk-actions';
+import type { BoardBulkActionResult, BoardBulkLifecycleAction } from './board-bulk-actions';
 import { OrderDesignThumbnail } from './order-design-thumbnail';
 import { OrderQuickView as OrderQuickViewPanel } from './order-quick-view';
 
@@ -66,6 +70,14 @@ type QuickViewData = OrderQuickView & Pick<BoardOrder, 'label' | 'primaryDesignI
 type PaymentRequest = { order: BoardOrder; source: MoveSource; method: MovementMethod };
 type LabelFilter = OrderLabel | 'all' | 'none';
 type StageOption = Pick<BoardColumn, 'id' | 'code' | 'name'>;
+const SUCCESS_FEEDBACK_DURATION = 4000;
+
+function matchesBoardFilters(order: BoardOrder, labelFilter: LabelFilter, deliveryFrom: string, deliveryTo: string) {
+    const matchesLabel = labelFilter === 'all' || (labelFilter === 'none' ? order.label === null : order.label === labelFilter);
+    const hasInvalidDeliveryRange = Boolean(deliveryFrom && deliveryTo && deliveryFrom > deliveryTo);
+    const matchesDelivery = hasInvalidDeliveryRange || (!deliveryFrom || order.promisedDeliveryDate >= deliveryFrom) && (!deliveryTo || order.promisedDeliveryDate <= deliveryTo);
+    return matchesLabel && matchesDelivery;
+}
 
 function OrderLabelBadge({ label }: { label: OrderLabel | null }) {
     if (!label) return null;
@@ -228,6 +240,10 @@ function DraggableOrderCardContent({
     listeners,
     movementLocked,
     isPending,
+    canManageOrderLifecycle,
+    isSelected,
+    onSelectionChange,
+    selectionDisabled,
     onMove,
     onQuickView,
     order,
@@ -241,6 +257,10 @@ function DraggableOrderCardContent({
     listeners: ReturnType<typeof useDraggable>['listeners'];
     movementLocked: boolean;
     isPending: boolean;
+    canManageOrderLifecycle: boolean;
+    isSelected: boolean;
+    onSelectionChange: (orderId: string, selected: boolean) => void;
+    selectionDisabled: boolean;
     onMove: (source: MoveSource, targetStageId: string, method: MovementMethod) => void;
     onQuickView: (orderId: string, trigger: HTMLButtonElement) => void;
     order: BoardOrder;
@@ -256,8 +276,22 @@ function DraggableOrderCardContent({
             ref={setNodeRef}>
             {order.label ? <span aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-1.5 rounded-t-xl ${orderLabelAccentClassName(order.label)}`} /> : null}
             <div className="relative">
-                <div className="min-w-0 flex-1">
-                    <OrderSummary order={order} showThumbnail />
+                <div className="flex min-w-0 flex-1 items-start gap-2">
+                    {canManageOrderLifecycle ? (
+                        <Checkbox
+                            aria-label={`Seleccionar ${orderId(order.publicNumber)}`}
+                            checked={isSelected}
+                            className="mt-1"
+                            data-no-drag="true"
+                            disabled={selectionDisabled}
+                            onCheckedChange={(checked) => onSelectionChange(order.id, checked === true)}
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                        />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                        <OrderSummary order={order} showThumbnail />
+                    </div>
                 </div>
                 <div className="absolute right-0 top-0 flex shrink-0 gap-1">
                     <Button
@@ -354,7 +388,7 @@ function BoardColumnView({
             data-drop-valid={isValidTarget ? 'true' : 'false'}
             id={`stage-panel-${column.id}`}
             ref={setNodeRef}>
-            <header className="flex items-center justify-between gap-3 px-4 py-3.5">
+            <header className="flex items-center justify-between gap-3 px-4 py-3.5 lg:sticky lg:top-0 lg:z-10 lg:rounded-t-2xl lg:bg-surface-muted">
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                         <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-primary" />
@@ -382,12 +416,14 @@ export function OrderBoard({
     canConfirmPayment,
     canDeliverPaidOrders = false,
     canCreateOrders,
+    canManageOrderLifecycle = false,
     initialColumns,
     initialSearch = '',
 }: {
     canConfirmPayment: boolean;
     canDeliverPaidOrders?: boolean;
     canCreateOrders: boolean;
+    canManageOrderLifecycle?: boolean;
     initialColumns: BoardColumn[];
     initialSearch?: string;
 }) {
@@ -395,6 +431,9 @@ export function OrderBoard({
     const [stageMetadata] = useState(() => initialColumns.map(({ id, code, name, position }) => ({ id, code, name, position })));
     const [mobileStageId, setMobileStageId] = useState(() => initialColumns[0]?.id ?? '');
     const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(() => new Set());
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => new Set());
+    const [isBulkActionPending, setIsBulkActionPending] = useState(false);
+    const [bulkActionResults, setBulkActionResults] = useState<BoardBulkActionResult[]>([]);
     const [isMobileBoard, setIsMobileBoard] = useState(false);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [dragPreviewAnchor, setDragPreviewAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -423,7 +462,17 @@ export function OrderBoard({
             : stageOptions.filter((stage) => stage.id !== column.id && (canConfirmPayment || stage.code !== 'paid')),
     ])), [canConfirmPayment, paidStageId, stageMetadata, stageOptions]);
     const selectedMobileStageId = columns.some((column) => column.id === mobileStageId) ? mobileStageId : (columns[0]?.id ?? '');
-    useMutationToast(mutationState);
+    useMutationToast(mutationState, SUCCESS_FEEDBACK_DURATION);
+
+    useEffect(() => {
+        if (!mutationState.toastId || (mutationState.status !== 'success' && bulkActionResults.length === 0)) return;
+        const toastId = mutationState.toastId;
+        const timeout = window.setTimeout(() => {
+            setMutationState((current) => current.toastId === toastId ? {} : current);
+            setBulkActionResults([]);
+        }, SUCCESS_FEEDBACK_DURATION);
+        return () => window.clearTimeout(timeout);
+    }, [mutationState.status, mutationState.toastId, bulkActionResults.length]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -495,10 +544,33 @@ export function OrderBoard({
     }
 
     function clearFilters() {
-        setDeliveryFrom('');
-        setDeliveryTo('');
-        setLabelFilter('all');
+        applyBoardFilters('all', '', '');
         if (initialSearch.trim()) window.location.assign('/orders');
+    }
+
+    function applyBoardFilters(nextLabelFilter: LabelFilter, nextDeliveryFrom: string, nextDeliveryTo: string) {
+        const nextVisibleOrderIds = new Set(columns.flatMap((column) => column.orders
+            .filter((order) => matchesBoardFilters(order, nextLabelFilter, nextDeliveryFrom, nextDeliveryTo))
+            .map((order) => order.id)));
+        setSelectedOrderIds((current) => {
+            const next = new Set([...current].filter((orderIdValue) => nextVisibleOrderIds.has(orderIdValue)));
+            return next.size === current.size ? current : next;
+        });
+        setDeliveryFrom(nextDeliveryFrom);
+        setDeliveryTo(nextDeliveryTo);
+        setLabelFilter(nextLabelFilter);
+    }
+
+    function handleDeliveryFromChange(value: string) {
+        applyBoardFilters(labelFilter, value, deliveryTo);
+    }
+
+    function handleDeliveryToChange(value: string) {
+        applyBoardFilters(labelFilter, deliveryFrom, value);
+    }
+
+    function handleLabelFilterChange(value: string) {
+        applyBoardFilters(value as LabelFilter, deliveryFrom, deliveryTo);
     }
 
     const reportLocalRejection = useCallback((order: BoardOrder, message: string, method: MovementMethod) => {
@@ -824,12 +896,17 @@ export function OrderBoard({
     const hasLocalFilters = Boolean(deliveryFrom || deliveryTo || labelFilter !== 'all');
     const visibleColumns = useMemo(() => hasLocalFilters ? columns.map((column) => ({
         ...column,
-        orders: column.orders.filter((order) => {
-            const matchesLabel = labelFilter === 'all' || (labelFilter === 'none' ? order.label === null : order.label === labelFilter);
-            const matchesDelivery = hasInvalidDeliveryRange || (!deliveryFrom || order.promisedDeliveryDate >= deliveryFrom) && (!deliveryTo || order.promisedDeliveryDate <= deliveryTo);
-            return matchesLabel && matchesDelivery;
-        }),
-    })) : columns, [columns, deliveryFrom, deliveryTo, hasInvalidDeliveryRange, labelFilter, hasLocalFilters]);
+        orders: column.orders.filter((order) => matchesBoardFilters(order, labelFilter, deliveryFrom, deliveryTo)),
+    })) : columns, [columns, deliveryFrom, deliveryTo, labelFilter, hasLocalFilters]);
+    const selectedOrders = useMemo(() => visibleColumns.flatMap((column) => column.orders.filter((order) => selectedOrderIds.has(order.id))), [selectedOrderIds, visibleColumns]);
+    const archivableOrderCount = useMemo(() => selectedOrders.filter((order) => stagesById.get(order.currentStageId)?.code === 'delivered').length, [selectedOrders, stagesById]);
+    const cancellationBlockedReason = selectedOrders.some((order) => {
+        const stageCode = stagesById.get(order.currentStageId)?.code;
+        return Boolean(order.paymentConfirmedAt) || stageCode === 'paid' || stageCode === 'delivered';
+    })
+        ? 'No se pueden anular pedidos pagados o entregados. Revertí los pagos activos y mové los entregados a una etapa operativa.'
+        : null;
+    const hasSelectedPendingOrder = selectedOrders.some((order) => pendingOrderIds.has(order.id));
     const totalOrderCount = useMemo(() => columns.reduce((count, column) => count + column.orders.length, 0), [columns]);
     const orderCount = useMemo(() => visibleColumns.reduce((count, column) => count + column.orders.length, 0), [visibleColumns]);
     const paymentAmount = canConfirmPayment ? (paymentRequest?.order.totalAmount ?? null) : null;
@@ -846,6 +923,86 @@ export function OrderBoard({
             ) : null}
         </DragOverlay>
     );
+
+    function changeOrderSelection(orderIdValue: string, selected: boolean) {
+        setSelectedOrderIds((current) => {
+            const next = new Set(current);
+            if (selected) next.add(orderIdValue);
+            else next.delete(orderIdValue);
+            return next;
+        });
+    }
+
+    async function runBulkLifecycleAction(action: BoardBulkLifecycleAction, reason: string) {
+        if (isBulkActionPending || hasSelectedPendingOrder || selectedOrders.length === 0 || (action === 'cancel' && cancellationBlockedReason)) return;
+        const ordersToProcess = selectedOrders;
+        const orderIds = ordersToProcess.map((order) => order.id);
+        setIsBulkActionPending(true);
+        setBulkActionResults([]);
+        setErrorMessage(null);
+        setMutationState({});
+        setPendingOrderIds((current) => new Set([...current, ...orderIds]));
+        setAnnouncement(`${ordersToProcess.length} pedidos seleccionados en proceso.`);
+
+        try {
+            const results = await Promise.all(ordersToProcess.map(async (order): Promise<BoardBulkActionResult> => {
+                if (action === 'archive' && stagesById.get(order.currentStageId)?.code !== 'delivered') {
+                    return { message: 'Solo se pueden archivar pedidos de la etapa Entregado.', orderId: order.id, publicNumber: order.publicNumber, status: 'error' };
+                }
+
+                const formData = new FormData();
+                formData.set('orderId', order.id);
+                formData.set('expectedUpdatedAt', order.updatedAt);
+                formData.set('idempotencyKey', crypto.randomUUID());
+                if (action === 'cancel') formData.set('reason', reason);
+
+                try {
+                    const result = action === 'archive'
+                        ? await archiveDeliveredOrderAction({}, formData)
+                        : await cancelOrderAction({}, formData);
+                    return {
+                        message: result.message ?? (action === 'archive' ? 'No se pudo archivar el pedido entregado. Intentá nuevamente.' : 'No se pudo anular el pedido. Intentá nuevamente.'),
+                        orderId: order.id,
+                        publicNumber: order.publicNumber,
+                        status: result.status === 'success' ? 'success' : 'error',
+                    };
+                } catch {
+                    return {
+                        message: action === 'archive' ? 'No se pudo archivar el pedido entregado. Intentá nuevamente.' : 'No se pudo anular el pedido. Intentá nuevamente.',
+                        orderId: order.id,
+                        publicNumber: order.publicNumber,
+                        status: 'error',
+                    };
+                }
+            }));
+
+            const failedOrderIds = new Set(results.filter((result) => result.status === 'error').map((result) => result.orderId));
+            const successfulOrderIds = new Set(results.filter((result) => result.status === 'success').map((result) => result.orderId));
+            const succeededCount = successfulOrderIds.size;
+            const failedCount = failedOrderIds.size;
+            setColumns((current) => current.map((column) => ({ ...column, orders: column.orders.filter((order) => !successfulOrderIds.has(order.id)) })));
+            setSelectedOrderIds(failedOrderIds);
+            setBulkActionResults(results.filter((result) => result.status === 'error'));
+            const actionLabel = action === 'archive' ? 'archiv' : 'anul';
+            const message = succeededCount > 0
+                ? `Se ${actionLabel}${succeededCount === 1 ? 'ó' : 'aron'} ${succeededCount}${failedCount > 0 ? ` de ${results.length}` : ''} ${failedCount > 0 || succeededCount !== 1 ? 'pedidos' : 'pedido'}${failedCount > 0 ? '; revisá los pedidos con error' : ''}.`
+                : `No se pudo ${action === 'archive' ? 'archivar' : 'anular'} ningún pedido. Revisá los errores indicados.`;
+            setMutationState({ message, status: succeededCount > 0 ? 'success' : 'error', toastId: crypto.randomUUID() });
+            setAnnouncement(message);
+        } finally {
+            setIsBulkActionPending(false);
+            setPendingOrderIds((current) => {
+                const next = new Set(current);
+                for (const orderIdValue of orderIds) next.delete(orderIdValue);
+                return next;
+            });
+        }
+    }
+
+    function clearBulkSelection() {
+        setSelectedOrderIds(new Set());
+        setBulkActionResults([]);
+    }
 
     return (
         <DndContext
@@ -867,101 +1024,141 @@ export function OrderBoard({
                 <p aria-atomic="true" aria-live="assertive" className="sr-only" data-testid="board-announcement">
                     {announcement}
                 </p>
-                <div className="flex flex-wrap items-start gap-2" data-testid="board-filters">
-                    <details className="group/filter relative" open={Boolean(initialSearch)}>
-                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                            <Search aria-hidden="true" className="size-3.5 text-primary" />
-                            Buscar
-                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
-                        </summary>
-                        <form action="/orders" className="absolute left-0 top-full z-20 mt-2 flex w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-xl border border-border bg-card p-3 shadow-lg" method="get" role="search">
-                            <label className="relative min-w-0 flex-1" htmlFor="order-board-search">
-                                <span className="sr-only">Buscar por cliente, equipo, teléfono o número de pedido</span>
-                                <Input autoFocus={Boolean(initialSearch)} className="h-9 rounded-lg bg-background pr-2" defaultValue={initialSearch} id="order-board-search" name="search" placeholder="Cliente, equipo, teléfono o PED-000001" />
-                            </label>
-                            <Button className="h-9 shrink-0 rounded-lg px-3" type="submit">Buscar</Button>
-                        </form>
-                    </details>
-                    <details className="group/filter relative">
-                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                            <CalendarDays aria-hidden="true" className="size-3.5 text-primary" />
-                            Entrega
-                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
-                        </summary>
-                        <div className="absolute left-0 top-full z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
-                            <p className="text-xs font-medium text-foreground">Rango de entrega</p>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-from">
-                                    Desde
-                                    <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-from" max={deliveryTo || undefined} onChange={(event) => setDeliveryFrom(event.target.value)} type="date" value={deliveryFrom} />
+                <div className="sticky top-[4.25rem] z-30 flex flex-col gap-2 bg-background pb-2 pt-1 lg:top-0" data-testid="board-sticky-controls">
+                    {canManageOrderLifecycle ? (
+                        <BoardBulkActions
+                            archivableOrderCount={archivableOrderCount}
+                            cancelBlockedReason={cancellationBlockedReason}
+                            isPending={isBulkActionPending || hasSelectedPendingOrder}
+                            onClearSelection={clearBulkSelection}
+                            onConfirm={runBulkLifecycleAction}
+                            results={bulkActionResults}
+                            selectedOrders={selectedOrders}
+                        />
+                    ) : null}
+                    <div className="flex flex-wrap items-start gap-2" data-testid="board-filters">
+                        <details className="group/filter relative" open={Boolean(initialSearch)}>
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden lg:min-h-10">
+                                <Search aria-hidden="true" className="size-3.5 text-primary" />
+                                Buscar
+                                <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                            </summary>
+                            <form action="/orders" className="absolute left-0 top-full z-20 mt-2 flex w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-xl border border-border bg-card p-3 shadow-lg" method="get" role="search">
+                                <label className="relative min-w-0 flex-1" htmlFor="order-board-search">
+                                    <span className="sr-only">Buscar por cliente, equipo, teléfono o número de pedido</span>
+                                    <Input autoFocus={Boolean(initialSearch)} className="h-9 rounded-lg bg-background pr-2" defaultValue={initialSearch} id="order-board-search" name="search" placeholder="Cliente, equipo, teléfono o PED-000001" />
                                 </label>
-                                <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-to">
-                                    Hasta
-                                    <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-to" min={deliveryFrom || undefined} onChange={(event) => setDeliveryTo(event.target.value)} type="date" value={deliveryTo} />
-                                </label>
+                                <Button className="h-9 shrink-0 rounded-lg px-3" type="submit">Buscar</Button>
+                            </form>
+                        </details>
+                        <details className="group/filter relative">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden lg:min-h-10">
+                                <CalendarDays aria-hidden="true" className="size-3.5 text-primary" />
+                                Entrega
+                                <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                            </summary>
+                            <div className="absolute left-0 top-full z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
+                                <p className="text-xs font-medium text-foreground">Rango de entrega</p>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-from">
+                                        Desde
+                                        <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-from" max={deliveryTo || undefined} onChange={(event) => handleDeliveryFromChange(event.target.value)} type="date" value={deliveryFrom} />
+                                    </label>
+                                    <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-to">
+                                        Hasta
+                                        <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-to" min={deliveryFrom || undefined} onChange={(event) => handleDeliveryToChange(event.target.value)} type="date" value={deliveryTo} />
+                                    </label>
+                                </div>
+                                {hasInvalidDeliveryRange ? <p className="text-xs text-error" role="alert">La fecha Desde no puede superar Hasta.</p> : null}
                             </div>
-                            {hasInvalidDeliveryRange ? <p className="text-xs text-error" role="alert">La fecha Desde no puede superar Hasta.</p> : null}
-                        </div>
-                    </details>
-                    <details className="group/filter relative">
-                        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                            <Tag aria-hidden="true" className="size-3.5 text-primary" />
-                            Etiqueta
-                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
-                        </summary>
-                        <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
-                            <Field className="gap-1">
-                                <FieldLabel className="text-xs" htmlFor="board-label-filter">Filtrar pedidos por etiqueta</FieldLabel>
-                                <Select onValueChange={(value) => setLabelFilter(value as LabelFilter)} value={labelFilter}>
-                                    <SelectTrigger className="h-9 rounded-lg bg-background px-3 shadow-none" id="board-label-filter">
-                                        <SelectValue placeholder="Todas las etiquetas" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectItem value="all">Todas las etiquetas</SelectItem>
-                                            <SelectItem value="none">Sin etiqueta</SelectItem>
-                                            {orderLabelOptions.map((option) => (
-                                                <SelectItem key={option.value} value={option.value}>
-                                                    {option.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                        </div>
-                    </details>
-                    {hasActiveFilters ? <Button className="h-9 rounded-xl px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={clearFilters} type="button" variant="ghost">Limpiar filtros</Button> : null}
-                </div>
-                <details className="group/label-reference relative w-fit max-w-full">
-                    <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground shadow-xs outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                        <Tag aria-hidden="true" className="size-3.5 text-primary" />
-                        Referencia de etiquetas
-                        <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/label-reference:rotate-180 motion-reduce:transition-none" />
-                    </summary>
-                    <div className="absolute left-0 top-full z-20 mt-2 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-                        <div className="border-b border-border bg-surface-muted px-4 py-3">
-                            <p className="text-sm font-medium text-foreground">Qué significa cada color</p>
-                            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Estas etiquetas señalan qué necesita el pedido antes de entregarlo.</p>
-                        </div>
-                        <ul className="divide-y divide-border">
-                            {orderLabelReferenceOptions.map((option) => (
-                                <li className="grid min-w-0 gap-1.5 px-4 py-3 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-4" key={option.value}>
-                                    <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold leading-none ${orderLabelClassName(option.value)}`}>
-                                        {orderLabelName(option.value)}
-                                    </span>
-                                    <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
-                                </li>
-                            ))}
-                        </ul>
+                        </details>
+                        <details className="group/filter relative">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden lg:min-h-10">
+                                <Tag aria-hidden="true" className="size-3.5 text-primary" />
+                                Etiqueta
+                                <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/filter:rotate-180 motion-reduce:transition-none" />
+                            </summary>
+                            <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
+                                <Field className="gap-1">
+                                    <FieldLabel className="text-xs" htmlFor="board-label-filter">Filtrar pedidos por etiqueta</FieldLabel>
+                                    <Select onValueChange={handleLabelFilterChange} value={labelFilter}>
+                                        <SelectTrigger className="h-9 rounded-lg bg-background px-3 shadow-none" id="board-label-filter">
+                                            <SelectValue placeholder="Todas las etiquetas" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                <SelectItem value="all">Todas las etiquetas</SelectItem>
+                                                <SelectItem value="none">Sin etiqueta</SelectItem>
+                                                {orderLabelOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                </Field>
+                            </div>
+                        </details>
+                        {hasActiveFilters ? <Button className="h-11 rounded-xl px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline lg:h-10" onClick={clearFilters} type="button" variant="ghost">Limpiar filtros</Button> : null}
                     </div>
-                </details>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count data-testid="board-count">
-                        <Package aria-hidden="true" className="size-3.5 text-primary" />
-                        {orderCount === 1 ? '1 pedido en seguimiento' : `${orderCount} pedidos en seguimiento`}
-                    </p>
-                    {hasInvalidDeliveryRange ? <p className="text-error">Corregí el rango para filtrar por entrega.</p> : null}
+                    <details className="group/label-reference relative w-fit max-w-full">
+                        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-medium text-foreground shadow-xs outline-none transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden lg:min-h-10">
+                            <Tag aria-hidden="true" className="size-3.5 text-primary" />
+                            Referencia de etiquetas
+                            <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground transition-transform duration-150 group-open/label-reference:rotate-180 motion-reduce:transition-none" />
+                        </summary>
+                        <div className="absolute left-0 top-full z-20 mt-2 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                            <div className="border-b border-border bg-surface-muted px-4 py-3">
+                                <p className="text-sm font-medium text-foreground">Qué significa cada color</p>
+                                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Estas etiquetas señalan qué necesita el pedido antes de entregarlo.</p>
+                            </div>
+                            <ul className="divide-y divide-border">
+                                {orderLabelReferenceOptions.map((option) => (
+                                    <li className="grid min-w-0 gap-1.5 px-4 py-3 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-4" key={option.value}>
+                                        <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold leading-none ${orderLabelClassName(option.value)}`}>
+                                            {orderLabelName(option.value)}
+                                        </span>
+                                        <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </details>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5" data-board-count data-testid="board-count">
+                            <Package aria-hidden="true" className="size-3.5 text-primary" />
+                            {orderCount === 1 ? '1 pedido en seguimiento' : `${orderCount} pedidos en seguimiento`}
+                        </p>
+                        {hasInvalidDeliveryRange ? <p className="text-error">Corregí el rango para filtrar por entrega.</p> : null}
+                    </div>
+                    <div aria-label="Etapas del tablero" className="mb-1 flex min-w-0 gap-2 overflow-x-auto pb-1 lg:hidden" data-testid="mobile-stage-selector" role="tablist">
+                        {visibleColumns.map((column, index) => {
+                            const isSelected = column.id === selectedMobileStageId;
+                            const orderLabel = column.orders.length === 1 ? 'pedido' : 'pedidos';
+                            return (
+                                <button
+                                    aria-controls={`stage-panel-${column.id}`}
+                                    aria-label={`${column.name}, ${column.orders.length} ${orderLabel}`}
+                                    aria-selected={isSelected}
+                                    className={`flex min-h-11 min-w-[10rem] shrink-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none ${
+                                        isSelected
+                                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                                            : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/10'
+                                    }`}
+                                    id={`mobile-stage-tab-${column.id}`}
+                                    key={column.id}
+                                    onClick={() => setMobileStageId(column.id)}
+                                    onKeyDown={(event) => handleMobileStageKeyDown(event, index)}
+                                    role="tab"
+                                    tabIndex={isSelected ? 0 : -1}
+                                    type="button">
+                                    <span className="min-w-0 truncate">{column.name}</span>
+                                    <span className="rounded-full border border-current px-2 py-0.5 font-mono text-[11px] tabular-nums">{column.orders.length}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
                 {totalOrderCount === 0 ? (
                     <Alert>
@@ -987,10 +1184,10 @@ export function OrderBoard({
                     </Alert>
                 ) : null}
                 {mutationState.status === 'success' ? (
-                    <Alert variant="success">
-                        <CircleCheck aria-hidden="true" />
-                        <AlertDescription>{mutationState.message}</AlertDescription>
-                    </Alert>
+                    <p className="inline-flex w-fit max-w-full items-center gap-2 rounded-xl border border-success/20 bg-success px-3 py-2 text-xs text-success-foreground" role="status">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-success-foreground"><CircleCheck aria-hidden="true" className="size-3.5" /></span>
+                        {mutationState.message}
+                    </p>
                 ) : null}
                 {quickViewError ? (
                     <Alert variant="destructive">
@@ -1023,34 +1220,7 @@ export function OrderBoard({
                         stageNames={stageNames}
                     />
                 ) : null}
-                <div className="w-full min-w-0 overflow-x-hidden lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
-                    <div aria-label="Etapas del tablero" className="mb-3 flex min-w-0 gap-2 overflow-x-auto pb-1 lg:hidden" data-testid="mobile-stage-selector" role="tablist">
-                        {visibleColumns.map((column, index) => {
-                            const isSelected = column.id === selectedMobileStageId;
-                            const orderLabel = column.orders.length === 1 ? 'pedido' : 'pedidos';
-                            return (
-                                <button
-                                    aria-controls={`stage-panel-${column.id}`}
-                                    aria-label={`${column.name}, ${column.orders.length} ${orderLabel}`}
-                                    aria-selected={isSelected}
-                                    className={`flex min-h-11 min-w-[10rem] shrink-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none ${
-                                        isSelected
-                                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
-                                            : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/10'
-                                    }`}
-                                    id={`mobile-stage-tab-${column.id}`}
-                                    key={column.id}
-                                    onClick={() => setMobileStageId(column.id)}
-                                    onKeyDown={(event) => handleMobileStageKeyDown(event, index)}
-                                    role="tab"
-                                    tabIndex={isSelected ? 0 : -1}
-                                    type="button">
-                                    <span className="min-w-0 truncate">{column.name}</span>
-                                    <span className="rounded-full border border-current px-2 py-0.5 font-mono text-[11px] tabular-nums">{column.orders.length}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
+                <div className="w-full min-w-0 overflow-visible lg:min-h-48 lg:flex-1 lg:overflow-x-auto lg:overflow-y-auto" data-testid="board-scroll-container">
                     <div className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-full lg:w-max lg:max-w-none lg:flex-row lg:overscroll-x-contain lg:pb-3">
                         {visibleColumns.map((column) => (
                             <div className={`${column.id === selectedMobileStageId ? 'block' : 'hidden'} lg:block lg:w-[18.75rem] lg:shrink-0`} data-testid={`mobile-stage-panel-${column.code}`} key={column.id}>
@@ -1064,14 +1234,18 @@ export function OrderBoard({
                                         <DraggableOrderCard
                                             canConfirmPayment={canConfirmPayment}
                                             canDeliverPaidOrders={canDeliverPaidOrders}
+                                            canManageOrderLifecycle={canManageOrderLifecycle}
                                             disableDragOnMobile={isMobileBoard}
                                             availableDestinations={stageDestinationsByStage.get(order.currentStageId) ?? []}
                                             isPending={pendingOrderIds.has(order.id)}
+                                            isSelected={selectedOrderIds.has(order.id)}
                                             key={order.id}
                                             onMove={requestMove}
                                             onQuickView={openQuickView}
+                                            onSelectionChange={changeOrderSelection}
                                             order={order}
                                             paidStageId={paidStageId}
+                                            selectionDisabled={isBulkActionPending || pendingOrderIds.has(order.id)}
                                         />
                                     ))}
                                 </BoardColumnView>

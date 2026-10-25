@@ -75,29 +75,34 @@ pnpm db:types
 
 ## Ejecución de base y E2E
 
-- UI aislada, lógica pura o tests unitarios: no ejecutar `pnpm db:reset`.
-- RLS, RPC, migraciones, esquema o seed: aplicar la migración local,
-  ejecutar integración focalizada y validar un reset una vez antes de cerrar
-  la fase sensible.
-- Cierre de módulo o CI: base limpia, migraciones, seed y suite aplicable.
+- Durante el desarrollo local, ejecutar solo pruebas focalizadas que cubran el
+  código y comportamiento modificados. Si ya pasaron y no hubo cambios posteriores,
+  no repetirlas.
+- Para RLS, RPC o migraciones, aplicar la migración local y ejecutar las pruebas
+  de integración específicas de los permisos y operaciones afectados. No hacer un
+  reset local como paso rutinario; CI valida migraciones, seed e integración desde
+  una base limpia.
+- CI ejecuta las suites completas, lint, typecheck y build. Si CI falla, investigar
+  el log y ejecutar localmente solo la prueba o comando afectado para reproducirlo.
 - La base local puede persistir durante el desarrollo. Los tests deben crear
   y limpiar sus propios datos; no depender de cuentas ni registros residuales.
 - Nunca ejecutar `db:reset --linked` sin autorización explícita; jamás en
   producción.
-- Durante implementación, ejecutar solo E2E del módulo o flujo afectado.
-  En CI o cierre de módulo, ejecutar la suite E2E completa.
+- Para cambios de interfaz, ejecutar E2E focalizados del flujo afectado cuando
+  existan. Si un comportamiento visual importante no tiene E2E, verificarlo
+  manualmente en navegador. CI ejecuta la suite E2E completa.
 
 ## Matriz mínima por riesgo
 
 | Área modificada                   | Evidencia mínima                                                                                                                                                                                                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| UI aislada sin cambio funcional   | lint, typecheck y prueba manual visual enfocada                                                                                                                                                                                                                       |
+| UI aislada sin cambio funcional   | prueba manual visual enfocada; CI ejecuta lint y typecheck                                                                                                                                                                                                           |
 | UI con cambio de comportamiento   | test de componente, integración o E2E del comportamiento afectado, más comprobación visual cuando corresponda                                                                                                                                                         |
 | Lógica de dominio                 | test unitario del caso principal, bordes y regresión                                                                                                                                                                                                                  |
 | Server Action o endpoint          | validación de entrada, caso autorizado y denegado                                                                                                                                                                                                                     |
 | RLS/roles/Storage                 | policy o integración para cada rol permitido y rechazado                                                                                                                                                                                                              |
 | Auth y usuarios                   | creación exclusiva de Super admin, bootstrap inicial, cambio inicial de contraseña, usuario desactivado, autoelevación rechazada y protección del último Super admin                                                                                                  |
-| Migración                         | aplicar localmente; antes de cerrar la fase: reset local, tipos generados y prueba del contrato afectado                                                                                                                                                              |
+| Migración                         | aplicar localmente y ejecutar integración focalizada del contrato afectado; CI valida reset, tipos y suite completa                                                                                                                                                 |
 | Caja/pago/anulación               | atomicidad, idempotencia, estado abierto/cerrado y auditoría                                                                                                                                                                                                          |
 | Kanban                            | movimiento válido, reversión, rechazo de Empleado a Pagado y error de servidor                                                                                                                                                                                        |
 | Catálogos y alta manual de pedido | Super admin/Admin/Atención pueden crear; solo Super admin/Admin administran catálogos; Empleado es rechazado; borrado físico conserva snapshots históricos; combinaciones, importes, saldo derivado, atomicidad, idempotencia, etapa inicial y visibilidad financiera |
@@ -105,9 +110,12 @@ pnpm db:types
 ## Antes de finalizar
 
 1. Revisar `git diff` y confirmar que no hay cambios ajenos, secretos o logs.
-2. Ejecutar lint y typecheck para cambios de código, salvo bloqueo explicado.
-3. Ejecutar tests relevantes; agregar build cuando afecte rutas, configuración o integración.
-4. Para frontend relevante, comprobar estados de carga, vacío, error, éxito y una resolución móvil/desktop representativa.
+2. Ejecutar localmente las pruebas focalizadas afectadas; no repetir las que pasaron
+   si no hubo cambios posteriores.
+3. Confirmar que CI cubre suites completas, lint, typecheck y build; si un check de
+   CI falla, reproducir localmente solo ese check o prueba.
+4. Para un comportamiento visual importante sin E2E, verificar manualmente estados
+   relevantes y una resolución móvil o desktop representativa.
 5. Para datos sensibles, revisar permisos y trazabilidad además del comportamiento feliz.
 
 ## Pruebas visuales
@@ -148,8 +156,9 @@ Migraciones de esquema:
 
 - Si la fase introduce migración nueva, antes de cualquier `db push`:
     - `pnpm db:reset:local` ejecutado y verificado.
-    - `pnpm test` y `pnpm test:integration` en verde.
-    - `pnpm db:types` y `git diff --exit-code -- src/lib/supabase/database.types.ts` sin diferencias.
+    - ejecutar localmente las pruebas de integración focalizadas del contrato afectado.
+    - confirmar que CI pasó para el commit actual, incluidas las suites completas,
+      lint, typecheck, build e integración desde base limpia.
     - `supabase db push --dry-run` revisado y comparado con la lista de migraciones esperadas.
 
 Sin migraciones nuevas (caso de la fase 1):
