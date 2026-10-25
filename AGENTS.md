@@ -100,9 +100,12 @@ Usar Strict TDD (RED → GREEN → TRIANGULATE → REFACTOR) solo para negocio, 
 permisos/RLS/RPC, idempotencia, concurrencia, bugs o alto riesgo de regresión. Para
 UI visual, copy, layout, refactors mecánicos o configuración sin cambio funcional,
 usar la verificación mínima relevante. No usar Strict TDD no elimina la cobertura
-necesaria. Ejecutar pruebas específicas durante el desarrollo; repetir solo las
-fallidas y correr la suite completa una vez al cierre, según
-`docs/agent-guides/verification.md`.
+necesaria. Localmente ejecutar solo pruebas focalizadas del código y comportamiento
+modificados; no repetir pruebas que ya pasaron si no hubo cambios posteriores. Para
+migraciones, RLS o RPC, aplicar la migración local y ejecutar las integraciones
+específicas afectadas. Si CI falla, investigar el log y reproducir localmente solo
+la prueba o comando afectado. CI se encarga de suites completas, lint, typecheck y
+build; ejecutarlos localmente solo si hace falta diagnosticar un fallo.
 
 Antes de `pnpm db:reset`, verificar un procedimiento autorizado y reproducible
 para restaurar cuentas locales. Si no existe, advertir que elimina usuarios y
