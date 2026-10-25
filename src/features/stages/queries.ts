@@ -16,7 +16,7 @@ export async function getWorkflowStages(): Promise<WorkflowStage[] | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("workflow_stages")
-    .select("id, code, name, position, is_active, created_at, updated_at")
+    .select("id, code, name, position, is_active, requires_design_image, created_at, updated_at")
     .order("is_active", { ascending: false })
     .order("position")
     .order("id");

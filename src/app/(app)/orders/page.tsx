@@ -3,7 +3,7 @@ import { CalendarDays, Layers3, Plus, Sparkles } from "lucide-react";
 import { OrderBoard } from "@/features/board/components/order-board";
 import { getOrderBoard } from "@/features/board/queries";
 import { requireActiveProfile } from "@/lib/auth/guards";
-import { canConfirmPayment, canCreateManualOrder, canDeliverPaidOrder } from "@/lib/auth/permissions";
+import { canConfirmPayment, canCreateManualOrder, canDeliverPaidOrder, canManageOrderLifecycle } from "@/lib/auth/permissions";
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
   const profile = await requireActiveProfile();
@@ -24,7 +24,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5"><Layers3 aria-hidden="true" className="size-3.5 text-primary" />Seguimiento por etapas</span>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5"><CalendarDays aria-hidden="true" className="size-3.5 text-primary" />Día operativo actual</span>
       </div>
-      <OrderBoard canConfirmPayment={canConfirmPayment(profile.role)} canDeliverPaidOrders={canDeliverPaidOrder(profile.role)} canCreateOrders={canCreateManualOrder(profile.role)} initialColumns={board.columns} initialSearch={search} />
+      <OrderBoard canConfirmPayment={canConfirmPayment(profile.role)} canDeliverPaidOrders={canDeliverPaidOrder(profile.role)} canCreateOrders={canCreateManualOrder(profile.role)} canManageOrderLifecycle={canManageOrderLifecycle(profile.role)} initialColumns={board.columns} initialSearch={search} />
     </main>
   );
 }

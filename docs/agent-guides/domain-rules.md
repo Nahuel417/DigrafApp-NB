@@ -185,6 +185,16 @@ Toda operación sensible registra el actor autenticado y la hora del servidor. N
 - M16 permite la purga manual inmediata a Admin/Atención/Super admin sobre `lifecycle_state = cancelled`, con motivo recortado solo en los extremos y de 2 a 500 caracteres. El actor, la hora y la fuente se derivan en servidor; la auditoría conserva el motivo completo y un snapshot inmutable para replay.
 - La purga automática de M16 sigue siendo exclusiva de `service_role` y solo procede desde `cancelled_at + 30×24 horas` en UTC. La purga conserva el tombstone de `orders`, finanzas, pagos, caja y auditoría; elimina únicamente los datos operativos permitidos y deja los fallos de Storage en reintento durable.
 
+## Board bulk actions and Moldería
+
+- Super admin, Admin and Atención can select board cards and separately archive delivered orders or cancel selected orders with one shared reason. Existing per-order permissions, payment restrictions, audit and idempotency still apply. Employee cannot use bulk lifecycle actions.
+- Orders in `delivered` cannot be cancelled until moved to another stage. Orders in `paid`, or with an active payment, cannot be cancelled until payment reversal. These conditions are enforced by `cancel_order` using stable stage codes under the existing order lock; rejection must leave the order and audit unchanged. Selecting any ineligible order disables cancellation for the entire selection. Archival remains restricted to `delivered`, never `paid`.
+- Each order is processed independently: successful orders leave the board; failed orders remain selected with a readable result. Only the `delivered` stage is eligible for archival. Both actions require confirmation and block duplicate submissions while pending.
+- Board filters, selection controls and stage navigation remain visible during scrolling. Success feedback uses a compact filter-like surface and a softly tinted circular icon, alongside the toast. Bulk result errors use the same compact structure with error styling. Both success and bulk result notices dismiss after the existing four-second toast duration; form and non-bulk errors retain their existing behavior.
+- Entry into Moldería requires at least one current design image; the primary image may be unset. Rejected entry must not change stage or audit. Movement, payment reversal into that stage and restoration into that stage enforce the same requirement.
+- The stage is bound by `workflow_stages.requires_design_image`, not by its mutable display name during operations. Provisioning may bind a unique existing Moldería once; a missing or ambiguous match requires review before deployment is considered configured. Removing an image from an order already in Moldería is not prohibited by this entry rule.
+- Local seed appends Moldería without reordering existing stages; its position is not a business requirement. Staging creation is separate and explicitly authorized; production must bind the existing stage, never create another. `node scripts/configure-molderia.mjs --help` documents print-only provisioning; it does not connect to or change a database. Generated SQL requires review and separate remote authorization.
+
 ## Fuera del MVP
 
 No implementar sin aprobación explícita:

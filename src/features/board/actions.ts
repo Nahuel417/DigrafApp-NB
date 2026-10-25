@@ -39,7 +39,7 @@ export type SetOrderLabelActionState = MutationState & {
 };
 
 export type ReverseOrderPaymentActionState = MutationState & {
-  code?: "permission_denied" | "version_conflict" | "idempotency_conflict" | "cash_closed" | "already_reversed" | "invalid_stage" | "not_found" | "invalid_request";
+  code?: "permission_denied" | "version_conflict" | "idempotency_conflict" | "cash_closed" | "already_reversed" | "invalid_stage" | "missing_design_image" | "not_found" | "invalid_request";
   paymentId?: string;
   reversalCashMovementId?: string | null;
   reconciledOrder?: Awaited<ReturnType<typeof getOrderBoardSnapshot>>;
@@ -65,6 +65,7 @@ function moveOrderErrorMessage(message: string) {
     "El pedido cambió en otra sesión. Actualizá el tablero e intentá nuevamente.",
     "La etapa de destino no está disponible.",
     "Los movimientos hacia o desde Pagado estarán disponibles al confirmar el cobro.",
+    "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería.",
   ];
 
   return knownMessages.find((knownMessage) => message.includes(knownMessage)) ?? "No se pudo mover el pedido. Intentá nuevamente.";
@@ -95,6 +96,7 @@ const reversalErrorMessages = [
   ["cash_closed", "La caja está cerrada y no admite reversiones.", ["La caja está cerrada y no admite reversiones."]],
   ["already_reversed", "El pago ya fue revertido.", ["El pago ya fue revertido."]],
   ["invalid_stage", "El pedido no está en la etapa Pagado.", ["El pedido no está en la etapa Pagado."]],
+  ["missing_design_image", "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería.", ["El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería."]],
   ["not_found", "El pedido o pago seleccionado no existe.", ["El pedido seleccionado no existe.", "El pago seleccionado no existe."]],
   ["invalid_request", "La reversión de pago no es válida.", ["La reversión de pago no es válida."]],
 ] as const;

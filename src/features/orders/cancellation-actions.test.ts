@@ -75,7 +75,19 @@ describe("M15 cancellation actions", () => {
   ])("maps cancellation error %s without exposing database details", async (code, message) => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: code } });
     const result = await cancelOrderAction({}, validCancel());
-    expect(result).toMatchObject({ status: "error", message });
+    expect(result).toMatchObject({ status: "error", code, message });
+  });
+
+  it("maps a delivered-stage rejection to stage_ineligible", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "El pedido está en Entregado. Movelo a otra etapa antes de anularlo." } });
+
+    const result = await cancelOrderAction({}, validCancel());
+
+    expect(result).toMatchObject({
+      status: "error",
+      code: "stage_ineligible",
+      message: "El pedido está en Entregado. Movelo a otra etapa antes de anularlo.",
+    });
   });
 
   it("allows Attention before creating the client", async () => {

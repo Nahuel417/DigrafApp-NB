@@ -56,6 +56,16 @@ Las contraseñas pertenecen exclusivamente a Supabase Auth: no se guardan en per
 
 El bootstrap administrativo recibe credenciales por variables de entorno o entrada interactiva, las comunica fuera de la aplicación y usa una clave privilegiada solo en ejecución server-side. Las cuentas creadas por este flujo se confirman automáticamente; no hay confirmación por email ni recuperación pública en M1. Si Auth y perfil quedan desincronizados, el procedimiento debe informar el estado y permitir reparar el perfil o limpiar Auth con confirmación explícita, sin ocultar huérfanos.
 
+## Board bulk operations and Moldería — 2026-10-24
+
+Approved: card checkboxes on the board, separate archive/cancel actions, archival restricted to delivered orders, one shared cancellation reason, and independent per-order results without rolling back successful orders. Existing lifecycle permissions remain unchanged.
+
+Correction approved: cancellation is blocked in Entregado and Pagado (and while an active payment exists); any such selected order disables cancellation for the whole batch. Delivered orders must first change stage; paid orders require payment reversal. Filters, bulk controls and stage headers remain visible while scrolling. Success feedback retains both toast and a discreet icon/text line, without a green box.
+
+Visual refinement: board selection and result notices use the app's filter-like bordered white surfaces, compact controls and softly tinted icon backgrounds. Success and bulk per-order error notices dismiss with the existing four-second toast duration; this supersedes persistent bulk-result errors, not field validation or unrelated errors.
+
+Approved: any current design image is required on every entry into Moldería, including returning to that stage. Local and staging need Moldería; its position is not required, and existing stages must not be reordered for provisioning. Production already has an independently created stage and must not receive a duplicate. A persistent stage requirement binds this rule independently of later display-name changes. Remote provisioning and deployment remain separate authorized operations.
+
 ## Preguntas abiertas no bloqueantes
 
 - Definir la pantalla exacta de reportes, gráficos y exportaciones cuando entren en alcance.

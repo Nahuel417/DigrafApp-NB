@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { confirmOrderPaymentAction, reverseOrderPaymentAction, setOrderLabelAction } from "./actions";
+import { confirmOrderPaymentAction, moveOrderAction, reverseOrderPaymentAction, setOrderLabelAction } from "./actions";
 import { getOrderBoardSnapshot } from "./queries";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -32,6 +32,14 @@ const validReversalForm = () => form({
   expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
   idempotencyKey: "reversal-key",
   reason: "Corrección solicitada",
+});
+
+const validMoveForm = () => form({
+  orderId: "11111111-1111-4111-8111-111111111111",
+  fromStageId: "22222222-2222-4222-8222-222222222222",
+  toStageId: "33333333-3333-4333-8333-333333333333",
+  expectedUpdatedAt: "2026-08-12T19:00:00.000Z",
+  idempotencyKey: "move-key",
 });
 
 const validLabelForm = () => form({
@@ -177,6 +185,58 @@ describe("reverse order payment action", () => {
 
     expect(result).toMatchObject({ status: "error", code: "cash_closed", message: "La caja está cerrada y no admite reversiones." });
     expect(result.reconciledOrder?.id).toBe("11111111-1111-4111-8111-111111111111");
+  });
+
+  it("maps a missing design image when reversal would re-enter Moldería", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería." } });
+
+    const result = await reverseOrderPaymentAction({}, validReversalForm());
+
+    expect(result).toMatchObject({
+      status: "error",
+      code: "missing_design_image",
+      message: "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería.",
+    });
+  });
+});
+
+describe("move order action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentProfile).mockResolvedValue(activeProfile);
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never);
+    rpc.mockResolvedValue({ data: [{ order_id: "11111111-1111-4111-8111-111111111111", public_number: 7, from_stage_id: "22222222-2222-4222-8222-222222222222", to_stage_id: "33333333-3333-4333-8333-333333333333", stage_code: "stage_abc", updated_at: "2026-08-12T19:01:00.000Z", event_id: "55555555-5555-4555-8555-555555555555" }], error: null });
+  });
+
+  it("maps a missing design image to the safe board message", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería." } });
+
+    const result = await moveOrderAction({}, validMoveForm());
+
+    expect(result).toMatchObject({
+      status: "error",
+      message: "El pedido necesita al menos una imagen de diseño vigente para ingresar a Moldería.",
+    });
+  });
+
+  it("preserves successful authorized movement", async () => {
+    const result = await moveOrderAction({}, validMoveForm());
+
+    expect(result).toMatchObject({
+      status: "success",
+      movedOrder: {
+        id: "11111111-1111-4111-8111-111111111111",
+        fromStageId: "22222222-2222-4222-8222-222222222222",
+        toStageId: "33333333-3333-4333-8333-333333333333",
+      },
+    });
+    expect(rpc).toHaveBeenCalledWith("move_order", {
+      p_order_id: "11111111-1111-4111-8111-111111111111",
+      p_from_stage_id: "22222222-2222-4222-8222-222222222222",
+      p_to_stage_id: "33333333-3333-4333-8333-333333333333",
+      p_expected_updated_at: "2026-08-12T19:00:00.000Z",
+      p_idempotency_key: "move-key",
+    });
   });
 });
 
