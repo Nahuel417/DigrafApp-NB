@@ -4,6 +4,8 @@ import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reconcileOrderAction, reconcileOrderLabelAction, reverseOrderPaymentAction, setOrderLabelAction } from "../actions";
+import { archiveDeliveredOrderAction, cancelOrderAction } from "@/features/orders/cancellation-actions";
+import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { OrderBoard } from "./order-board";
 
 vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
@@ -19,6 +21,10 @@ vi.mock("../actions", () => ({
   reconcileOrderLabelAction: vi.fn(),
   reverseOrderPaymentAction: vi.fn(),
   setOrderLabelAction: vi.fn(),
+}));
+vi.mock("@/features/orders/cancellation-actions", () => ({
+  archiveDeliveredOrderAction: vi.fn(),
+  cancelOrderAction: vi.fn(),
 }));
 const receivedId = "11111111-1111-4111-8111-111111111111";
 const paidId = "22222222-2222-4222-8222-222222222222";
@@ -45,6 +51,23 @@ const columns = [
   { id: deliveredId, code: "delivered", name: "Entregado", position: 2, orders: [] },
 ];
 
+const blockedCancellationSelections = [
+  { label: "a delivered order", orders: [{ ...order, currentStageId: deliveredId }] },
+  { label: "an order in the paid stage", orders: [{ ...order, currentStageId: paidId }] },
+  {
+    label: "a mixed normal and delivered selection",
+    orders: [order, { ...order, id: "44444444-4444-4444-8444-444444444444", publicNumber: 8, currentStageId: deliveredId }],
+  },
+  {
+    label: "a mixed normal and paid selection",
+    orders: [order, { ...order, id: "44444444-4444-4444-8444-444444444444", publicNumber: 8, currentStageId: paidId }],
+  },
+  {
+    label: "an order with an active payment moved to an operational stage",
+    orders: [{ ...order, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" }],
+  },
+];
+
 beforeEach(() => {
   thumbnailRenderCount.value = 0;
   vi.mocked(confirmOrderPaymentAction).mockReset();
@@ -54,6 +77,8 @@ beforeEach(() => {
   vi.mocked(reconcileOrderLabelAction).mockReset();
   vi.mocked(reverseOrderPaymentAction).mockReset();
   vi.mocked(setOrderLabelAction).mockReset();
+  vi.mocked(archiveDeliveredOrderAction).mockReset();
+  vi.mocked(cancelOrderAction).mockReset();
 });
 
 afterEach(() => cleanup());
@@ -72,11 +97,153 @@ function getColumn(name: string) {
   return column;
 }
 
-function getOrderCard() {
-  const card = screen.getByRole("button", { hidden: true, name: "Vista rápida de PED-000007" }).closest("article");
+function getOrderCard(publicNumber = 7) {
+  const card = screen.getByRole("button", { hidden: true, name: `Vista rápida de PED-${String(publicNumber).padStart(6, "0")}` }).closest("article");
   if (!(card instanceof HTMLElement)) throw new Error("No se encontró la tarjeta del pedido.");
   return card;
 }
+
+describe("order board bulk lifecycle actions", () => {
+  it("shows selection checkboxes only when lifecycle management is allowed", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle={false} initialColumns={columns} />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+
+    cleanup();
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={columns} />);
+    expect(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" })).toBeTruthy();
+  });
+
+  it("drops selected orders hidden by filters and does not restore them when filters clear", () => {
+    const laterOrder = { ...order, id: "44444444-4444-4444-8444-444444444444", publicNumber: 8, promisedDeliveryDate: "2026-08-20" };
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={[{ ...columns[0], orders: [order, laterOrder] }, columns[1], columns[2]]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" }));
+    fireEvent.click(screen.getByText("Entrega", { exact: true }));
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-08-14" } });
+    expect(screen.getByRole("button", { name: "Vista rápida de PED-000008" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Acciones para pedidos seleccionados" })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "" } });
+    expect(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" }).getAttribute("data-state")).toBe("unchecked");
+    expect(screen.queryByRole("button", { name: "Anular pedidos (1)" })).toBeNull();
+  });
+
+  it.each(blockedCancellationSelections)("blocks cancellation for $label", ({ orders }) => {
+    const selectedColumns = columns.map((column) => ({
+      ...column,
+      orders: orders.filter((selectedOrder) => selectedOrder.currentStageId === column.id),
+    }));
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={selectedColumns} />);
+
+    for (const selectedOrder of orders) {
+      fireEvent.click(screen.getByRole("checkbox", { name: `Seleccionar PED-${String(selectedOrder.publicNumber).padStart(6, "0")}` }));
+    }
+
+    const cancelButton = screen.getByRole("button", { name: `Anular pedidos (${orders.length})` });
+    expect(cancelButton.hasAttribute("disabled")).toBe(true);
+    expect(cancelButton.getAttribute("aria-describedby")).toBeTruthy();
+    expect(screen.getByText(/no se pueden anular pedidos pagados o entregados/i)).toBeTruthy();
+    fireEvent.click(cancelButton);
+    expect(cancelOrderAction).not.toHaveBeenCalled();
+  });
+
+  it("does not allow archiving a paid order before it reaches the delivered stage", () => {
+    const paidOrder = { ...order, currentStageId: paidId, paymentConfirmedAt: "2026-08-12T19:01:00.000Z" };
+    render(<OrderBoard canConfirmPayment canCreateOrders={false} canManageOrderLifecycle initialColumns={[{ ...columns[0], orders: [] }, { ...columns[1], orders: [paidOrder] }, columns[2]]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" }));
+
+    expect(screen.getByRole("button", { name: "Archivar entregados (0)" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("keeps board controls and stage labels sticky while scrolling", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={columns} />);
+
+    const stickyControls = screen.getByTestId("board-sticky-controls");
+    expect(stickyControls.className).toContain("sticky");
+    expect(within(stickyControls).getByTestId("board-filters")).toBeTruthy();
+    expect(within(stickyControls).getByTestId("mobile-stage-selector")).toBeTruthy();
+    expect(getColumn("Pedido recibido").querySelector("header")?.className).toContain("sticky");
+  });
+
+  it("shares the cancellation reason, prevents movement while pending, and retains only failed selections", async () => {
+    const secondOrder = { ...order, id: "44444444-4444-4444-8444-444444444444", publicNumber: 8 };
+    let resolveFirst!: (value: Awaited<ReturnType<typeof cancelOrderAction>>) => void;
+    vi.mocked(cancelOrderAction)
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockResolvedValueOnce({ status: "error", code: "version_conflict", message: "El pedido cambió en otra sesión. Actualizá el Archivo e intentá nuevamente.", toastId: "cancel-failed" });
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={[{ ...columns[0], orders: [order, secondOrder] }, columns[1], columns[2]]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000008" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anular pedidos (2)" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Motivo de anulación/ }), { target: { value: "Cambio solicitado" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar anulación" }));
+
+    await waitFor(() => expect(cancelOrderAction).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { hidden: true, name: "No se puede arrastrar PED-000007" }).hasAttribute("disabled")).toBe(true);
+    expect(within(getOrderCard()).getByRole("checkbox", { hidden: true, name: "Seleccionar PED-000007" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(within(getOrderCard()).getByText("Mostrar movimiento"));
+    expect(screen.getByRole("combobox", { hidden: true, name: "Mover PED-000007 a" }).hasAttribute("disabled")).toBe(true);
+
+    const submittedReasons = vi.mocked(cancelOrderAction).mock.calls.map(([, formData]) => formData.get("reason"));
+    expect(submittedReasons).toEqual(["Cambio solicitado", "Cambio solicitado"]);
+
+    resolveFirst({
+      status: "success",
+      message: "Pedido anulado y enviado al Archivo.",
+      toastId: "cancelled",
+      order: { order_id: order.id, lifecycle_state: "cancelled", updated_at: order.updatedAt, cancelled_at: order.updatedAt },
+    });
+
+    await waitFor(() => expect(screen.queryByRole("button", { hidden: true, name: "Vista rápida de PED-000007" })).toBeNull());
+    expect(screen.getByRole("button", { hidden: true, name: "Vista rápida de PED-000008" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Seleccionar PED-000008" }).getAttribute("data-state")).toBe("checked");
+    expect(screen.getByRole("alert").textContent).toContain("El pedido cambió en otra sesión");
+    expect(screen.getByRole("alert").textContent).toContain("PED-000008");
+    expect(screen.getByTestId("board-announcement").textContent).toContain("Se anuló 1 de 2 pedidos");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull(), { timeout: 4500 });
+    expect(screen.queryByText("Pedido anulado y enviado al Archivo.")).toBeNull();
+  });
+
+  it("archives only selected delivered orders and reports ineligible orders independently", async () => {
+    const receivedOrder = { ...order, id: "44444444-4444-4444-8444-444444444444", publicNumber: 8 };
+    const deliveredOrder = { ...order, currentStageId: deliveredId, publicNumber: 9 };
+    vi.mocked(archiveDeliveredOrderAction).mockResolvedValue({ status: "success", message: "Pedido entregado archivado.", toastId: "archived", order: { order_id: order.id, public_number: 9, lifecycle_state: "archived", updated_at: order.updatedAt } });
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={[{ ...columns[0], orders: [receivedOrder] }, columns[1], { ...columns[2], orders: [deliveredOrder] }]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000008" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000009" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archivar entregados (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar archivo" }));
+
+    await waitFor(() => expect(archiveDeliveredOrderAction).toHaveBeenCalledTimes(1));
+    const formData = vi.mocked(archiveDeliveredOrderAction).mock.calls[0]?.[1] as FormData;
+    expect(formData.get("orderId")).toBe(deliveredOrder.id);
+    await waitFor(() => expect(screen.queryByRole("button", { hidden: true, name: "Vista rápida de PED-000009" })).toBeNull());
+    expect(screen.getByRole("button", { hidden: true, name: "Vista rápida de PED-000008" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Solo se pueden archivar pedidos de la etapa Entregado");
+  });
+
+  it("shows one minimal aggregate success notice without repeating per-order success", async () => {
+    const deliveredOrder = { ...order, currentStageId: deliveredId };
+    vi.mocked(archiveDeliveredOrderAction).mockResolvedValue({ status: "success", message: "Pedido entregado archivado.", toastId: "archived", order: { order_id: order.id, public_number: 7, lifecycle_state: "archived", updated_at: order.updatedAt } });
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle initialColumns={[{ ...columns[0], orders: [] }, columns[1], { ...columns[2], orders: [deliveredOrder] }]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar PED-000007" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archivar entregados (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar archivo" }));
+
+    const successNotice = (await screen.findAllByText("Se archivó 1 pedido.")).find((element) => element.getAttribute("role") === "status");
+    expect(successNotice).toBeTruthy();
+    if (!successNotice) throw new Error("No se encontró el aviso breve de éxito.");
+    expect(successNotice.className).toContain("bg-success");
+    expect(successNotice.className).toContain("text-success-foreground");
+    expect(successNotice.className).toContain("rounded-xl");
+    expect(screen.queryByText("Pedido entregado archivado.")).toBeNull();
+    expect(vi.mocked(useMutationToast)).toHaveBeenLastCalledWith(expect.objectContaining({ status: "success" }), 4000);
+  });
+});
 
 describe("order board payment confirmation", () => {
   it("marks mixed orders with both bag and flag badges without replacing existing labels", () => {
@@ -183,6 +350,10 @@ describe("order board payment confirmation", () => {
 
     await waitFor(() => expect(confirmOrderPaymentAction).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(within(getColumn("Pagado")).getByRole("link", { name: /^Equipo M11$/ })).toBeTruthy());
+    const successMessage = screen.getAllByText("PED-000007 quedó confirmado como Pagado.").find((element) => !element.closest("[data-testid=board-announcement]"));
+    expect(successMessage).toBeTruthy();
+    expect(vi.mocked(useMutationToast)).toHaveBeenLastCalledWith(expect.objectContaining({ status: "success" }), 4000);
+    await waitFor(() => expect(successMessage?.isConnected).toBe(false), { timeout: 5000 });
     expect(within(getColumn("Pedido recibido")).queryByRole("link", { name: /^Equipo M11$/ })).toBeNull();
     expect(screen.getByTestId("board-announcement").textContent).toContain("quedó confirmado como Pagado");
   });

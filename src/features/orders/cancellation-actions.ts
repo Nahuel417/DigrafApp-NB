@@ -57,7 +57,7 @@ function mapM16Error(message: string, fallback: string) {
 }
 
 export type CancellationActionState = MutationState & {
-  code?: "permission_denied" | "invalid_request" | "payment_m12" | "version_conflict" | "idempotency_conflict" | "already_cancelled" | "not_found" | "frozen";
+  code?: "permission_denied" | "invalid_request" | "payment_m12" | "stage_ineligible" | "version_conflict" | "idempotency_conflict" | "already_cancelled" | "not_found" | "frozen";
   order?: Pick<CancelOrderResult, "order_id" | "lifecycle_state" | "updated_at" | "cancelled_at">;
 };
 
@@ -74,6 +74,7 @@ const cancelErrors = [
   ["permission_denied", "No tenés permiso para anular pedidos.", ["No tenés permiso para anular pedidos."]],
   ["invalid_request", "El motivo de anulación debe tener entre 2 y 500 caracteres.", ["La solicitud de ciclo de vida no es válida.", "El motivo de anulación debe tener entre 2 y 500 caracteres."]],
   ["payment_m12", "Revertí el pago mediante M12 antes de anularlo.", ["Revertí el pago mediante M12", "pago activo"]],
+  ["stage_ineligible", "El pedido está en Entregado. Movelo a otra etapa antes de anularlo.", ["El pedido está en Entregado."]],
   ["version_conflict", "El pedido cambió en otra sesión. Actualizá el Archivo e intentá nuevamente.", ["El pedido cambió en otra sesión"]],
   ["idempotency_conflict", "La clave de idempotencia ya fue utilizada para otra anulación.", ["idempotencia ya fue utilizada para otra anulación"]],
   ["already_cancelled", "El pedido ya está anulado.", ["El pedido ya está anulado"]],
