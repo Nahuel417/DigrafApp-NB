@@ -8,8 +8,7 @@ trazabilidad, claridad y baja carga cognitiva.
 
 - No ejecutar `git commit` ni crear tags hasta que el usuario lo solicite
   explícitamente. Aprobar un plan o implementación no autoriza un commit.
-- Trello es estrictamente de solo lectura: nunca crear, editar, mover, archivar,
-  eliminar, comentar ni marcar ítems.
+- Trello es de solo lectura por defecto. Excepcionalmente, se permiten escrituras cuando el usuario autorice explícitamente la acción concreta y su destino. La autorización vale únicamente para esa operación; no habilita otras modificaciones.
 - `push`, PR, merge, deploy, release, migraciones remotas y configuración externa
   requieren una solicitud explícita para esa acción concreta.
 - No modificar producción, datos reales, credenciales ni infraestructura como

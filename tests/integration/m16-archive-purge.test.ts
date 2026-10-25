@@ -123,14 +123,14 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   }
 
   async function createCancelledOrder(age = "31 days") {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     await cancelOrder(order);
     await ageCancelledOrder(order.id, new Date(Date.now() - (age === "29 days" ? 29 : 31) * 24 * 60 * 60 * 1000 - (age === "29 days" ? 60_000 : 0)).toISOString());
     return order.id;
   }
 
   async function createRetentionFixture(finalState: "cancelled" | "delivered" = "cancelled") {
-    const order = await createOrder();
+    const order = await createOrder(finalState === "cancelled" ? receivedStageId : deliveredStageId);
     const cashDate = new Date(Date.UTC(2090, 0, 1 + Math.floor(Math.random() * 300))).toISOString().slice(0, 10);
     const { data: cashDay, error: cashDayError } = await service.from("cash_days").insert({ operational_date: cashDate }).select("id").single();
     if (cashDayError || !cashDay) throw cashDayError ?? new Error("Could not create M16 cash-day fixture.");
@@ -551,7 +551,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   });
 
   it("purges a cancelled order immediately for an Archive manager and preserves the full reason snapshot", async () => {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     const cancelled = await cancelOrder(order, "M16 immediate purge fixture");
     expect(cancelled.error).toBeNull();
 
@@ -571,7 +571,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   });
 
   it("rejects invalid manual reasons and denied roles without reserving the request", async () => {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     const cancelled = await cancelOrder(order, "M16 reason fixture");
     expect(cancelled.error).toBeNull();
     const admin = await signedClient(identity("admin"));
@@ -601,7 +601,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
     expect(beforeDue.error).toBeNull();
     expect(beforeDue.data?.some((row) => (row.result as { order_id?: string }).order_id === beforeOrder)).toBe(false);
 
-    const exactOrder = await createOrder();
+    const exactOrder = await createOrder(receivedStageId);
     await cancelOrder(exactOrder);
     await ageCancelledOrder(exactOrder.id, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
     const afterOrder = await createCancelledOrder("31 days");
@@ -675,7 +675,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   });
 
   it("denies anonymous, inactive, and must-change-password manual purge actors", async () => {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     await cancelOrder(order, "M16 actor denial fixture");
     const anonymous = createClient<Database>(localUrl, publishableKey ?? "test-key", { auth: { persistSession: false } });
     const inactiveIdentity = await createIdentity("admin");
@@ -692,7 +692,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   });
 
   it("conflicts when an idempotency key reuses a different btrimmed reason", async () => {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     await cancelOrder(order, "M16 idempotency fixture");
     const admin = await signedClient(identity("admin"));
     const key = `m16-reason-conflict-${randomUUID()}`;
@@ -728,7 +728,7 @@ describe.skipIf(!url || !serviceRoleKey || !publishableKey)("M16 delivered archi
   });
 
   it("records manual audit actor, server time, source, and internal whitespace", async () => {
-    const order = await createOrder();
+    const order = await createOrder(receivedStageId);
     await cancelOrder(order, "M16 audit fixture");
     const actor = identity("admin");
     const reason = "  Motivo   con   espacios  ";

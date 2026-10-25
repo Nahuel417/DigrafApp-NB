@@ -148,7 +148,7 @@ test.describe("Tablero M4", () => {
     });
     if (profileError) throw profileError;
 
-    const { data: stageRows, error: stageError } = await admin.from("workflow_stages").select("id, code");
+    const { data: stageRows, error: stageError } = await admin.from("workflow_stages").select("id, code").eq("is_active", true);
     if (stageError) throw stageError;
     stages = Object.fromEntries(stageRows.map((stage) => [stage.code, stage.id]));
     successOrder = await createOrder(names.success);
@@ -178,11 +178,11 @@ test.describe("Tablero M4", () => {
     if (failures.length) throw new Error(`Falló el cleanup E2E M4:\n${failures.join("\n")}`);
   });
 
-  test("muestra ocho etapas, conteos correctos y mueve mediante selector", async ({ page }) => {
+  test("muestra las etapas activas, conteos correctos y mueve mediante selector", async ({ page }) => {
     await login(page);
     await page.goto("/orders");
     await expect(page.getByRole("heading", { name: "Tablero de pedidos" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2 })).toHaveCount((page.viewportSize()?.width ?? 0) < 1024 ? 1 : 8);
+    await expect(page.locator("section[data-drop-stage]").getByRole("heading", { level: 2 })).toHaveCount((page.viewportSize()?.width ?? 0) < 1024 ? 1 : Object.keys(stages).length);
     await expect(page.getByRole("main").getByRole("link", { name: "Nuevo pedido" })).toBeVisible();
 
     const successCard = page.getByText(names.success).locator("xpath=ancestor::article");
