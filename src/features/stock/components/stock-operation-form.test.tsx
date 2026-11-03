@@ -24,6 +24,25 @@ afterEach(() => {
 });
 
 describe("StockOperationForm", () => {
+  it("keeps cancellation open after errors, closes on success and can reopen", () => {
+    const props = { action: "cancel" as const, initialDate: "2026-08-15", initialKey: "cancel-key", itemId: "fabric", movementId: "movement" };
+    const view = render(<StockOperationForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    fireEvent.change(screen.getByLabelText("Motivo de anulación"), { target: { value: "Carga duplicada" } });
+
+    actionState.current = { status: "error", toastId: "error", fieldErrors: { reason: ["Revisá el motivo"] } };
+    view.rerender(<StockOperationForm {...props} />);
+    expect(screen.getByRole("alertdialog", { name: "Confirmar anulación" })).toBeTruthy();
+    expect((screen.getByLabelText("Motivo de anulación") as HTMLInputElement).value).toBe("Carga duplicada");
+
+    actionState.current = { status: "success", resetKey: "cancel-next" };
+    view.rerender(<StockOperationForm {...props} />);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    expect(screen.getByRole("alertdialog", { name: "Confirmar anulación" })).toBeTruthy();
+    expect((screen.getByLabelText("Motivo de anulación") as HTMLInputElement).value).toBe("");
+  });
+
   it("locks cancellation disclosure while its mutation is pending", () => {
     const props = { action: "cancel" as const, initialDate: "2026-08-15", initialKey: "cancel-key", itemId: "a88facad-74c0-435c-9fe0-e9f2565c82d5", movementId: "7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d", itemName: "Lona" };
     const view = render(<StockOperationForm {...props} />);

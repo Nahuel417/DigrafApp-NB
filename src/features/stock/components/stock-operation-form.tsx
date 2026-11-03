@@ -209,7 +209,7 @@ export function StockOperationForm({
   const [state, formAction, isPending] = useActionState(executeStockOperationAction, initialState);
   const [selectedAction, setSelectedAction] = useState<"purchase" | "consumption">(action === "consumption" ? "consumption" : "purchase");
   const [quantityValue, setQuantityValue] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
+  const [confirmationDialog, setConfirmationDialog] = useState<{ resetKey?: string } | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
@@ -227,14 +227,13 @@ export function StockOperationForm({
       if (operation === "cancel") cancellationReasonRef.current?.focus();
       else formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
     });
-  }, [state.status, state.toastId]);
+  }, [operation, state.status, state.toastId]);
 
   useEffect(() => {
     if (!state.resetKey || lastSuccessKeyRef.current === state.resetKey) return;
     lastSuccessKeyRef.current = state.resetKey;
-    if (operation === "cancel") setIsOpen(false);
     onSuccess?.(state.resetKey);
-  }, [onSuccess, operation, state.resetKey]);
+  }, [onSuccess, state.resetKey]);
 
   useEffect(() => {
     onPendingChange?.(isPending);
@@ -316,14 +315,14 @@ export function StockOperationForm({
     }
     event.preventDefault();
     setConfirmationText(confirmation(operation, event.currentTarget, itemName, movementLabel));
-    setIsOpen(true);
+    setConfirmationDialog({ resetKey: state.resetKey });
   }
 
   function confirmOperation() {
     if (queuedRef.current) return;
     queuedRef.current = true;
     confirmedRef.current = true;
-    if (operation !== "cancel") setIsOpen(false);
+    if (operation !== "cancel") setConfirmationDialog(null);
     window.requestAnimationFrame(() => {
       formRef.current?.requestSubmit();
       queuedRef.current = false;
@@ -334,7 +333,7 @@ export function StockOperationForm({
     if (!formRef.current) return;
     setCancellationReason("");
     setConfirmationText(confirmation(operation, formRef.current, itemName, movementLabel));
-    setIsOpen(true);
+    setConfirmationDialog({ resetKey: state.resetKey });
   }
 
   return (
@@ -416,7 +415,10 @@ export function StockOperationForm({
         </Button> : null}
       </form>
 
-      <AlertDialog onOpenChange={setIsOpen} open={isOpen}>
+      <AlertDialog
+        onOpenChange={(open) => setConfirmationDialog(open ? { resetKey: state.resetKey } : null)}
+        open={confirmationDialog !== null && confirmationDialog.resetKey === state.resetKey}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{operation === "cancel" ? "Confirmar anulación" : submitLabel}</AlertDialogTitle>
