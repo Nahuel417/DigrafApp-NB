@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
@@ -90,8 +91,17 @@ export function OrderEditForm({ action, catalogs, financials, order }: { action:
       <EditSection hint="Compromiso de entrega del pedido." icon={CalendarDays} title="Fechas">
         <Field>
           <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor="edit-promised-date">Fecha prometida de entrega</FieldLabel>
-          <Input className="rounded-xl bg-card font-mono text-sm shadow-none transition-colors focus-visible:bg-card" defaultValue={order.promisedDeliveryDate} id="edit-promised-date" name="promisedDeliveryDate" required type="date" />
-          <FieldError errors={errorsFor(state, "promisedDeliveryDate")} />
+          <DatePickerField
+            defaultValue={order.promisedDeliveryDate}
+            errorId="edit-promised-date-error"
+            id="edit-promised-date"
+            invalid={Boolean(errorsFor(state, "promisedDeliveryDate")?.length)}
+            label="Fecha prometida de entrega"
+            name="promisedDeliveryDate"
+            required
+            triggerLabel="Abrir calendario para Fecha prometida de entrega"
+          />
+          <FieldError errors={errorsFor(state, "promisedDeliveryDate")} id="edit-promised-date-error" />
         </Field>
       </EditSection>
 

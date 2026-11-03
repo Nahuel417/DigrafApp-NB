@@ -236,6 +236,12 @@ Cada campo incluye label persistente, control, ayuda cuando corresponde y error 
 - No depender del rojo.
 - Toda acción sensible usa un flujo de dos pasos con `AlertDialog`; explica entidad, consecuencia y reversibilidad, distingue la acción destructiva y devuelve foco al disparador al cerrar.
 
+### Fechas
+
+- Usar `DatePickerField` para los campos de fecha editables, conservando sus labels, nombres, errores, handlers y límites existentes.
+- Los calendarios deshabilitan días anteriores a `min` y posteriores a `max`; conservar también esos atributos en el input y las validaciones de servidor.
+- Los calendarios operativos especializados, como el de Caja, mantienen sus restricciones propias de disponibilidad y rango.
+
 ## Información operativa y tablas
 
 Usar Table en desktop cuando comparar columnas simultáneamente sea parte de la tarea. Debe tener headers semánticos, números alineados, acciones asociadas a la fila y overflow limitado a su propia región.

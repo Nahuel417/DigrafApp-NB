@@ -531,4 +531,21 @@ describe("order labels", () => {
     fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
     expect(screen.getByTestId("board-count").textContent).toContain("2 pedidos en seguimiento");
   });
+
+  it("keeps the linked date bounds and labels on the shared delivery calendar fields", () => {
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={columns} />);
+
+    fireEvent.click(screen.getByText("Entrega", { exact: true }));
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-08-14" } });
+    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-08-20" } });
+
+    const from = screen.getByLabelText("Desde") as HTMLInputElement;
+    const to = screen.getByLabelText("Hasta") as HTMLInputElement;
+    expect(from.id).toBe("delivery-from");
+    expect(from.max).toBe("2026-08-20");
+    expect(to.id).toBe("delivery-to");
+    expect(to.min).toBe("2026-08-14");
+    expect(from.getAttribute("name")).toBeNull();
+    expect(to.getAttribute("name")).toBeNull();
+  });
 });
