@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
@@ -30,6 +31,22 @@ function stockDateDaysAgo(days: number) {
 
 function displayDate(value: string) {
   return value.split("-").reverse().join("/");
+}
+
+function watchBrowserErrors(page: Page) {
+  const errors: string[] = [];
+  const credentials = [serviceRoleKey, publishableKey].filter((value): value is string => Boolean(value));
+  const redactCredentials = (message: string) => credentials.reduce((safe, credential) => safe.replaceAll(credential, "[redacted]"), message);
+  page.on("pageerror", (error) => errors.push(redactCredentials(error.message)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(redactCredentials(message.text()));
+  });
+  return () => expect(errors).toEqual([]);
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const widths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client);
 }
 
 test.describe("Stock de telas", () => {
@@ -95,11 +112,25 @@ test.describe("Stock de telas", () => {
       if (profileError) failures.push(`perfil ${identity.role}: ${profileError.message}`);
       const { error } = await service.auth.admin.deleteUser(identity.id);
       if (error) failures.push(`usuario ${identity.role}: ${error.message}`);
+
+      const remainingProfile = await service.from("profiles").select("id").eq("id", identity.id).maybeSingle();
+      if (remainingProfile.error) failures.push(`verificación de perfil ${identity.role}: ${remainingProfile.error.message}`);
+      else if (remainingProfile.data) failures.push(`perfil ${identity.role}: quedó un registro de prueba`);
+
+      const remainingUser = await service.auth.admin.getUserById(identity.id);
+      if (remainingUser.data.user) failures.push(`usuario ${identity.role}: quedó una identidad de prueba`);
+    }
+
+    if (itemId) {
+      const remainingItem = await service.from("stock_items").select("id").eq("id", itemId).maybeSingle();
+      if (remainingItem.error) failures.push(`verificación de tela: ${remainingItem.error.message}`);
+      else if (remainingItem.data) failures.push("stock_items: quedó una tela de prueba");
     }
     if (failures.length) throw new Error(`Falló el cleanup E2E de stock:\n${failures.join("\n")}`);
   });
 
-  test("Admin agrega material con precio y usa el formulario adaptativo sin mostrar el historial completo", async ({ page }) => {
+  test("Admin agrega material con precio y opera el historial limitado sin perder datos", async ({ page }, testInfo) => {
+    const assertBrowserClean = watchBrowserErrors(page);
     await login(page, admin);
     await page.goto("/stock");
     await expect(page.getByRole("heading", { name: "Stock", exact: true })).toBeVisible();
@@ -122,25 +153,53 @@ test.describe("Stock de telas", () => {
     await expect(page.getByText(`Fecha: ${displayDate(openingDate)}`, { exact: true })).toBeVisible();
     await expect(page.getByText("Precio por rollo: $ 50,75", { exact: true })).toBeVisible();
 
+    const actionBar = page.getByRole("group", { name: "Acciones de tela" });
+    const purchaseAction = actionBar.getByRole("radio", { name: "Compra", exact: true });
+    await expect(actionBar.getByRole("button")).toHaveCount(2);
+    for (const label of ["Compra", "Salida"]) {
+      await expect(actionBar.getByRole("radio", { name: label, exact: true })).toHaveAttribute("aria-checked", "false");
+    }
+    for (const label of ["Renombrar", "Desactivar"]) {
+      await expect(actionBar.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-expanded", "false");
+    }
+    await expect(page.getByLabel("Cantidad comprada (rollos)")).toHaveCount(0);
+    await purchaseAction.click();
+    await expect(purchaseAction).toHaveAttribute("aria-checked", "true");
+    const purchasePanel = page.getByRole("region", { name: "Registrar compra", exact: true });
+    await page.getByText("Material agregado correctamente.", { exact: true }).waitFor({ state: "hidden" });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expectNoHorizontalOverflow(page);
+    if (process.env.STOCK_UI_SCREENSHOT_DIR && testInfo.project.name === "chromium") {
+      await page.screenshot({ fullPage: true, path: join(process.env.STOCK_UI_SCREENSHOT_DIR, "stock-ui-desktop.png") });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoHorizontalOverflow(page);
+    if (process.env.STOCK_UI_SCREENSHOT_DIR && testInfo.project.name === "chromium") {
+      await page.screenshot({ fullPage: true, path: join(process.env.STOCK_UI_SCREENSHOT_DIR, "stock-ui-mobile.png") });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+
     await page.getByLabel("Cantidad comprada (rollos)").fill("0.5");
     await page.getByLabel("Fecha de compra", { exact: true }).fill(purchaseDate);
-    await page.getByRole("region", { name: "Compras y consumo", exact: true }).getByLabel("Precio por rollo (ARS)").fill("1234.50");
-    await page.getByRole("button", { name: "Registrar compra", exact: true }).click();
+    await purchasePanel.getByLabel("Precio por rollo (ARS)").fill("1234.50");
+    await purchasePanel.getByRole("button", { name: "Registrar compra", exact: true }).click();
     const purchaseDialog = page.getByRole("alertdialog", { name: "Registrar compra" });
     await expect(purchaseDialog).toContainText("La compra no modifica Caja.");
     await purchaseDialog.getByRole("button", { name: "Confirmar", exact: true }).click();
 
+    await expect(purchaseAction).toHaveAttribute("aria-checked", "false");
     await expect(page.getByText("Saldo: 2 rollos", { exact: true })).toBeVisible();
     await expect(page.getByText(`Fecha: ${displayDate(purchaseDate)}`, { exact: true })).toBeVisible();
     await expect(page.getByText("Precio por rollo: $ 1.234,50", { exact: true })).toBeVisible();
 
-    const movementType = page.getByRole("combobox", { name: "Tipo de movimiento" });
-    await movementType.click();
-    await page.getByRole("option", { name: "Consumo" }).click();
+    const consumptionAction = actionBar.getByRole("radio", { name: "Salida", exact: true });
+    await consumptionAction.click();
+    await expect(consumptionAction).toHaveAttribute("aria-checked", "true");
     await page.getByLabel("Cantidad consumida (rollos)").fill("0.5");
     await page.getByLabel("Fecha de salida", { exact: true }).fill(purchaseDate);
-    await expect(page.getByText(/Efecto en saldo: −0,5 rollos/)).toBeVisible();
-    await page.getByRole("button", { name: "Registrar salida", exact: true }).click();
+    const consumptionPanel = page.getByRole("region", { name: "Registrar salida", exact: true });
+    await consumptionPanel.getByRole("button", { name: "Registrar salida", exact: true }).click();
     const consumptionDialog = page.getByRole("alertdialog", { name: "Registrar salida" });
     await expect(consumptionDialog).toContainText("La salida no modifica Caja ni pedidos.");
     await consumptionDialog.getByRole("button", { name: "Confirmar", exact: true }).click();
@@ -153,10 +212,17 @@ test.describe("Stock de telas", () => {
     await expect(latestMovements.nth(0)).toContainText("Salida");
     await expect(latestMovements.nth(1)).toContainText("Compra");
     await expect(page.getByText(`Fecha: ${displayDate(purchaseDate)}`, { exact: true })).toHaveCount(2);
+
+    const html = await page.content();
+    for (const credential of [serviceRoleKey, publishableKey]) {
+      if (credential) expect(html.includes(credential)).toBe(false);
+    }
+    assertBrowserClean();
   });
 
   for (const identityName of ["attention", "employee"] as const) {
     test(`${identityName} consulta cantidades y fechas sin recibir precios ni acciones`, async ({ page }) => {
+      const assertBrowserClean = watchBrowserErrors(page);
       const identity = identityName === "attention" ? attention : employee;
       await login(page, identity);
       await page.goto(`/stock?item=${itemId}`);
@@ -173,6 +239,41 @@ test.describe("Stock de telas", () => {
       await expect(page.getByText("Precio por rollo:")).toHaveCount(0);
       await expect(page.getByRole("combobox", { name: "Tipo de movimiento" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Registrar salida", exact: true })).toHaveCount(0);
+      const html = await page.content();
+      for (const credential of [serviceRoleKey, publishableKey]) {
+        if (credential) expect(html.includes(credential)).toBe(false);
+      }
+      assertBrowserClean();
     });
   }
+
+  test("Admin anula un movimiento desde el modal y conserva el motivo", async ({ page }, testInfo) => {
+    const assertBrowserClean = watchBrowserErrors(page);
+    await login(page, admin);
+    await page.goto(`/stock?item=${itemId}`);
+
+    const latestMovements = page.locator('section[aria-labelledby="stock-history-heading"] ol > li');
+    await expect(latestMovements).toHaveCount(2);
+    await latestMovements.nth(1).getByRole("button", { name: /^Anular compra de/ }).click();
+    const cancellationDialog = page.getByRole("alertdialog", { name: "Confirmar anulación" });
+    await expect(cancellationDialog).toContainText("compra de 0,5 rollos");
+    const confirmCancellation = cancellationDialog.getByRole("button", { name: "Confirmar anulación" });
+    await expect(confirmCancellation).toBeDisabled();
+    await cancellationDialog.getByLabel("Motivo de anulación").fill("Carga duplicada");
+    await expect(confirmCancellation).toBeEnabled();
+    await confirmCancellation.click();
+    await expect(cancellationDialog).toHaveCount(0);
+    const cancelledPurchase = latestMovements.nth(1);
+    await expect(cancelledPurchase).toContainText("Anulado");
+    await expect(cancelledPurchase).toContainText("Motivo: Carga duplicada");
+    await expect(page.getByText("Saldo: 1 rollos", { exact: true })).toBeVisible();
+    if (process.env.STOCK_UI_SCREENSHOT_DIR && testInfo.project.name === "chromium") {
+      await expectNoHorizontalOverflow(page);
+      await page.screenshot({ fullPage: true, path: join(process.env.STOCK_UI_SCREENSHOT_DIR, "stock-ui-colored-desktop.png") });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expectNoHorizontalOverflow(page);
+      await page.screenshot({ fullPage: true, path: join(process.env.STOCK_UI_SCREENSHOT_DIR, "stock-ui-colored-mobile.png") });
+    }
+    assertBrowserClean();
+  });
 });

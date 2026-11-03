@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const actionState = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const actionState = vi.hoisted(() => ({ current: {} as Record<string, unknown>, pending: false }));
 
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
-  return { ...actual, useActionState: () => [actionState.current, vi.fn(), false] };
+  return { ...actual, useActionState: () => [actionState.current, vi.fn(), actionState.pending] };
 });
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
 vi.mock("../actions", () => ({ executeStockOperationAction: vi.fn() }));
@@ -19,10 +19,23 @@ import { StockOperationForm } from "./stock-operation-form";
 afterEach(() => {
   cleanup();
   actionState.current = {};
+  actionState.pending = false;
   vi.clearAllMocks();
 });
 
 describe("StockOperationForm", () => {
+  it("locks cancellation disclosure while its mutation is pending", () => {
+    const props = { action: "cancel" as const, initialDate: "2026-08-15", initialKey: "cancel-key", itemId: "a88facad-74c0-435c-9fe0-e9f2565c82d5", movementId: "7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d", itemName: "Lona" };
+    const view = render(<StockOperationForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    actionState.pending = true;
+    view.rerender(<StockOperationForm {...props} />);
+    expect((view.container.querySelector('button[aria-label="Anular movimiento"]') as HTMLButtonElement).disabled).toBe(true);
+    const dialog = screen.getByRole("alertdialog", { name: "Confirmar anulación" });
+    expect((within(dialog).getByRole("textbox", { name: "Motivo de anulación" }) as HTMLInputElement).disabled).toBe(true);
+    expect((within(dialog).getByRole("button", { name: "Cancelar" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(dialog).getByRole("button", { name: "Confirmar anulación" }) as HTMLButtonElement).disabled).toBe(true);
+  });
   it("requires a price when adding material, including with a zero opening balance", () => {
     const view = render(<StockOperationForm action="create" initialDate="2026-08-15" initialKey="create-key" />);
     const form = view.container.querySelector("form");
@@ -71,6 +84,35 @@ describe("StockOperationForm", () => {
     expect(screen.getByLabelText("Cantidad consumida (rollos)")).toBeTruthy();
     expect(screen.queryByLabelText("Precio por rollo (ARS)")).toBeNull();
     expect(screen.getByText(/Efecto en saldo: −0,5 rollos/)).toBeTruthy();
+  });
+
+  it("opens the app confirmation modal with the reason and selected movement", () => {
+    render(
+      <StockOperationForm
+        action="cancel"
+        initialDate="2026-08-15"
+        initialKey="cancel-key"
+        itemId="a88facad-74c0-435c-9fe0-e9f2565c82d5"
+        itemName="Lona"
+        movementId="7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d"
+        movementLabel="compra de 1 rollo del 14/08/2026"
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /^Anular / });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("alertdialog", { name: "Confirmar anulación" });
+    const reason = within(dialog).getByLabelText("Motivo de anulación") as HTMLInputElement;
+    expect(reason.tagName).toBe("INPUT");
+    expect(within(dialog).getByText(/Anularás compra de 1 rollo/)).toBeTruthy();
+    fireEvent.change(reason, { target: { value: "Error en la carga" } });
+
+    const form = document.getElementById("stock-cancel-a88facad-74c0-435c-9fe0-e9f2565c82d5-7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d-form") as HTMLFormElement;
+    if (!form) throw new Error("No se encontró el formulario de anulación.");
+    expect(new FormData(form).get("movementId")).toBe("7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d");
+    expect(new FormData(form).get("reason")).toBe("Error en la carga");
+    expect((within(dialog).getByRole("button", { name: "Confirmar anulación" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeTruthy();
   });
 
   it("rejects letters, exponent notation and negative values while typing, pasting or dropping prices", () => {

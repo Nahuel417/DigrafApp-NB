@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, type ClipboardEventHandler, type DragEventHandler, type FormEvent, type FormEventHandler, type KeyboardEventHandler } from "react";
+import { ArrowDownToLine, ArrowUpFromLine, Ban, Check, Power, PowerOff, Plus, Save } from "lucide-react";
 
 import {
   AlertDialog,
@@ -17,7 +18,6 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { canInsertCashAmount, formatArs, normalizeMoney } from "@/lib/money/decimal";
 
@@ -37,6 +37,8 @@ type StockOperationFormProps = {
   itemName?: string;
   movementId?: string;
   movementLabel?: string;
+  onPendingChange?: (pending: boolean) => void;
+  onSuccess?: (resetKey: string) => void;
 };
 
 const initialState: StockActionState = {};
@@ -89,9 +91,9 @@ function InputField({
   if (type === "date") {
     return (
       <Field data-invalid={Boolean(errorMessage)}>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={id}>{label}</FieldLabel>
         <DatePickerField
-          className={className}
+          className={className ?? "h-11 rounded-xl bg-card shadow-none sm:h-9"}
           defaultValue={defaultValue}
           errorId={describedBy}
           id={id}
@@ -112,11 +114,11 @@ function InputField({
 
   return (
     <Field data-invalid={Boolean(errorMessage)}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={id}>{label}</FieldLabel>
       <Input
         aria-describedby={errorMessage ? describedBy : undefined}
         aria-invalid={Boolean(errorMessage)}
-        className={className}
+        className={className ?? "h-11 rounded-xl bg-card shadow-none sm:h-9"}
         defaultValue={defaultValue}
         id={id}
         inputMode={inputMode}
@@ -201,28 +203,60 @@ export function StockOperationForm({
   itemName,
   movementId,
   movementLabel,
+  onPendingChange,
+  onSuccess,
 }: StockOperationFormProps) {
   const [state, formAction, isPending] = useActionState(executeStockOperationAction, initialState);
   const [selectedAction, setSelectedAction] = useState<"purchase" | "consumption">(action === "consumption" ? "consumption" : "purchase");
   const [quantityValue, setQuantityValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const cancellationReasonRef = useRef<HTMLInputElement>(null);
+  const lastSuccessKeyRef = useRef<string | undefined>(undefined);
   const confirmedRef = useRef(false);
   const queuedRef = useRef(false);
+  const adaptiveMovement = allowMovementSelection && (action === "purchase" || action === "consumption");
+  const operation = adaptiveMovement ? selectedAction : action;
   useMutationToast(state);
 
   useEffect(() => {
     if (state.status !== "error" || !state.toastId) return;
-    window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    window.requestAnimationFrame(() => {
+      if (operation === "cancel") cancellationReasonRef.current?.focus();
+      else formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    });
   }, [state.status, state.toastId]);
 
-  const adaptiveMovement = allowMovementSelection && (action === "purchase" || action === "consumption");
-  const operation = adaptiveMovement ? selectedAction : action;
+  useEffect(() => {
+    if (!state.resetKey || lastSuccessKeyRef.current === state.resetKey) return;
+    lastSuccessKeyRef.current = state.resetKey;
+    if (operation === "cancel") setIsOpen(false);
+    onSuccess?.(state.resetKey);
+  }, [onSuccess, operation, state.resetKey]);
+
+  useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
+
   const prefix = `stock-${operation}-${itemId ?? "new"}-${movementId ?? ""}`;
   const errors = (field: string) => fieldErrors(state, field);
   const error = (field: string) => errors(field)?.[0]?.message;
   const submitLabel = operationLabel(operation, active);
+  const OperationIcon = operation === "create"
+    ? Plus
+    : operation === "purchase"
+      ? ArrowDownToLine
+      : operation === "consumption"
+        ? ArrowUpFromLine
+        : operation === "cancel"
+          ? Ban
+          : operation === "rename"
+            ? Save
+            : active
+              ? Power
+              : PowerOff;
   const destructive = operation === "cancel" || (operation === "activate" && !active);
   const parsedQuantity = /^[0-9]{1,12}(?:[.,](?:0|5))?$/.test(quantityValue) ? Number(quantityValue.replace(",", ".")) : null;
   const quantityLabel = operation === "purchase" ? "Cantidad comprada (rollos)" : "Cantidad consumida (rollos)";
@@ -289,11 +323,18 @@ export function StockOperationForm({
     if (queuedRef.current) return;
     queuedRef.current = true;
     confirmedRef.current = true;
-    setIsOpen(false);
+    if (operation !== "cancel") setIsOpen(false);
     window.requestAnimationFrame(() => {
       formRef.current?.requestSubmit();
       queuedRef.current = false;
     });
+  }
+
+  function openCancellationDialog() {
+    if (!formRef.current) return;
+    setCancellationReason("");
+    setConfirmationText(confirmation(operation, formRef.current, itemName, movementLabel));
+    setIsOpen(true);
   }
 
   return (
@@ -301,7 +342,8 @@ export function StockOperationForm({
       <form
         action={formAction}
         aria-busy={isPending}
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-2"
+        id={`${prefix}-form`}
         key={state.resetKey ?? initialKey}
         noValidate
         onSubmit={requestConfirmation}
@@ -312,7 +354,7 @@ export function StockOperationForm({
         {itemId ? <input name="itemId" type="hidden" value={itemId} readOnly /> : null}
         {movementId ? <input name="movementId" type="hidden" value={movementId} readOnly /> : null}
         {operation === "create" ? (
-          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+          <FieldGroup className="grid gap-3 sm:grid-cols-2">
             <InputField describedBy={`${prefix}-name-error`} errorMessage={error("name")} id={`${prefix}-name`} label="Nombre del material" name="name" />
             <InputField describedBy={`${prefix}-quantity-error`} defaultValue="0" errorMessage={error("quantity")} id={`${prefix}-quantity`} inputMode="decimal" label="Cantidad (rollos)" name="quantity" onBeforeInput={quantityBeforeInput} onDrop={quantityDrop} onKeyDown={quantityKeyDown} onPaste={quantityPaste} pattern={stockQuantityInputPattern} />
             <InputField describedBy={`${prefix}-price-error`} errorMessage={error("price")} id={`${prefix}-price`} inputMode="decimal" label="Precio por rollo (ARS)" name="price" onBeforeInput={priceBeforeInput} onDrop={priceDrop} onKeyDown={priceKeyDown} onPaste={pricePaste} pattern="[0-9]{1,12}([.,][0-9]{1,2})?" />
@@ -323,9 +365,9 @@ export function StockOperationForm({
           <>
           {adaptiveMovement ? (
             <Field className="max-w-sm">
-              <FieldLabel htmlFor={`${prefix}-kind`}>Tipo de movimiento</FieldLabel>
+              <FieldLabel className="text-[11px] font-medium uppercase tracking-label text-muted-foreground" htmlFor={`${prefix}-kind`}>Tipo de movimiento</FieldLabel>
               <Select onValueChange={(value) => setSelectedAction(value as "purchase" | "consumption")} value={operation}>
-                <SelectTrigger id={`${prefix}-kind`}><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl bg-surface-muted/60 shadow-none" id={`${prefix}-kind`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="purchase">Compra</SelectItem>
                   <SelectItem value="consumption">Consumo</SelectItem>
@@ -333,7 +375,7 @@ export function StockOperationForm({
               </Select>
             </Field>
           ) : null}
-          <FieldGroup className={operation === "purchase" ? "grid gap-4 sm:grid-cols-3" : "grid gap-4 sm:grid-cols-2"}>
+          <FieldGroup className={operation === "purchase" ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
             <InputField describedBy={`${prefix}-quantity-error`} errorMessage={error("quantity")} id={`${prefix}-quantity`} inputMode="decimal" label={quantityLabel} name="quantity" onBeforeInput={quantityBeforeInput} onChange={setQuantityValue} onDrop={quantityDrop} onKeyDown={quantityKeyDown} onPaste={quantityPaste} pattern={stockQuantityInputPattern} value={quantityValue} />
             <InputField describedBy={`${prefix}-date-error`} defaultValue={initialDate} errorMessage={error("date")} id={`${prefix}-date`} label={operation === "purchase" ? "Fecha de compra" : "Fecha de salida"} max={initialDate} name="date" type="date" />
             {operation === "purchase" ? <InputField describedBy={`${prefix}-price-error`} errorMessage={error("price")} id={`${prefix}-price`} inputMode="decimal" label="Precio por rollo (ARS)" name="price" onBeforeInput={priceBeforeInput} onDrop={priceDrop} onKeyDown={priceKeyDown} onPaste={pricePaste} pattern="[0-9]{1,12}([.,][0-9]{1,2})?" /> : null}
@@ -353,28 +395,67 @@ export function StockOperationForm({
           <InputField describedBy={`${prefix}-name-error`} defaultValue={itemName} errorMessage={error("name")} id={`${prefix}-name`} label="Nombre del material" name="name" />
         ) : null}
         {operation === "cancel" ? (
-          <Field data-invalid={Boolean(error("reason"))}>
-            <FieldLabel htmlFor={`${prefix}-reason`}>Motivo de anulación</FieldLabel>
-            <Textarea aria-describedby={`${prefix}-reason-error`} aria-invalid={Boolean(error("reason"))} id={`${prefix}-reason`} name="reason" required />
-            <FieldError errors={errors("reason")} id={`${prefix}-reason-error`} />
-          </Field>
+          <div className="flex flex-col gap-2">
+            <Button
+              aria-label={`Anular ${movementLabel ?? "movimiento"}`}
+              className="group min-h-11 self-start rounded-lg px-2.5 text-destructive hover:text-destructive sm:min-h-9"
+              disabled={isPending}
+              onClick={openCancellationDialog}
+              type="button"
+              variant="ghost"
+            >
+              <Ban aria-hidden="true" className="transition-transform duration-150 group-hover:scale-110 group-focus-visible:scale-110 group-active:scale-95 motion-reduce:transform-none" data-icon="inline-start" />
+              Anular
+            </Button>
+          </div>
         ) : null}
         {operation === "activate" ? <input name="active" type="hidden" value={active ? "true" : "false"} readOnly /> : null}
-        <Button className="min-h-11 self-start md:min-h-10" disabled={isPending} type="submit" variant={destructive ? "destructive" : "default"}>
+        {operation !== "cancel" ? <Button className="group min-h-11 self-start sm:min-h-10" disabled={isPending} type="submit" variant={destructive ? "destructive" : "default"}>
+          <OperationIcon aria-hidden="true" className="transition-transform duration-150 group-hover:scale-110 group-focus-visible:scale-110 group-active:scale-95 motion-reduce:transform-none" data-icon="inline-start" />
           {isPending ? pendingLabel(operation) : submitLabel}
-        </Button>
+        </Button> : null}
       </form>
 
       <AlertDialog onOpenChange={setIsOpen} open={isOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{submitLabel}</AlertDialogTitle>
+            <AlertDialogTitle>{operation === "cancel" ? "Confirmar anulación" : submitLabel}</AlertDialogTitle>
             <AlertDialogDescription>{confirmationText}</AlertDialogDescription>
           </AlertDialogHeader>
+          {operation === "cancel" ? (
+            <Field data-invalid={Boolean(error("reason"))}>
+              <FieldLabel htmlFor={`${prefix}-reason`}>Motivo de anulación</FieldLabel>
+              <Input
+                aria-describedby={error("reason") ? `${prefix}-reason-error` : undefined}
+                aria-invalid={Boolean(error("reason"))}
+                className="h-11 rounded-lg bg-card shadow-none sm:h-10"
+                disabled={isPending}
+                form={`${prefix}-form`}
+                id={`${prefix}-reason`}
+                maxLength={500}
+                minLength={2}
+                name="reason"
+                onChange={(event) => setCancellationReason(event.target.value)}
+                ref={cancellationReasonRef}
+                required
+                value={cancellationReason}
+              />
+              <FieldError errors={errors("reason")} id={`${prefix}-reason-error`} />
+            </Field>
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Volver</AlertDialogCancel>
-            <AlertDialogAction disabled={isPending} onClick={confirmOperation} variant={destructive ? "destructive" : "default"}>
-              Confirmar
+            <AlertDialogCancel className="group rounded-lg" disabled={isPending}>{operation === "cancel" ? "Cancelar" : "Volver"}</AlertDialogCancel>
+            <AlertDialogAction
+              className="group rounded-lg"
+              disabled={isPending || operation === "cancel" && cancellationReason.trim().length < 2}
+              onClick={(event) => {
+                if (operation === "cancel") event.preventDefault();
+                confirmOperation();
+              }}
+              variant={destructive ? "destructive" : "default"}
+            >
+              <Check aria-hidden="true" className="transition-transform duration-150 group-hover:scale-110 group-focus-visible:scale-110 group-active:scale-95 motion-reduce:transform-none" data-icon="inline-start" />
+              {operation === "cancel" ? "Confirmar anulación" : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
