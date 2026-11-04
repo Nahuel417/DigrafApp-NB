@@ -55,6 +55,14 @@ No cargar guías, archivos, historiales, MCPs ni agentes sin necesidad.
   complejidad real; evitar sobrearquitectura y duplicación prematura.
 - No afirmar que algo funciona sin evidencia. Usar `rg` y `pnpm`.
 
+## UI y reutilización
+
+- Preservar estética; buscar y reutilizar componentes, tipos, funciones, shadcn,
+  tokens y Lucide antes de crear. Compartir patrones reales, no abstracciones futuras.
+- Negocio y dinero fuera de UI; respetar hooks y verificar usos antes de eliminar código o paquetes.
+- Botones: icono y microanimación hover/focus/tap, sin demoras; reposo estático,
+  foco accesible y reduced motion. Detalles: `docs/agent-guides/design-system.md`.
+
 ## Stack, convenciones y seguridad
 
 - Next.js 16, App Router y TypeScript `strict`; preferir Server Components.
