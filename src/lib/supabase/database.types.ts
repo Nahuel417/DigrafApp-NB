@@ -919,6 +919,162 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"stock_item_events": {
+                  Row: {
+                    "action": string,"actor_id": string,"created_at": string,"details": NonNullable<Json>,"id": string,"item_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_id": string,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string,"item_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: string,"item_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_item_events_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_item_events_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "stock_items"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"stock_items": {
+                  Row: {
+                    "created_at": string,"created_by": string,"id": string,"is_active": boolean,"name": string,"quantity": number,"updated_at": string,"updated_by": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by": string,"id"?: string,"is_active"?: boolean,"name": string,"quantity"?: number,"updated_at"?: string,"updated_by": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"quantity"?: number,"updated_at"?: string,"updated_by"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_items_created_by_fkey"
+      columns: ["created_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_items_updated_by_fkey"
+      columns: ["updated_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"stock_movement_cancellations": {
+                  Row: {
+                    "actor_id": string,"created_at": string,"item_id": string,"movement_id": string,"reason": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id": string,"created_at"?: string,"item_id": string,"movement_id": string,"reason": string
+                  }
+                  Update: {
+                    "actor_id"?: string,"created_at"?: string,"item_id"?: string,"movement_id"?: string,"reason"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_movement_cancellations_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_movement_cancellations_movement_id_item_id_fkey"
+      columns: ["movement_id","item_id"]
+isOneToOne: false
+      referencedRelation: "stock_movements"
+      referencedColumns: ["id","item_id"]
+    }
+                  ]
+                },"stock_movements": {
+                  Row: {
+                    "actor_id": string,"created_at": string,"id": string,"item_id": string,"kind": string,"movement_date": string,"quantity": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id": string,"created_at"?: string,"id"?: string,"item_id": string,"kind": string,"movement_date": string,"quantity": number
+                  }
+                  Update: {
+                    "actor_id"?: string,"created_at"?: string,"id"?: string,"item_id"?: string,"kind"?: string,"movement_date"?: string,"quantity"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_movements_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_movements_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "stock_items"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"stock_purchase_prices": {
+                  Row: {
+                    "actor_id": string,"amount": number,"created_at": string,"item_id": string,"movement_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id": string,"amount": number,"created_at"?: string,"item_id": string,"movement_id": string
+                  }
+                  Update: {
+                    "actor_id"?: string,"amount"?: number,"created_at"?: string,"item_id"?: string,"movement_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_purchase_prices_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_purchase_prices_movement_id_item_id_fkey"
+      columns: ["movement_id","item_id"]
+isOneToOne: false
+      referencedRelation: "stock_movements"
+      referencedColumns: ["id","item_id"]
+    }
+                  ]
+                },"stock_requests": {
+                  Row: {
+                    "action": string,"actor_id": string,"created_at": string,"fingerprint": string,"item_id": string,"request_key": string,"response": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_id": string,"created_at"?: string,"fingerprint": string,"item_id": string,"request_key": string,"response": NonNullable<Json>
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string,"created_at"?: string,"fingerprint"?: string,"item_id"?: string,"request_key"?: string,"response"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "stock_requests_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "stock_requests_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "stock_items"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"workflow_stage_events": {
                   Row: {
                     "action": string,"actor_id": string,"created_at": string,"details": NonNullable<Json>,"id": string,"idempotency_fingerprint": string,"idempotency_key": string,"workflow_stage_id": string | null
@@ -1086,6 +1242,12 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "cash_day_id": string,"opening_balance": number,"opening_updated_at": string,"operational_date": string
             }[]
+                           },
+"execute_stock_operation":
+{ Args: { "p_action": string,"p_data": Json,"p_key": string }; Returns: Json
+                           },
+"execute_stock_operation_without_opening_price":
+{ Args: { "p_action": string,"p_data": Json,"p_key": string }; Returns: Json
                            },
 "finalize_order_design_image":
 { Args: { "p_actor_id": string,"p_expected_image_updated_at"?: string,"p_idempotency_key": string,"p_object_path": string,"p_order_id": string }; Returns: {
@@ -1300,6 +1462,9 @@ isOneToOne: false
 { Args: { "p_expected_updated_at": string,"p_label": Database["public"]['Enums']["order_label"],"p_order_id": string }; Returns: {
               "label": Database["public"]['Enums']["order_label"],"order_id": string,"updated_at": string
             }[]
+                           },
+"stock_current_active_role":
+{ Args: Record<PropertyKey, never>; Returns: Database["public"]['Enums']["app_role"]
                            },
 "unarchive_delivered_order":
 { Args: { "p_expected_updated_at": string,"p_idempotency_key": string,"p_order_id": string }; Returns: Json

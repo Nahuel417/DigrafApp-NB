@@ -169,7 +169,11 @@ Lucide React es la única librería de iconos de interfaz de Digraf. No mezclar
 otras librerías, emojis o SVGs personalizados, excepto activos oficiales de
 marca o elementos de dominio aprobados.
 
-- Usar iconos solo cuando mejoren reconocimiento, orientación o feedback.
+- Todos los botones de acción incluyen un icono Lucide acorde a la acción,
+  conservando texto visible cuando sea necesario. Excepciones justificadas:
+  celdas numéricas del calendario, números de página y opciones de selección
+  compactas cuyo valor ya identifica el destino; un icono repetido no aporta
+  claridad y aumenta la densidad. Documentar cualquier otra excepción concreta.
 - Mantener el mismo icono para cada acción y usar `currentColor`.
 - No reemplazar etiquetas visibles en acciones ambiguas, operativas o sensibles.
 - Tamaños: `16 px` en controles; `18 px` en navegación y acciones destacadas;
@@ -192,10 +196,16 @@ marca o elementos de dominio aprobados.
 
 ### Movimiento
 
-- Usar movimiento funcional y discreto: `150 ms` en controles y hasta `200 ms`
-  en overlays, toasts y reordenamientos.
-- Preferir transiciones de color, borde, opacidad y sombra, sin rebotes,
-  parallax, animaciones repetitivas ni cambios de geometría.
+- Botones de acción: microanimación sutil del icono o control en `hover` y
+  `focus-visible`, y confirmación visual breve al presionar/tap cuando sea viable.
+  La acción se ejecuta sin esperar a la animación; no usar timers para diferirla.
+- Reutilizar la misma receta para la misma acción en toda la aplicación. Priorizar
+  `transform` y `opacity`, aproximadamente `150–250 ms`; no alterar dimensiones,
+  desplazar contenido ni animar el ring de foco. Overlays y toasts conservan su
+  comportamiento actual salvo cambio autorizado.
+- Chevrons, menú y otros iconos de estado reflejan apertura/cierre o selección;
+  permanecen estáticos en reposo, sin bucles decorativos. Solo indicadores de carga
+  pueden repetirse mientras exista una operación pendiente. Evitar rebotes y parallax.
 - `Skeleton` reserva espacio y `pending` no cambia las dimensiones del control.
 - Con `prefers-reduced-motion: reduce`, eliminar movimiento no esencial sin
   perder foco, feedback ni estado.
@@ -235,6 +245,12 @@ Cada campo incluye label persistente, control, ayuda cuando corresponde y error 
 - En formularios extensos, un error de servidor enfoca el primer campo inválido o un resumen enlazado; no devuelve automáticamente el foco al botón de envío.
 - No depender del rojo.
 - Toda acción sensible usa un flujo de dos pasos con `AlertDialog`; explica entidad, consecuencia y reversibilidad, distingue la acción destructiva y devuelve foco al disparador al cerrar.
+
+### Fechas
+
+- Usar `DatePickerField` para los campos de fecha editables, conservando sus labels, nombres, errores, handlers y límites existentes.
+- Los calendarios deshabilitan días anteriores a `min` y posteriores a `max`; conservar también esos atributos en el input y las validaciones de servidor.
+- Los calendarios operativos especializados, como el de Caja, mantienen sus restricciones propias de disponibilidad y rango.
 
 ## Información operativa y tablas
 
@@ -341,6 +357,48 @@ Primer lote incorporado:
 - AlertDialog para confirmaciones sensibles con foco contenido y retorno al disparador.
 
 La CLI incorporó Label y Separator como dependencias de Field. No crear variantes nuevas sin una necesidad demostrada. Antes de sumar otro componente se documentan necesidad, alternativa, archivos, dependencias, API, límites RSC/Client, bundle y accesibilidad.
+
+### Reutilización antes de crear UI
+
+- Preservar colores, tipografía, espaciados, componentes y patrones visuales actuales
+  tanto al crear pantallas como al modificar las existentes. Usar tokens semánticos,
+  primitivas shadcn e iconos Lucide ya instalados; no agregar dependencias, colores,
+  fuentes, temas ni rediseños sin autorización.
+- Buscar primero componentes, tipos y funciones existentes y comprobar sus usos.
+  Extenderlos cuando resuelva el mismo patrón; extraer un componente compartido
+  únicamente si hay un patrón común real, no por anticipación ni solo por parecido.
+- Formularios: reutilizar `Field`, `Input`, `Select`, `DatePickerField` y errores
+  asociados; tablas: `Table` y registros móviles equivalentes; confirmaciones:
+  `AlertDialog`; carga: `SubmitButton` y `Skeleton`; notificaciones: `useMutationToast`.
+  No imponer un resumen inline adicional donde el módulo usa solo toast.
+- Separar negocio, autorización y cálculos monetarios de los componentes visuales;
+  reutilizar funciones de dominio y dinero. Cumplir las reglas de hooks sin llamadas
+  condicionales. Antes de eliminar código o paquetes, comprobar imports, reexports,
+  usos dinámicos, rutas, pruebas y configuración; una búsqueda vacía no demuestra desuso.
+
+### Propuestas de componentes para revisión posterior
+
+Esta revisión documental no cambia componentes ni autoriza eliminaciones. Las
+referencias siguientes son evidencia del estado inspeccionado, no una API nueva:
+
+| Patrón | Usos comprobados | Propuesta y motivo |
+| --- | --- | --- |
+| Botones e iconos | `src/components/ui/button.tsx`, `src/features/catalogs/components/catalog-item-form.tsx`, `src/features/users/components/create-user-form.tsx` | Conservar `Button`; revisar una receta compartida de icono/hover/focus/tap. Catálogos añade giro de Plus y escala; usuarios añade escala con UserPlus estático. Son variantes locales, no evidencia de duplicación exacta. |
+| Submit pendiente | `src/components/submit-button.tsx` y formularios consumidores | Reutilizar el bloqueo pendiente, spinner y `aria-busy` existentes antes de repetirlos; revisar acciones locales, como Stock, sin convertir confirmaciones sensibles en submits genéricos. |
+| Resultado de mutaciones | `src/hooks/use-mutation-toast.ts`, formularios de catálogo y creación de usuarios | Reutilizar el hook; revisar diferencias entre check inline y Alert de éxito además del toast. Respetar las decisiones de persistencia de cada módulo; Stock notifica acciones solo por toast. |
+| Campo de formulario | `src/features/catalogs/components/catalog-item-form.tsx`, `src/features/users/components/create-user-form.tsx`, `src/features/stock/components/stock-operation-form.tsx` | Reutilizar las primitivas Field y la receta label/error/foco. Revisar estilos locales antes de extraer otra abstracción; densidades distintas pueden ser intencionales. |
+| Fechas | `DatePickerField` en creación/edición de pedidos, filtros de tablero/archivo y Stock; `CalendarDayButton` en Caja | Mantener el calendario común. No retirar `CalendarDayButton`: Caja sí lo usa para disponibilidad y rangos propios. |
+| Tablas y carga | `src/features/users/components/user-list.tsx`, `src/app/(app)/users/loading.tsx`, `src/components/ui/table.tsx`, `src/components/ui/skeleton.tsx` | Extender recetas responsive y reserva de geometría existentes; no duplicar tablas ni generar una fábrica de pantallas. |
+
+No se confirmó ningún componente sin uso ni duplicado exacto eliminable. Antes de
+proponer retirar componentes antiguos hay que completar la comprobación de referencias;
+esta revisión identificó patrones repetidos y diferencias, no autorizó una limpieza.
+`Button` hoy aporta transición de color y foco, pero no implementa por sí solo toda
+la receta de microanimación aquí exigida: su actualización y la de sus consumidores
+queda como propuesta posterior, no como funcionalidad ya aplicada. La reducción
+global de movimiento en `src/app/globals.css` debe conservarse y complementarse en
+cualquier futura receta. No se incorporaron ejemplos externos de animación que no
+estuvieran disponibles para comprobarlos contra componentes reales de Digraf.
 
 ## Rendimiento y React
 
