@@ -382,7 +382,7 @@ export function StockOperationForm({
           {adaptiveMovement ? (
             <div aria-live="polite" className="text-sm text-muted-foreground">
               <p>Saldo disponible: {new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(availableQuantity)} rollos</p>
-              {balanceEffect === null ? <p>Ingresá una cantidad válida para ver el efecto en saldo.</p> : (
+              {balanceEffect === null || resultingBalance === null ? <p>Ingresá una cantidad válida para ver el efecto en saldo.</p> : (
                 <p>Efecto en saldo: {balanceEffect > 0 ? "+" : "−"}{new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(Math.abs(balanceEffect))} rollos · saldo resultante: {new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(resultingBalance)} rollos</p>
               )}
               {resultingBalance !== null && resultingBalance < 0 ? <p className="text-destructive">El saldo no puede quedar negativo; no se registrará la salida.</p> : null}

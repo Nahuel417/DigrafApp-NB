@@ -42,7 +42,7 @@ describe.skipIf(!url || !key || !publicKey)("fabric stock", () => {
   }
   async function movements(id: string) {
     const result = await service.from("stock_movements").select("*").eq("item_id", id).order("created_at");
-    expect(result.error).toBeNull();
+    if (result.error) throw result.error;
     return result.data;
   }
   async function counts(id: string) {

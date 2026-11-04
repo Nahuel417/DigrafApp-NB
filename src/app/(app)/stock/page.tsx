@@ -13,20 +13,22 @@ import {
   formatStockQuantity,
   getStockHistory,
   listStockItems,
+  type StockMovement,
 } from "@/features/stock/queries";
 import { currentStockDate } from "@/features/stock/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { cn } from "@/lib/utils";
 
-function movementKind(kind: "opening" | "purchase" | "consumption") {
+function movementKind(kind: StockMovement["kind"]) {
   switch (kind) {
     case "opening": return "Cantidad inicial";
     case "purchase": return "Compra";
     case "consumption": return "Salida";
+    default: throw new Error("El tipo de movimiento de stock no es válido.");
   }
 }
 
-function signedQuantity(kind: "opening" | "purchase" | "consumption", quantity: number) {
+function signedQuantity(kind: StockMovement["kind"], quantity: number) {
   const prefix = kind === "consumption" ? "−" : "+";
   return `${prefix}${formatStockQuantity(quantity)} rollos`;
 }
