@@ -11,11 +11,17 @@ import { createClient } from "@/lib/supabase/server";
 
 import {
   buildOrderDesignObjectPath,
+  buildOrderDesignPreviewObjectPath,
   ORDER_DESIGN_BUCKET,
   type OrderDesignImageAction,
   type OrderDesignContentType,
 } from "./image-contracts";
-import { getOrderDesignImageReadUrl, getOrderDesignImagesReadUrls } from "./image-queries";
+import {
+  getOrderDesignImagePreviewReadUrl,
+  getOrderDesignImageReadUrl,
+  getOrderDesignImagesPreviewReadUrls,
+  getOrderDesignImagesReadUrls,
+} from "./image-queries";
 import {
   finalizeOrderDesignImageSchema,
   orderDesignImageMutationSchema,
@@ -23,6 +29,7 @@ import {
   orderDesignImageUploadIntentSchema,
 } from "./image-schemas";
 import { verifyUploadedOrderDesignImage } from "./image-validation";
+import { generateOrderDesignImagePreview } from "./image-preview";
 
 type FinalizeOrderDesignImageRpcArgs = Database["public"]["Functions"]["finalize_order_design_image"]["Args"];
 type MutateOrderDesignImageRpcArgs = Database["public"]["Functions"]["mutate_order_design_image"]["Args"];
@@ -71,8 +78,16 @@ export type GetOrderDesignImageReadUrlActionState = MutationState & {
   image?: Awaited<ReturnType<typeof getOrderDesignImageReadUrl>>;
 };
 
+export type GetOrderDesignImagePreviewReadUrlActionState = MutationState & {
+  image?: Awaited<ReturnType<typeof getOrderDesignImagePreviewReadUrl>>;
+};
+
 export type GetOrderDesignImagesReadUrlsActionState = MutationState & {
   images?: Awaited<ReturnType<typeof getOrderDesignImagesReadUrls>>;
+};
+
+export type GetOrderDesignImagesPreviewReadUrlsActionState = MutationState & {
+  images?: Awaited<ReturnType<typeof getOrderDesignImagesPreviewReadUrls>>;
 };
 
 function value(formData: FormData, key: string) {
@@ -116,6 +131,63 @@ function mutationInput(formData: FormData) {
 
 function canUseOrderDesignImage(profile: Awaited<ReturnType<typeof getCurrentProfile>>) {
   return Boolean(profile && profile.isActive && !profile.mustChangePassword && canManageOrderDesignImages(profile.role));
+}
+
+async function prepareOrderDesignPreview(
+  storage: Awaited<ReturnType<typeof createClient>>["storage"],
+  objectPath: string,
+  contentType: OrderDesignContentType,
+  byteSize: number,
+) {
+  const verification = await verifyUploadedOrderDesignImage(storage.from(ORDER_DESIGN_BUCKET), objectPath, contentType, byteSize);
+  if (!verification.ok) return verification;
+
+  const previewPath = buildOrderDesignPreviewObjectPath(objectPath);
+  try {
+    const bucket = createAdminClient().storage.from(ORDER_DESIGN_BUCKET);
+    const existing = await bucket.info(previewPath);
+    if (existing.data && !existing.error) {
+      if (existing.data.contentType !== "image/webp" || typeof existing.data.size !== "number" || existing.data.size < 1) {
+        return { ok: false as const, error: { message: "La vista previa guardada no es válida." } };
+      }
+      return { ok: true as const, previewPath };
+    }
+    if (existing.error && !("statusCode" in existing.error && String(existing.error.statusCode) === "404")
+      && !/not found|does not exist|no such object/i.test(existing.error.message)) {
+      return { ok: false as const, error: { message: "No se pudo verificar la vista previa de la imagen." } };
+    }
+
+    const preview = await generateOrderDesignImagePreview(verification.value.bytes, contentType, objectPath);
+    if (!preview.ok) return preview;
+    const { error } = await bucket.upload(previewPath, preview.value.bytes, {
+      contentType: preview.value.contentType,
+      cacheControl: "0",
+      upsert: false,
+    });
+    if (error) {
+      if (("statusCode" in error && String(error.statusCode) === "409") || /already exists|duplicate/i.test(error.message)) {
+        const concurrent = await bucket.info(previewPath);
+        if (!concurrent.error && concurrent.data?.contentType === "image/webp" && typeof concurrent.data.size === "number" && concurrent.data.size > 0) {
+          return { ok: true as const, previewPath };
+        }
+      }
+      return { ok: false as const, error: { message: "No se pudo guardar la vista previa de la imagen." } };
+    }
+  } catch {
+    return { ok: false as const, error: { message: "No se pudo guardar la vista previa de la imagen." } };
+  }
+
+  return { ok: true as const, previewPath };
+}
+
+async function removeOrderDesignPreview(objectPath: string | null) {
+  if (!objectPath) return;
+  try {
+    const previewPath = buildOrderDesignPreviewObjectPath(objectPath);
+    await createAdminClient().storage.from(ORDER_DESIGN_BUCKET).remove([previewPath]);
+  } catch {
+    // Reconciliation retries sidecar cleanup without changing a committed image mutation.
+  }
 }
 
 function imageErrorMessage(message: string) {
@@ -249,13 +321,13 @@ export async function mutateOrderDesignImageAction(
   if (existingEventError) return mutationResult("error", "No se pudo verificar el reintento de la imagen.");
 
   if (!existingEvent && (parsed.data.action === "add" || parsed.data.action === "replace")) {
-    const verification = await verifyUploadedOrderDesignImage(
-      supabase.storage.from(ORDER_DESIGN_BUCKET),
+    const preview = await prepareOrderDesignPreview(
+      supabase.storage,
       parsed.data.objectPath!,
       parsed.data.contentType!,
       parsed.data.byteSize!,
     );
-    if (!verification.ok) return mutationResult("error", verification.error.message);
+    if (!preview.ok) return mutationResult("error", preview.error.message);
   }
 
   const input: MutateOrderDesignImageRpcArgs = {
@@ -272,6 +344,10 @@ export async function mutateOrderDesignImageAction(
 
   const image = result?.[0];
   if (!image) return mutationResult("error", "La mutación no devolvió un resultado válido.");
+
+  if (parsed.data.action === "replace" || parsed.data.action === "delete") {
+    await removeOrderDesignPreview(image.previous_object_path);
+  }
 
   revalidatePath(`/orders/${parsed.data.orderId}`);
   return {
@@ -302,13 +378,13 @@ export async function finalizeOrderDesignImageAction(
   if (existingEventError) return mutationResult("error", "No se pudo verificar el reintento de la imagen.");
 
   if (!existingEvent) {
-    const verification = await verifyUploadedOrderDesignImage(
-      supabase.storage.from(ORDER_DESIGN_BUCKET),
+    const preview = await prepareOrderDesignPreview(
+      supabase.storage,
       parsed.data.objectPath,
       parsed.data.contentType,
       parsed.data.byteSize,
     );
-    if (!verification.ok) return mutationResult("error", verification.error.message);
+    if (!preview.ok) return mutationResult("error", preview.error.message);
   }
 
   const input: FinalizeOrderDesignImageRpcArgs = {
@@ -323,6 +399,8 @@ export async function finalizeOrderDesignImageAction(
 
   const finalizedImage = result?.[0];
   if (!finalizedImage) return mutationResult("error", "La confirmación no devolvió un resultado válido.");
+
+  await removeOrderDesignPreview(finalizedImage.previous_object_path);
 
   revalidatePath(`/orders/${parsed.data.orderId}`);
   return {
@@ -354,6 +432,29 @@ export async function getOrderDesignImageReadUrlAction(
   };
 }
 
+export async function getOrderDesignImagePreviewReadUrlAction(
+  _previous: GetOrderDesignImagePreviewReadUrlActionState,
+  formData: FormData,
+): Promise<GetOrderDesignImagePreviewReadUrlActionState> {
+  const parsed = orderDesignImageReadUrlSchema.safeParse({ orderId: value(formData, "orderId") });
+  if (!parsed.success) {
+    return mutationResult("error", parsed.error.issues[0]?.message ?? "El pedido seleccionado no es válido.", parsed.error.flatten().fieldErrors);
+  }
+
+  let image: Awaited<ReturnType<typeof getOrderDesignImagePreviewReadUrl>>;
+  try {
+    image = await getOrderDesignImagePreviewReadUrl(parsed.data.orderId);
+  } catch {
+    return mutationResult("error", "No se pudo renovar el acceso temporal a la vista previa.");
+  }
+  if (!image) return mutationResult("error", "El pedido no tiene una imagen vigente o la sesión no está habilitada.");
+
+  return {
+    ...mutationResult("success", "Vista previa renovada."),
+    image,
+  };
+}
+
 export async function getOrderDesignImagesReadUrlsAction(
   _previous: GetOrderDesignImagesReadUrlsActionState,
   formData: FormData,
@@ -371,5 +472,25 @@ export async function getOrderDesignImagesReadUrlsAction(
     };
   } catch {
     return mutationResult("error", "No se pudo renovar el acceso temporal a las imágenes.");
+  }
+}
+
+export async function getOrderDesignImagesPreviewReadUrlsAction(
+  _previous: GetOrderDesignImagesPreviewReadUrlsActionState,
+  formData: FormData,
+): Promise<GetOrderDesignImagesPreviewReadUrlsActionState> {
+  const parsed = orderDesignImageReadUrlSchema.safeParse({ orderId: value(formData, "orderId") });
+  if (!parsed.success) {
+    return mutationResult("error", parsed.error.issues[0]?.message ?? "El pedido seleccionado no es válido.", parsed.error.flatten().fieldErrors);
+  }
+
+  try {
+    const images = await getOrderDesignImagesPreviewReadUrls(parsed.data.orderId);
+    return {
+      ...mutationResult("success", "Vistas previas actualizadas."),
+      images,
+    };
+  } catch {
+    return mutationResult("error", "No se pudieron renovar las vistas previas de las imágenes.");
   }
 }

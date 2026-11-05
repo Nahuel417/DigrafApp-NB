@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildOrderDesignReconciliationPlan } from "./image-reconciliation-plan";
 
 const currentPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png";
+const currentPreviewPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.preview.webp";
 const oldOrphanPath = "orders/11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333.png";
+const oldPreviewPath = "orders/11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333.preview.webp";
 const freshOrphanPath = "orders/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444.webp";
 
 describe("order design object reconciliation plan", () => {
@@ -11,15 +13,17 @@ describe("order design object reconciliation plan", () => {
     const now = new Date("2026-08-03T12:00:00.000Z");
     const plan = buildOrderDesignReconciliationPlan([
       { path: currentPath, createdAt: "2026-08-03T08:00:00.000Z", updatedAt: "2026-08-03T08:00:00.000Z" },
+      { path: currentPreviewPath, createdAt: "2026-08-03T08:00:00.000Z", updatedAt: "2026-08-03T08:00:00.000Z" },
       { path: oldOrphanPath, createdAt: "2026-08-03T08:00:00.000Z", updatedAt: "2026-08-03T08:00:00.000Z" },
+      { path: oldPreviewPath, createdAt: "2026-08-03T08:00:00.000Z", updatedAt: "2026-08-03T08:00:00.000Z" },
       { path: freshOrphanPath, createdAt: "2026-08-03T11:30:00.000Z", updatedAt: "2026-08-03T11:30:00.000Z" },
       { path: "orders/not-a-valid-object", createdAt: "2026-08-03T08:00:00.000Z", updatedAt: "2026-08-03T08:00:00.000Z" },
-    ], new Set([currentPath]), now);
+    ], new Set([currentPath, currentPreviewPath]), now);
 
     expect(plan).toEqual({
-      deletableObjectPaths: [oldOrphanPath],
+      deletableObjectPaths: [oldOrphanPath, oldPreviewPath],
       deferredObjectPaths: [freshOrphanPath],
-      protectedObjectPaths: [currentPath],
+      protectedObjectPaths: [currentPath, currentPreviewPath],
       unrecognizedObjectPaths: ["orders/not-a-valid-object"],
     });
   });

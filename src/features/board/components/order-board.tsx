@@ -769,13 +769,15 @@ export function OrderBoard({
                     setMutationState({ ...result, message });
                     setAnnouncement(message);
                 } else {
-                    const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
-                    const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
-                    setMobileStageId(canonicalStageId);
-                    setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
+                    if (result.reconciledOrder || !result.outcomeUnknown) {
+                        const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
+                        const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
+                        setMobileStageId(canonicalStageId);
+                        setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
+                    }
                     setErrorMessage(result.message ?? 'No se pudo mover el pedido. Intentá nuevamente.');
                     setMutationState(result);
-                    setAnnouncement(`${orderId(order.publicNumber)} no se movió. ${result.message ?? 'Intentá nuevamente.'}`);
+                    setAnnouncement(result.outcomeUnknown ? result.message ?? 'Estado no confirmado.' : `${orderId(order.publicNumber)} no se movió. ${result.message ?? 'Intentá nuevamente.'}`);
                 }
             } catch {
                 try {

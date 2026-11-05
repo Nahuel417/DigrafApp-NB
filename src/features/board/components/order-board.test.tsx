@@ -103,6 +103,33 @@ function getOrderCard(publicNumber = 7) {
   return card;
 }
 
+describe("unknown move outcomes", () => {
+  it.each([
+    { canonicalStageId: receivedId, expectedColumn: "Pedido recibido" },
+    { canonicalStageId: deliveredId, expectedColumn: "Entregado" },
+    { canonicalStageId: null, expectedColumn: "Diseño" },
+  ])("uses canonical state only when available ($expectedColumn)", async ({ canonicalStageId, expectedColumn }) => {
+    const hasSnapshot = canonicalStageId !== null;
+    const message = hasSnapshot ? "Estado actualizado. Verificá el pedido antes de continuar." : "Estado no confirmado. Recargá el tablero para verificar el movimiento.";
+    vi.mocked(moveOrderAction).mockResolvedValue({
+      status: "error", outcomeUnknown: true, message,
+      ...(canonicalStageId ? { reconciledOrder: { currentStageId: canonicalStageId, updatedAt: "2026-08-12T19:02:00.000Z" } } : {}),
+    });
+    const designId = "66666666-6666-4666-8666-666666666666";
+    render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} initialColumns={[...columns, { id: designId, code: "design", name: "Diseño", position: 3, orders: [] }]} />);
+    fireEvent.click(within(getOrderCard()).getByText("Mostrar movimiento"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Mover PED-000007 a" }));
+    fireEvent.click(screen.getByRole("option", { name: "Diseño" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mover pedido" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain(message));
+    expect(screen.getByTestId("board-announcement").textContent).toBe(message);
+    expect(getOrderCard().closest("section")).toBe(getColumn(expectedColumn));
+    expect(moveOrderAction).toHaveBeenCalledTimes(1);
+    expect(reconcileOrderAction).not.toHaveBeenCalled();
+  });
+});
+
 describe("order board bulk lifecycle actions", () => {
   it("shows selection checkboxes only when lifecycle management is allowed", () => {
     render(<OrderBoard canConfirmPayment={false} canCreateOrders={false} canManageOrderLifecycle={false} initialColumns={columns} />);
