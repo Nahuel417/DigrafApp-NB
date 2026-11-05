@@ -186,6 +186,14 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 
 Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; los cuatro roles internos pueden gestionar la colección y conservar la lectura interna autorizada.
 
+La galería del detalle no renueva URLs firmadas por el paso del tiempo. Conserva la renovación manual mediante `Renovar vista` y la recuperación ante errores de carga; cada renovación mantiene la autorización del servidor y la vigencia de cinco minutos, sin agregar caché compartida ni modificar los originales.
+
+Cada carga o reemplazo genera en el servidor una preview WebP privada de hasta 480 px, sin ampliar imágenes pequeñas. Se verifican bytes, tipo JPEG/PNG/WebP real y un máximo de 40 megapíxeles antes de procesar; las previews de archivos animados muestran el primer fotograma y el original permanece intacto. Tablero, vista rápida y galería usan la preview disponible; el original se abre solo mediante una acción explícita y autorizada. Las previews nuevas se guardan con `cacheControl: "0"`, sin extender mediante caché HTTP la vigencia del enlace firmado. Las imágenes anteriores sin preview conservan el original como respaldo, sin conversión durante la lectura. Reemplazo, eliminación, reconciliación y purga incluyen las previews derivadas.
+
+Las URLs de previews solo se reutilizan en memoria de la vista del tablero, dentro del mismo usuario y rol, hasta su vencimiento y por versión de imagen. El cambio de identidad descarta la caché; no se usa almacenamiento persistente ni caché compartida en el servidor. Los movimientos ordinarios exitosos devuelven el parche de la tarjeta sin invalidar rutas ni refrescar todo el tablero; el detalle consulta datos dinámicos y los conflictos conservan la reconciliación autorizada. Los enlaces privados de detalle y edición en la vista rápida no hacen prefetch.
+
+Si el RPC de movimiento responde sin error pero sin resultado, la operación queda con resultado desconocido: no se repite la mutación y se consulta el estado canónico. Una lectura válida actualiza la posición y versión sin atribuir éxito o rechazo al movimiento original. Si la lectura falta o falla, se muestra `Estado no confirmado. Recargá el tablero para verificar el movimiento.`; la posición optimista no se revierte como si el servidor hubiera rechazado la operación. Los rechazos explícitos y conflictos conservan su tratamiento previo.
+
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 
 ## Pedidos anulados

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { deflateSync } from "node:zlib";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Response } from "@playwright/test";
 
 import type { Database } from "../../src/lib/supabase/database.types";
 import { logoutFromApp } from "./navigation";
@@ -274,22 +274,32 @@ test.describe("Diseño vigente M7", () => {
     await expect(image).toBeVisible();
     await expect(image).toHaveJSProperty("complete", true);
     await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
-    await image.dispatchEvent("error");
-    const renewedFeedback = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
-    await expect(renewedFeedback).toBeVisible();
-    await expect(renewedFeedback).toBeFocused();
-
     await page.route(`**/orders/${orderId}`, async (route) => {
       if (route.request().method() === "POST") await new Promise((resolve) => setTimeout(resolve, 500));
       await route.continue();
     });
     const renew = page.getByRole("button", { name: "Renovar vista" });
+    const isRenewalResponse = (response: Response) =>
+      new URL(response.url()).pathname === `/orders/${orderId}` && response.request().method() === "POST" && Boolean(response.request().headers()["next-action"]);
+    const keyboardResponse = page.waitForResponse(isRenewalResponse);
     await renew.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Renovando vista..." })).toBeDisabled();
+    expect((await keyboardResponse).ok()).toBe(true);
+    await expect(renew).toBeEnabled();
     const renewedFeedbackAfterKeyboard = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
     await expect(renewedFeedbackAfterKeyboard).toBeVisible();
     await expect(renewedFeedbackAfterKeyboard).toBeFocused();
+
+    // A completed user interaction proves hydration before the synthetic error.
+    await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
+    const automaticResponse = page.waitForResponse(isRenewalResponse);
+    await image.dispatchEvent("error");
+    expect((await automaticResponse).ok()).toBe(true);
+    await expect(renew).toBeEnabled();
+    const renewedFeedback = designPanel(page).locator('[tabindex="-1"]').filter({ hasText: "Vista renovada" });
+    await expect(renewedFeedback).toBeVisible();
+    await expect(renewedFeedback).toBeFocused();
   });
 
   test("mantiene lectura y acciones sin overflow en mobile", async ({ page }) => {

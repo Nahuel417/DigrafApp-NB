@@ -1,4 +1,4 @@
-import { isOrderDesignObjectPath } from "./image-contracts";
+import { isOrderDesignStorageObjectPath } from "./image-contracts";
 
 const DEFAULT_GRACE_MINUTES = 60;
 
@@ -38,7 +38,7 @@ export function buildOrderDesignReconciliationPlan(
       continue;
     }
 
-    if (!isOrderDesignObjectPath(object.path)) {
+    if (!isOrderDesignStorageObjectPath(object.path)) {
       unrecognizedObjectPaths.push(object.path);
       continue;
     }
