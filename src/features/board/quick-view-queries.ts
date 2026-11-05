@@ -60,7 +60,7 @@ export async function getOrderQuickViewData(orderId: string, canReadPaymentDetai
   let paymentId: string | null = null;
   if (!movementError && !commentError && canReadPaymentDetails && stage.code === "paid") {
     const { data: paymentRows, error: paymentError } = await supabase.rpc("get_order_timeline", { p_order_id: orderId })
-      .select("id:details->>id")
+      .select("event_id,occurred_at,id:details->>id")
       .eq("event_type", "payment_confirmed")
       .order("occurred_at", { ascending: false })
       .order("event_id", { ascending: true })

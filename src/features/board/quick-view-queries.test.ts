@@ -33,12 +33,19 @@ function orderBuilder<T>(data: T | null) {
 function timelineBuilder(rows: unknown[]) {
   const filters: Array<[string, unknown]> = [];
   const orders: Array<[string, { ascending: boolean }]> = [];
+  let projectedColumns: string[] = [];
   const builder = {
-    select: vi.fn(() => builder),
+    select: vi.fn((projection: string) => { projectedColumns = projection.split(","); return builder; }),
     eq: vi.fn((column: string, value: unknown) => { filters.push([column, value]); return builder; }),
     neq: vi.fn((column: string, value: unknown) => { filters.push([column, value]); return builder; }),
     order: vi.fn((column: string, options: { ascending: boolean }) => { orders.push([column, options]); return builder; }),
-    limit: vi.fn(async () => ({ data: rows, error: null })),
+    limit: vi.fn(async () => {
+      const missingColumn = orders.find(([column]) => !projectedColumns.includes(column))?.[0];
+      // PostgREST orders this RPC's projected record, not its hidden columns.
+      return missingColumn
+        ? { data: null, error: { code: "42703", message: `column record.${missingColumn} does not exist` } }
+        : { data: rows, error: null };
+    }),
   };
   return { builder, filters, orders };
 }
@@ -95,7 +102,7 @@ describe("order quick-view queries", () => {
     }
     expect(movement.builder.select).toHaveBeenCalledWith("event_id,event_type,actor_display_name,occurred_at,from_stage_id,to_stage_id");
     expect(comment.builder.select).toHaveBeenCalledWith("event_id,event_type,actor_display_name,occurred_at,comment_body");
-    expect(payment.builder.select).toHaveBeenCalledWith("id:details->>id");
+    expect(payment.builder.select).toHaveBeenCalledWith("event_id,occurred_at,id:details->>id");
   });
 
   it.each([
@@ -103,7 +110,7 @@ describe("order quick-view queries", () => {
     [false, "paid", "Paid"],
   ] as const)("uses historic customer names and skips payment events for permission=%s, stage=%s", async (canReadPaymentDetails, stageCode, stageName) => {
     const historicOrder = { ...orderRow, client_name: "   ", workflow_stages: { code: stageCode, name: stageName } };
-    const order = orderBuilder(historicOrder);
+    orderBuilder(historicOrder);
     const movement = timelineBuilder([]);
     const comment = timelineBuilder([]);
     client.rpc.mockReturnValueOnce(movement.builder).mockReturnValueOnce(comment.builder);
@@ -122,5 +129,19 @@ describe("order quick-view queries", () => {
 
     expect(await getOrderQuickViewData(orderRow.id, true)).toBeNull();
     expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps payment reversal unavailable when its own timeline query fails", async () => {
+    orderBuilder(orderRow);
+    const movement = timelineBuilder([]);
+    const comment = timelineBuilder([]);
+    const payment = timelineBuilder([]);
+    payment.builder.limit.mockResolvedValueOnce({ data: null, error: { code: "503", message: "Unavailable" } });
+    client.rpc.mockReturnValueOnce(movement.builder).mockReturnValueOnce(comment.builder).mockReturnValueOnce(payment.builder);
+
+    const result = await getOrderQuickViewData(orderRow.id, true);
+
+    expect(result?.paymentId).toBeNull();
+    expect(client.rpc).toHaveBeenCalledTimes(3);
   });
 });
