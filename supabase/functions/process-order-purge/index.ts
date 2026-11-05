@@ -10,6 +10,30 @@ type ProcessOrderPurgeDependencies = {
   createClient: () => PurgeClient | Promise<PurgeClient>;
 };
 
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const ORIGINAL_ORDER_IMAGE_PATH = new RegExp(`^orders/${UUID}/${UUID}\\.(jpg|jpeg|png|webp)$`);
+const PREVIEW_ORDER_IMAGE_PATH = new RegExp(`^orders/${UUID}/${UUID}\\.preview\\.webp$`);
+
+export function expandOrderDesignPurgePaths(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const paths = new Set<string>();
+  for (const path of value) {
+    if (typeof path !== "string") return null;
+    if (path === "") continue;
+    if (ORIGINAL_ORDER_IMAGE_PATH.test(path)) {
+      paths.add(path);
+      paths.add(path.replace(/\.(?:jpg|jpeg|png|webp)$/, ".preview.webp"));
+    } else if (PREVIEW_ORDER_IMAGE_PATH.test(path)) {
+      paths.add(path);
+    } else {
+      return null;
+    }
+  }
+
+  return [...paths];
+}
+
 function isMissingStorageObject(error: StorageError) {
   return String(error.statusCode) === "404" || /not found|does not exist|no such object/i.test(`${error.message} ${error.error ?? ""}`);
 }
@@ -28,7 +52,8 @@ export async function processOrderPurgeRequest(request: Request, dependencies: P
   if (claimed.error) return Response.json({ error: claimed.error.message }, { status: 500 });
   const jobs = Array.isArray(claimed.data) ? claimed.data : [];
   for (const job of jobs) {
-    const paths = Array.isArray((job as { object_paths?: unknown }).object_paths) ? (job as { object_paths: unknown[] }).object_paths.filter((path): path is string => typeof path === "string") : [];
+    const paths = expandOrderDesignPurgePaths((job as { object_paths?: unknown }).object_paths);
+    if (!paths) return Response.json({ error: "La purga contiene una ruta de imagen no válida." }, { status: 500 });
     const storageResult = paths.length ? await client.storage.from("order-designs").remove(paths) : { error: null };
     const storageError = storageResult.error;
     const succeeded = !storageError || isMissingStorageObject(storageError);

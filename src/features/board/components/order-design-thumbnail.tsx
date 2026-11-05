@@ -3,15 +3,9 @@
 import { FileImage } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { getOrderDesignImageReadUrlAction } from '@/features/orders/image-actions';
+import { useOrderDesignPreview } from './order-design-preview-provider';
 
 type ThumbnailState = 'empty' | 'idle' | 'loading' | 'ready' | 'error';
-
-function makeFormData(orderId: string) {
-    const formData = new FormData();
-    formData.set('orderId', orderId);
-    return formData;
-}
 
 export function OrderDesignThumbnail({
     alt,
@@ -25,9 +19,10 @@ export function OrderDesignThumbnail({
     className?: string;
     imageUpdatedAt: string | null;
     onActivate?: (trigger: HTMLButtonElement) => void;
-    onUrlReady?: (url: string) => void;
+    onUrlReady?: (url: string, imageId: string) => void;
     orderId: string;
 }) {
+    const readPreview = useOrderDesignPreview();
     const [state, setState] = useState<ThumbnailState>('loading');
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
@@ -64,12 +59,12 @@ export function OrderDesignThumbnail({
         }
 
         let cancelled = false;
-        getOrderDesignImageReadUrlAction({}, makeFormData(orderId))
+        readPreview(orderId, imageUpdatedAt)
             .then((result) => {
                 if (cancelled) return;
                 if (result.status === 'success' && result.image) {
                     setSignedUrl(result.image.signedUrl);
-                    onUrlReady?.(result.image.signedUrl);
+                    onUrlReady?.(result.image.signedUrl, result.image.id);
                     setState('ready');
                 } else {
                     setState('error');
@@ -81,17 +76,17 @@ export function OrderDesignThumbnail({
         return () => {
             cancelled = true;
         };
-    }, [imageUpdatedAt, onUrlReady, orderId, shouldLoad]);
+    }, [imageUpdatedAt, onUrlReady, orderId, readPreview, shouldLoad]);
 
     function handleImageError() {
         if (retryCount < maxRetries) {
             setRetryCount((count) => count + 1);
             setState('loading');
-            getOrderDesignImageReadUrlAction({}, makeFormData(orderId))
+            readPreview(orderId, imageUpdatedAt ?? '', true)
                 .then((result) => {
                     if (result.status === 'success' && result.image) {
                         setSignedUrl(result.image.signedUrl);
-                        onUrlReady?.(result.image.signedUrl);
+                        onUrlReady?.(result.image.signedUrl, result.image.id);
                         setState('ready');
                     } else {
                         setState('error');

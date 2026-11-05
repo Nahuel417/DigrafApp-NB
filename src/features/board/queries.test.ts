@@ -38,11 +38,23 @@ describe("order board queries", () => {
     ], error: null });
     client.from.mockImplementation((table: string) => table === "workflow_stages"
       ? { select: () => ({ eq: () => ({ order: async () => ({ data: stages, error: null }) }) }) }
-      : { select: () => ({ in: (column: string, ids: string[]) => {
-        expect(column).toBe("order_id");
-        expect(ids).toEqual(ids.length === 1 ? ["mixed"] : ["mixed", "bags", "flags", "ordinary"]);
-        return { order: () => ({ range: lines }) };
-      } }) });
+      : { select: () => {
+        let orderIds: string[] = [];
+        let lineTypes: string[] = [];
+        const query = {
+          in: (column: string, values: string[]) => {
+            if (column === "order_id") orderIds = values;
+            if (column === "line_type") lineTypes = values;
+            return query;
+          },
+          order: () => {
+            expect(orderIds).toEqual(orderIds.length === 1 ? ["mixed"] : ["mixed", "bags", "flags", "ordinary"]);
+            expect(lineTypes).toEqual(["bag", "flag"]);
+            return { range: lines };
+          },
+        };
+        return query;
+      } });
     client.rpc.mockResolvedValue({ data: [row, { ...row, id: "bags" }, { ...row, id: "flags" }, { ...row, id: "ordinary", product_name: "Bolso en el nombre" }], error: null });
     const board = await getOrderBoard();
     expect(board.columns[0]?.orders[0]?.specialProductTypes).toEqual(["bag", "flag"]);
@@ -59,7 +71,13 @@ describe("order board queries", () => {
     const row = { id: "snapshot", public_number: 42, customer_name: "Cliente", team_name: "Equipo", quantity: 10,
       label: "urgent", product_name: "Producto", promised_delivery_date: "2026-08-02", current_stage_id: "received",
       updated_at: "2026-07-30T00:00:00Z", image_updated_at: null, total_amount: 12500, payment_confirmed_at: "2026-07-30T01:00:00Z" };
-    client.from.mockImplementation(() => ({ select: () => ({ in: () => ({ order: () => ({ range: async () => ({ data: [{ order_id: row.id, line_type: "flag" }], error: null }) }) }) }) }));
+    client.from.mockImplementation(() => ({ select: () => {
+      const query = {
+        in: () => query,
+        order: () => ({ range: async () => ({ data: [{ order_id: row.id, line_type: "flag" }], error: null }) }),
+      };
+      return query;
+    } }));
     client.rpc.mockResolvedValue({ data: [row], error: null });
     expect(await getOrderBoardSnapshot(row.id)).toMatchObject({ id: row.id, label: "urgent", totalAmount: 12500,
       paymentConfirmedAt: row.payment_confirmed_at, specialProductTypes: ["flag"] });
