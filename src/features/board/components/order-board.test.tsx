@@ -8,7 +8,7 @@ import { archiveDeliveredOrderAction, cancelOrderAction } from "@/features/order
 import { useMutationToast } from "@/hooks/use-mutation-toast";
 import { OrderBoard } from "./order-board";
 
-vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: React.ReactNode } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
+vi.mock("next/link", () => ({ default: ({ children, prefetch, ...props }: { children: React.ReactNode; prefetch?: boolean } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} data-prefetch={String(prefetch)}>{children}</a> }));
 vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
 const thumbnailRenderCount = vi.hoisted(() => ({ value: 0 }));
 vi.mock("./order-design-thumbnail", () => ({ OrderDesignThumbnail: () => { thumbnailRenderCount.value += 1; return null; } }));
