@@ -39,6 +39,8 @@ Este procedimiento lo ejecuta el responsable del entorno, no el agente. Usar ún
 
 ### 2. Publicar primero `process-order-purge`
 
+La función incluye su propio `deno.json`, que resuelve `@supabase/supabase-js` a una versión npm fija. Publicar desde el repositorio incluyendo ese archivo: el import sin este mapa falla en el runtime de Edge aunque los tests con el cliente inyectado pasen. No copiar únicamente `index.ts` al Dashboard.
+
 1. Desde el código candidato, desplegar únicamente la función `process-order-purge` en el proyecto confirmado de staging, conservando su configuración efectiva de JWT y sus secretos. Utilizar el flujo existente de despliegue del entorno; no agregar `--no-verify-jwt` como solución a un fallo de autenticación.
 2. Confirmar en Dashboard que la versión publicada corresponde al candidato. La función nueva acepta los paths originales de trabajos antiguos y deriva sus posibles `.preview.webp`; una preview inexistente no debe impedir limpiar un original antiguo.
 3. No activar ni recrear Cron si no formaba parte del entorno. Probar la invocación existente solo después de revisar y autorizar el alcance global del lote. Ante 401, detenerse y comprobar la autenticación existente; no debilitarla.
