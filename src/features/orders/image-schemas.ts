@@ -112,3 +112,7 @@ export const orderDesignImageReadUrlSchema = z.object({
 });
 
 export type OrderDesignImageReadUrlValues = z.infer<typeof orderDesignImageReadUrlSchema>;
+
+export const orderDesignImageByIdReadUrlSchema = orderDesignImageReadUrlSchema.extend({
+  imageId: z.string().uuid("La imagen seleccionada no es válida."),
+});

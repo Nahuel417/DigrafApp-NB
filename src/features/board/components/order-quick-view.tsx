@@ -130,9 +130,11 @@ function ReversePaymentDialog({ data, onReconciled, portalContainer }: { data: O
 }
 
 export function OrderQuickView({ data, isLabelPending, onClose, onLabelChange, onReconciled, stageNames }: { data: OrderQuickView & Pick<BoardOrder, "label" | "primaryDesignImage" | "productName">; isLabelPending: boolean; onClose: () => void; onLabelChange: (label: OrderLabel | null) => void; onReconciled: (order: BoardOrder | null) => void; stageNames: Record<string, string> }) {
-  const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
+  const [expandedOriginalUrl, setExpandedOriginalUrl] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const handleUrlReady = useCallback((url: string) => setExpandedUrl(url), []);
+  const handleUrlReady = useCallback((_previewUrl: string, imageId: string) => {
+    setExpandedOriginalUrl(`/orders/${data.id}/designs/${imageId}/original`);
+  }, [data.id]);
   const quickViewDialogRef = useRef<HTMLDialogElement>(null);
   const expandedDialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -163,9 +165,9 @@ export function OrderQuickView({ data, isLabelPending, onClose, onLabelChange, o
   useEffect(() => {
     const dialog = expandedDialogRef.current;
     if (!dialog) return;
-    if (isExpanded && expandedUrl && !dialog.open) openModal(dialog);
+    if (isExpanded && expandedOriginalUrl && !dialog.open) openModal(dialog);
     if (!isExpanded && dialog.open) closeModal(dialog);
-  }, [expandedUrl, isExpanded]);
+  }, [expandedOriginalUrl, isExpanded]);
 
   function closeExpandedImage() {
     setIsExpanded(false);
@@ -236,8 +238,8 @@ export function OrderQuickView({ data, isLabelPending, onClose, onLabelChange, o
       </div>
 
       <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-muted/35 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-        <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
-        {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath}>Editar pedido</Link></Button> : null}
+        <Button asChild data-no-drag="true" variant="outline"><Link href={detailPath} prefetch={false}>Ver detalle <ArrowRight data-icon="inline-end" /></Link></Button>
+        {data.canEditDescription ? <Button asChild data-no-drag="true"><Link href={editPath} prefetch={false}>Editar pedido</Link></Button> : null}
         {data.canReversePayment && data.stageCode === "paid" ? <ReversePaymentDialog data={data} onReconciled={onReconciled} portalContainer={quickViewPortalContainer} /> : null}
       </footer>
       </article>
@@ -261,9 +263,9 @@ export function OrderQuickView({ data, isLabelPending, onClose, onLabelChange, o
             </div>
             <Button aria-label="Cerrar imagen ampliada" onClick={closeExpandedImage} size="icon" type="button" variant="ghost"><X aria-hidden="true" /></Button>
           </div>
-          {expandedUrl ? (
+          {isExpanded && expandedOriginalUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img alt={`Diseño ampliado de ${data.customerName}`} className="max-h-[72vh] w-full object-contain" referrerPolicy="no-referrer" src={expandedUrl} />
+            <img alt={`Diseño ampliado de ${data.customerName}`} className="max-h-[72vh] w-full object-contain" referrerPolicy="no-referrer" src={expandedOriginalUrl} />
           ) : <p className="text-sm text-muted-foreground">Preparando la vista ampliada...</p>}
         </div>
       </dialog>,

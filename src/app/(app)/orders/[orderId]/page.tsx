@@ -7,7 +7,7 @@ import { canArchiveDeliveredOrder, canEditOrderDescription, canEditOrderSensitiv
 import { formatArsFromNumber, formatArsFromString, formatDate, formatDateTime, formatOrderNumber, orderTypeLabel, paymentStatusLabel, selectionIsHistorical, selectionLabel, timelineStageName, visibleBalanceString } from "@/features/orders/detail-format";
 import { getOrderDetail, getOrderTimeline, getStageNames } from "@/features/orders/detail-queries";
 import { updateOrderAction } from "@/features/orders/detail-actions";
-import { getOrderDesignImagesReadUrls } from "@/features/orders/image-queries";
+import { getOrderDesignImagesPreviewReadUrls } from "@/features/orders/image-queries";
 import { shouldShowPaymentReceipt } from "@/features/orders/payment-receipt";
 import { getOrderIncidents } from "@/features/orders/incident-queries";
 import { OrderIncidents } from "@/features/orders/components/order-incidents";
@@ -32,7 +32,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
     getOrderDetail(orderId),
     getOrderTimeline(orderId),
     getStageNames(),
-    getOrderDesignImagesReadUrls(orderId)
+    getOrderDesignImagesPreviewReadUrls(orderId)
       .then((images) => ({ error: null, images }))
       .catch(() => ({ error: "No se pudo cargar la vista temporal del diseño.", images: [] })),
     getOrderIncidents(orderId),

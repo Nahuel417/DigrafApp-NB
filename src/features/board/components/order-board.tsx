@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMutationToast } from '@/hooks/use-mutation-toast';
@@ -768,13 +769,15 @@ export function OrderBoard({
                     setMutationState({ ...result, message });
                     setAnnouncement(message);
                 } else {
-                    const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
-                    const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
-                    setMobileStageId(canonicalStageId);
-                    setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
+                    if (result.reconciledOrder || !result.outcomeUnknown) {
+                        const canonicalStageId = result.reconciledOrder?.currentStageId ?? source.currentStageId;
+                        const canonicalUpdatedAt = result.reconciledOrder?.updatedAt ?? source.updatedAt;
+                        setMobileStageId(canonicalStageId);
+                        setColumns((current) => moveBoardOrder(current, source.id, canonicalStageId, canonicalUpdatedAt));
+                    }
                     setErrorMessage(result.message ?? 'No se pudo mover el pedido. Intentá nuevamente.');
                     setMutationState(result);
-                    setAnnouncement(`${orderId(order.publicNumber)} no se movió. ${result.message ?? 'Intentá nuevamente.'}`);
+                    setAnnouncement(result.outcomeUnknown ? result.message ?? 'Estado no confirmado.' : `${orderId(order.publicNumber)} no se movió. ${result.message ?? 'Intentá nuevamente.'}`);
                 }
             } catch {
                 try {
@@ -1060,14 +1063,14 @@ export function OrderBoard({
                             <div className="absolute left-0 top-full z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-xl border border-border bg-card p-3 shadow-lg" onPointerDown={(event) => event.stopPropagation()}>
                                 <p className="text-xs font-medium text-foreground">Rango de entrega</p>
                                 <div className="grid gap-3 sm:grid-cols-2">
-                                    <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-from">
-                                        Desde
-                                        <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-from" max={deliveryTo || undefined} onChange={(event) => handleDeliveryFromChange(event.target.value)} type="date" value={deliveryFrom} />
-                                    </label>
-                                    <label className="grid gap-1 text-[11px] text-muted-foreground" htmlFor="delivery-to">
-                                        Hasta
-                                        <Input className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-to" min={deliveryFrom || undefined} onChange={(event) => handleDeliveryToChange(event.target.value)} type="date" value={deliveryTo} />
-                                    </label>
+                                    <Field className="gap-1">
+                                        <FieldLabel className="text-[11px] text-muted-foreground" htmlFor="delivery-from">Desde</FieldLabel>
+                                        <DatePickerField className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-from" label="Desde" triggerLabel="Abrir calendario para Desde" max={deliveryTo || undefined} onChange={handleDeliveryFromChange} required={false} value={deliveryFrom} />
+                                    </Field>
+                                    <Field className="gap-1">
+                                        <FieldLabel className="text-[11px] text-muted-foreground" htmlFor="delivery-to">Hasta</FieldLabel>
+                                        <DatePickerField className="h-9 rounded-lg bg-background font-mono text-xs tabular-nums" id="delivery-to" label="Hasta" triggerLabel="Abrir calendario para Hasta" min={deliveryFrom || undefined} onChange={handleDeliveryToChange} required={false} value={deliveryTo} />
+                                    </Field>
                                 </div>
                                 {hasInvalidDeliveryRange ? <p className="text-xs text-error" role="alert">La fecha Desde no puede superar Hasta.</p> : null}
                             </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, FileImage, ImagePlus, LoaderCircle, RefreshCw, Star, StarOff, Trash2, Upload } from "lucide-react";
-import { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, ExternalLink, FileImage, ImagePlus, LoaderCircle, RefreshCw, Star, StarOff, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
-  getOrderDesignImagesReadUrlsAction,
+  getOrderDesignImagesPreviewReadUrlsAction,
   mutateOrderDesignImageAction,
   startOrderDesignImageUploadAction,
 } from "@/features/orders/image-actions";
@@ -77,7 +78,7 @@ export function OrderDesignImageUploadControl({
           ref={inputRef}
           type="file"
         />
-        <FieldDescription className="text-[11px] leading-5" id={helpId}>JPEG, PNG o WebP. Máximo 10 MiB. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
+        <FieldDescription className="text-[11px] leading-5" id={helpId}>JPEG, PNG o WebP. Máximo 10 MiB y 40 megapíxeles. Podés guardar hasta tres imágenes sin ordenar manualmente.</FieldDescription>
         {error ? <FieldError id={errorId}>{error}</FieldError> : null}
       </Field>
       {showButton ? (
@@ -134,8 +135,6 @@ export function OrderDesignImagePanel({
   const lastAutomaticRenewalRef = useRef<string | null>(null);
   const focusFeedbackAfterCommitRef = useRef(false);
   const primaryImage = images.find((image) => image.isPrimary) ?? null;
-  const primaryExpiresAt = primaryImage?.expiresAt;
-  const primarySignedUrl = primaryImage?.signedUrl;
 
   function reportError(title: string, description: string, focusInput = false) {
     if (!focusInput) focusFeedbackAfterCommitRef.current = true;
@@ -165,7 +164,7 @@ export function OrderDesignImagePanel({
   }
 
   async function refreshImages() {
-    const result = await getOrderDesignImagesReadUrlsAction({}, makeFormData({ orderId }));
+    const result = await getOrderDesignImagesPreviewReadUrlsAction({}, makeFormData({ orderId }));
     if (result.status !== "success") {
       reportError("No se pudo actualizar la galería", result.message ?? "Intentá nuevamente.");
       return false;
@@ -187,15 +186,6 @@ export function OrderDesignImagePanel({
       reportSuccess("Vista renovada", "El acceso temporal al diseño se actualizó.");
     });
   }
-  const renewPreviewEvent = useEffectEvent(renewPreview);
-
-  useEffect(() => {
-    if (!primaryExpiresAt) return;
-    const renewBeforeExpiryMs = 5_000;
-    const delay = Math.max(0, Date.parse(primaryExpiresAt) - Date.now() - renewBeforeExpiryMs);
-    const timeout = window.setTimeout(() => renewPreviewEvent(true), delay);
-    return () => window.clearTimeout(timeout);
-  }, [primaryExpiresAt, primarySignedUrl]);
 
   useEffect(() => {
     if (!focusFeedbackAfterCommitRef.current) return;
@@ -315,6 +305,11 @@ export function OrderDesignImagePanel({
                     <span className="text-xs font-medium text-muted-foreground">{image.isPrimary ? "Principal" : `Diseño ${index + 1}`}</span>
                     {image.isPrimary ? <Star aria-label="Imagen principal" className="text-primary" /> : null}
                   </div>
+                  <Button asChild className="h-9 min-w-0 w-full rounded-xl px-3 py-1.5 text-xs shadow-none" size="sm" variant="outline">
+                    <Link href={`/orders/${orderId}/designs/${image.id}/original`} rel="noreferrer" target="_blank">
+                      <ExternalLink aria-hidden="true" data-icon="inline-start" />Ver original
+                    </Link>
+                  </Button>
                   {canManage ? (
                     <div className="grid min-w-0 gap-2">
                       {image.isPrimary ? (

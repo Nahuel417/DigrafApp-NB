@@ -1,18 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 
 import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { confirmOrderPaymentAction, moveOrderAction, reverseOrderPaymentAction, setOrderLabelAction } from "./actions";
-import { getOrderBoardSnapshot } from "./queries";
+import { confirmOrderPaymentAction, getOrderQuickViewAction, moveOrderAction, reverseOrderPaymentAction, setOrderLabelAction } from "./actions";
+import { getOrderBoardSnapshot, getOrderMovementSnapshot } from "./queries";
+import { getOrderQuickViewData } from "./quick-view-queries";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/current-profile", () => ({ getCurrentProfile: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("./queries", () => ({ getOrderBoardSnapshot: vi.fn() }));
+vi.mock("./queries", () => ({ getOrderBoardSnapshot: vi.fn(), getOrderMovementSnapshot: vi.fn() }));
+vi.mock("./quick-view-queries", () => ({ getOrderQuickViewData: vi.fn() }));
 
 const activeProfile = { id: "profile-id", displayName: "Operador", isActive: true, mustChangePassword: false, role: "attention" as const };
 const rpc = vi.fn();
+const quickViewData = {
+  order: {
+    id: "11111111-1111-4111-8111-111111111111",
+    publicNumber: 7,
+    customerName: "Cliente histórico",
+    teamName: "Equipo",
+    quantity: 2,
+    orderType: "individual" as const,
+    promisedDeliveryDate: "2026-08-13",
+    description: "Descripción",
+    currentStage: { code: "paid", name: "Pagado" },
+    updatedAt: "2026-08-12T19:01:00.000Z",
+  },
+  lastMovement: {
+    event_id: "movement-event",
+    actor_display_name: "Operador",
+    occurred_at: "2026-08-12T19:00:00.000Z",
+    from_stage_id: "from-stage",
+    to_stage_id: "to-stage",
+  },
+  latestComment: {
+    event_id: "comment-event",
+    actor_display_name: "Operador",
+    occurred_at: "2026-08-12T18:00:00.000Z",
+    comment_body: "Comentario reciente",
+  },
+  paymentId: "payment-id",
+};
 
 function form(values: Record<string, string>) {
   const data = new FormData();
@@ -238,6 +269,52 @@ describe("move order action", () => {
       p_idempotency_key: "move-key",
     });
   });
+
+  it("returns only the move result without invalidating the active board", async () => {
+    await moveOrderAction({}, validMoveForm());
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([{ data: null }, { data: [] }])("reconciles an empty RPC result without repeating the mutation ($data)", async ({ data }) => {
+    rpc.mockResolvedValueOnce({ data, error: null });
+    const snapshot = { currentStageId: "33333333-3333-4333-8333-333333333333", updatedAt: "2026-08-12T19:02:00.000Z" };
+    vi.mocked(getOrderMovementSnapshot).mockResolvedValueOnce(snapshot);
+
+    const result = await moveOrderAction({}, validMoveForm());
+
+    expect(result).toMatchObject({ status: "error", outcomeUnknown: true, reconciledOrder: snapshot });
+    expect(result.movedOrder).toBeUndefined();
+    expect(getOrderMovementSnapshot).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][1].p_idempotency_key).toBe("move-key");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing", "failed"])("reports an unknown state if canonical reconciliation is %s", async (failure) => {
+    rpc.mockResolvedValueOnce({ data: [], error: null });
+    if (failure === "failed") vi.mocked(getOrderMovementSnapshot).mockRejectedValueOnce(new Error("network"));
+    else vi.mocked(getOrderMovementSnapshot).mockResolvedValueOnce(null);
+
+    const result = await moveOrderAction({}, validMoveForm());
+
+    expect(result).toMatchObject({ status: "error", outcomeUnknown: true, message: "Estado no confirmado. Recargá el tablero para verificar el movimiento." });
+    expect(result.movedOrder).toBeUndefined();
+    expect(result.reconciledOrder).toBeUndefined();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves version conflict reconciliation", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "El pedido cambió en otra sesión. Actualizá el tablero e intentá nuevamente." } });
+    const snapshot = { currentStageId: "22222222-2222-4222-8222-222222222222", updatedAt: "2026-08-12T19:02:00.000Z" };
+    vi.mocked(getOrderMovementSnapshot).mockResolvedValueOnce(snapshot);
+
+    const result = await moveOrderAction({}, validMoveForm());
+
+    expect(result).toMatchObject({ status: "error", reconciledOrder: snapshot });
+    expect(result.outcomeUnknown).toBeUndefined();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("set order label action", () => {
@@ -302,5 +379,92 @@ describe("set order label action", () => {
 
     expect(result).toMatchObject({ status: "error", code: "version_conflict", reconciledOrder: snapshot });
     expect(getOrderBoardSnapshot).toHaveBeenCalledWith(snapshot.id);
+  });
+});
+
+describe("order quick-view action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getCurrentProfile).mockResolvedValue(activeProfile);
+    vi.mocked(getOrderQuickViewData).mockResolvedValue(quickViewData);
+  });
+
+  it("rejects malformed input before auth or data queries", async () => {
+    const result = await getOrderQuickViewAction("invalid");
+
+    expect(result).toEqual({ message: "El pedido seleccionado no es válido." });
+    expect(getCurrentProfile).not.toHaveBeenCalled();
+    expect(getOrderQuickViewData).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { profile: null, label: "missing profile" },
+    { profile: { ...activeProfile, isActive: false }, label: "inactive profile" },
+    { profile: { ...activeProfile, mustChangePassword: true }, label: "password change required" },
+  ])("denies a $label before querying the order", async ({ profile }) => {
+    vi.mocked(getCurrentProfile).mockResolvedValue(profile);
+
+    const result = await getOrderQuickViewAction("11111111-1111-4111-8111-111111111111");
+
+    expect(result).toEqual({ message: "No tenés permiso para ver este pedido." });
+    expect(getOrderQuickViewData).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["super_admin", true, true],
+    ["admin", true, true],
+    ["attention", true, true],
+    ["employee", false, false],
+  ] as const)("preserves the DTO and permission flags for %s", async (role, canReverse, canEditSensitive) => {
+    vi.mocked(getCurrentProfile).mockResolvedValue({ ...activeProfile, role });
+
+    const result = await getOrderQuickViewAction(quickViewData.order.id);
+
+    expect(getOrderQuickViewData).toHaveBeenCalledWith(quickViewData.order.id, canReverse);
+    expect(result).toEqual({
+      data: {
+        id: quickViewData.order.id,
+        publicNumber: 7,
+        customerName: "Cliente histórico",
+        teamName: "Equipo",
+        quantity: 2,
+        orderType: "individual",
+        promisedDeliveryDate: "2026-08-13",
+        description: "Descripción",
+        stageName: "Pagado",
+        stageCode: "paid",
+        expectedUpdatedAt: "2026-08-12T19:01:00.000Z",
+        canReversePayment: canReverse,
+        paymentId: canReverse ? "payment-id" : null,
+        canEditDescription: true,
+        canEditSensitive,
+        lastMovement: {
+          actor: "Operador",
+          fromStageId: "from-stage",
+          occurredAt: "2026-08-12T19:00:00.000Z",
+          toStageId: "to-stage",
+        },
+        comments: [{ actor: "Operador", body: "Comentario reciente", occurredAt: "2026-08-12T18:00:00.000Z", id: "comment-event" }],
+      },
+    });
+  });
+
+  it("omits a payment id outside the paid stage", async () => {
+    vi.mocked(getOrderQuickViewData).mockResolvedValue({
+      ...quickViewData,
+      order: { ...quickViewData.order, currentStage: { code: "received", name: "Pedido recibido" } },
+    });
+
+    const result = await getOrderQuickViewAction(quickViewData.order.id);
+
+    expect(result.data?.paymentId).toBeNull();
+  });
+
+  it("preserves not-found behavior when the RLS-filtered order query returns no row", async () => {
+    vi.mocked(getOrderQuickViewData).mockResolvedValue(null);
+
+    const result = await getOrderQuickViewAction(quickViewData.order.id);
+
+    expect(result).toEqual({ message: "El pedido seleccionado no existe." });
   });
 });

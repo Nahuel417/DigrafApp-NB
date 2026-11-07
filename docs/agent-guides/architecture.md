@@ -41,6 +41,8 @@ No crear una capa, carpeta o patrón nuevo solo por simetría. Si el repositorio
 - Usar el cliente de servidor para datos protegidos y el cliente de navegador solo con la clave pública.
 - La `service_role` se limita a contexto de servidor con autorización previa del actor; nunca llega al cliente.
 - Storage requiere policies para lectura, carga y reemplazo de diseños.
+- Las previews privadas se generan únicamente durante la carga o reemplazo en Server Actions con runtime Node.js, usando la dependencia directa fijada `sharp@0.35.5`; no se ejecuta Sharp en el navegador, en lecturas ni en Edge Functions. Se conserva por separado la dependencia transitiva de Next.js, sin overrides. Node 22.23.4 cumple el mínimo de Sharp (20.9.0); el build debe incluir el binario nativo de la plataforma de destino y las dependencias opcionales. Next.js externaliza Sharp automáticamente. Referencias: [instalación](https://sharp.pixelplumbing.com/install/), [avisos oficiales](https://github.com/lovell/sharp/security/advisories) y [externalización en Next.js](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages). Una compilación local no equivale a verificar un deploy en Linux.
+- La publicación de previews requiere actualizar de forma coordinada la aplicación y `process-order-purge`, para que la purga también elimine los archivos derivados. Esta implementación no requiere una migración de esquema; publicar o desplegar sigue requiriendo autorización explícita.
 - Añadir índices, foreign keys, constraints y policies en la misma migración que introduce su necesidad.
 - Usar `numeric` para importes, claves estables para roles/etapas y timestamps UTC.
 
@@ -78,6 +80,7 @@ Las funciones SQL sensibles deben validar autorización, usar un `search_path` s
 - Referencia de seguridad: https://nodejs.org/en/blog/vulnerability/october-2026-security-releases. Antes de adoptar otro parche, contrastar el aviso oficial y actualizar conjuntamente las referencias de versión. No ejecutar el workflow de staging como prueba de un cambio de Node.
 
 - Usar versiones estables fijadas en lockfile. No incorporar previews sin aprobación.
+- Next.js queda fijado en `16.4.5`, compatible por declaración con Node `>=20.9.0` y React 19. Su dependencia opcional `sharp ^0.35.5` se resuelve junto con la dependencia directa en `0.35.5`, sin overrides. No conservar `sharp 0.34.5` al instalar con el lockfile actualizado; verificar el binario de la plataforma en el build de staging. La actualización no requiere cambiar React ni paquetes ajenos al grafo necesario de Next.
 - Antes de sumar una dependencia, revisar si Next.js, shadcn/ui, Zod o una librería existente resuelven el caso.
 - Mantener secretos fuera del repositorio. Documentar variables requeridas en `.env.example` con valores seguros.
 - No desplegar, aplicar migraciones remotas ni cambiar configuración de producción como efecto colateral de una tarea local.
@@ -91,13 +94,15 @@ Digraf opera en cuatro entornos con separación estricta:
 | Local | `pnpm dev` | Supabase local | Sintéticos | `http://127.0.0.1:3000` |
 | Preview por rama | Vercel Preview, proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos, prefijo `STG-<rama>-<fecha>-<caso>`, correos `@example.test` | Subdominio generado por Vercel |
 | Staging estable | Vercel Preview, rama `staging` del proyecto `digraf-staging` | Supabase Cloud `digraf-staging` | Sintéticos | Subdominio generado por Vercel |
-| Producción futura | Otro proyecto Vercel y otro Supabase, fuera de INF-01 | Fuera de alcance | Reales | No configurar en INF-01 |
+| Producción | Proyecto Vercel y Supabase de producción asociados a `main` | Supabase de producción separado de staging | Reales | Según configuración externa |
 
 Reglas de separación:
 
-- `staging` se crea una sola vez desde `develop` y se mantiene como Preview branch estable del proyecto `digraf-staging`. El slot Production del proyecto queda sin uso y `main` se excluye del deploy mediante `git.deploymentEnabled` en `vercel.json`.
+- Las ramas `feat/*`, `fix/*` y `chore/*` nacen desde `develop`; el trabajo habitual ocurre allí y se integra mediante PR: rama de tarea → `develop` → `staging` → `main`. `staging` valida en la nube y `main` es producción; producción usa proyectos separados de staging.
+- Antes de cada integración, el usuario revisa el diff, los controles CI aplicables y realiza la validación humana. Commits, pushes, PR y merges los ejecuta manualmente el usuario. Excepcionalmente, puede hacer push directo a `staging`.
+- `staging` es la Preview branch estable del proyecto `digraf-staging`; el proyecto y sus previews siguen protegidos con Vercel Authentication. El enrutamiento de deployments de producción se configura fuera de este repositorio.
 - Vercel Authentication se activa en `Production Environment` (con tipo `prod_deployment_urls_and_all_previews`) o, si la protección no alcanza, en `Preview` y en `All` para que tanto `staging` como las previews requieran autenticación.
-- Producción futura nunca reutilizará este proyecto ni `staging`; tendrá su propio proyecto Vercel, su propio Supabase y su propio `main` con deployments productivos.
+- No reutilizar el proyecto `digraf-staging` ni sus datos en producción.
 
 ## Variables de entorno
 

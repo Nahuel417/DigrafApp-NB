@@ -85,7 +85,7 @@ async function getSpecialProductTypes(supabase: Awaited<ReturnType<typeof create
   if (!orderIds.length) return types;
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase.from("order_lines").select("order_id, line_type")
-      .in("order_id", orderIds).order("id").range(offset, offset + 999);
+      .in("order_id", orderIds).in("line_type", ["bag", "flag"]).order("id").range(offset, offset + 999);
     if (error) throw new Error("No se pudieron cargar los tipos de producto del tablero.");
     for (const line of data ?? []) {
       if (line.line_type !== "bag" && line.line_type !== "flag") continue;

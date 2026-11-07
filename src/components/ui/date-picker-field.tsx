@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export function DatePickerField({
   defaultValue = "",
@@ -15,6 +16,7 @@ export function DatePickerField({
   invalid = false,
   label,
   align = "start",
+  className,
   max,
   min,
   name,
@@ -29,9 +31,10 @@ export function DatePickerField({
   invalid?: boolean;
   label: string;
   align?: "start" | "end";
+  className?: string;
   max?: string;
   min?: string;
-  name: string;
+  name?: string;
   onChange?: (value: string) => void;
   required?: boolean;
   triggerLabel: string;
@@ -74,9 +77,9 @@ export function DatePickerField({
   return (
     <div className="relative" ref={fieldRef}>
       <Input
-        aria-describedby={errorId}
+        aria-describedby={invalid ? errorId : undefined}
         aria-invalid={invalid}
-        className="rounded-xl bg-card pr-10 font-mono text-sm shadow-none transition-colors focus-visible:bg-card [appearance:none] [&::-webkit-calendar-picker-indicator]:opacity-0"
+        className={cn("rounded-xl bg-card pr-10 font-mono text-sm shadow-none transition-colors focus-visible:bg-card [appearance:none] [&::-webkit-calendar-picker-indicator]:opacity-0", className)}
         id={id}
         max={max}
         min={min}
@@ -109,6 +112,10 @@ export function DatePickerField({
             captionLayout="label"
             className="w-full rounded-xl border-0 bg-card p-2 shadow-none"
             defaultMonth={selectedDate ?? new Date()}
+            disabled={(date) => {
+              const dateValue = dateToInput(date);
+              return (min !== undefined && dateValue < min) || (max !== undefined && dateValue > max);
+            }}
             fixedWeeks
             formatters={{
               formatCaption: (date) => {

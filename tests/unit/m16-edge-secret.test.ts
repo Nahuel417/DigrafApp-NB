@@ -1,8 +1,22 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { processOrderPurgeRequest } from "../../supabase/functions/process-order-purge/index";
 
+const originalPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png";
+const previewPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.preview.webp";
+
 describe("process-order-purge secret gate", () => {
+  it("resolves the Supabase import through a function-local Deno configuration", () => {
+    const config = JSON.parse(readFileSync(new URL(
+      "../../supabase/functions/process-order-purge/deno.json",
+      import.meta.url,
+    ), "utf8"));
+
+    expect(config.imports["@supabase/supabase-js"]).toBe("npm:@supabase/supabase-js@2.110.5");
+  });
+
   it("rejects a missing secret before constructing a service-role client", async () => {
     const createClient = vi.fn();
     const response = await processOrderPurgeRequest(new Request("http://localhost", { method: "POST" }), {
@@ -29,7 +43,7 @@ describe("process-order-purge secret gate", () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: [originalPath] }], error: null })
       .mockResolvedValueOnce({ data: null, error: null });
     const remove = vi.fn().mockResolvedValue({ error: null });
     const response = await processOrderPurgeRequest(new Request("http://localhost", {
@@ -38,7 +52,7 @@ describe("process-order-purge secret gate", () => {
     }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
 
     expect(response.status).toBe(200);
-    expect(remove).toHaveBeenCalledWith(["orders/order-1/image.png"]);
+    expect(remove).toHaveBeenCalledWith([originalPath, previewPath]);
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
       "prepare_cancelled_order_purge_jobs",
       "purge_due_cancelled_orders",
@@ -57,7 +71,7 @@ describe("process-order-purge secret gate", () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: [originalPath] }], error: null })
       .mockResolvedValueOnce({ data: null, error: null });
     const remove = vi.fn().mockResolvedValue({ error: { message: "Object not found", statusCode: 404 } });
 
@@ -67,6 +81,7 @@ describe("process-order-purge secret gate", () => {
     }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
 
     expect(response.status).toBe(200);
+    expect(remove).toHaveBeenCalledWith([originalPath, previewPath]);
     expect(rpc).toHaveBeenLastCalledWith("finalize_order_purge_storage_job", {
       p_job_id: "job-1",
       p_lease_token: "lease-1",
@@ -79,7 +94,7 @@ describe("process-order-purge secret gate", () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: [originalPath] }], error: null })
       .mockResolvedValueOnce({ data: { storage_status: "storage_retry", attempts: 1 }, error: null });
     const remove = vi.fn().mockResolvedValue({ error: { message: "Storage unavailable", statusCode: 503 } });
 
@@ -89,6 +104,7 @@ describe("process-order-purge secret gate", () => {
     }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
 
     expect(response.status).toBe(200);
+    expect(remove).toHaveBeenCalledWith([originalPath, previewPath]);
     expect(rpc).toHaveBeenLastCalledWith("finalize_order_purge_storage_job", {
       p_job_id: "job-1",
       p_lease_token: "lease-1",
@@ -101,7 +117,7 @@ describe("process-order-purge secret gate", () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-2", object_paths: ["orders/order-1/image.png"] }], error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-2", object_paths: [originalPath] }], error: null })
       .mockResolvedValueOnce({ data: { storage_status: "storage_completed", attempts: 1 }, error: null });
     const remove = vi.fn().mockResolvedValue({ error: null });
 
@@ -111,6 +127,7 @@ describe("process-order-purge secret gate", () => {
     }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
 
     expect(response.status).toBe(200);
+    expect(remove).toHaveBeenCalledWith([originalPath, previewPath]);
     expect(rpc.mock.calls.map(([name]) => name)).not.toContain("m16_purge_cancelled_order_core");
     expect(rpc).toHaveBeenLastCalledWith("finalize_order_purge_storage_job", {
       p_job_id: "job-1",
@@ -118,5 +135,22 @@ describe("process-order-purge secret gate", () => {
       p_succeeded: true,
       p_error: null,
     });
+  });
+
+  it("rejects a malformed path without deleting Storage objects or finalizing its job", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: [{ job_id: "job-1", lease_token: "lease-1", object_paths: ["orders/order-1/image.png"] }], error: null });
+    const remove = vi.fn();
+    const response = await processOrderPurgeRequest(new Request("http://localhost", {
+      headers: { "X-M16-Cron-Secret": "expected-secret" },
+      method: "POST",
+    }), { secret: "expected-secret", createClient: () => ({ rpc, storage: { from: () => ({ remove }) } }) });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "La purga contiene una ruta de imagen no válida." });
+    expect(remove).not.toHaveBeenCalled();
+    expect(rpc.mock.calls.map(([name]) => name)).not.toContain("finalize_order_purge_storage_job");
   });
 });

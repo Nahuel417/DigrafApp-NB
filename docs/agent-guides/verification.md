@@ -142,34 +142,30 @@ Para bootstrap, probar localmente Auth y perfil, email confirmado,
 parcial. Limpiar un Auth huérfano requiere confirmación explícita. No crear
 usuarios remotos reales en pruebas automáticas.
 
-## Verificación específica de staging y preview
+## Flujo Git y controles CI
 
-Antes de cualquier acción remota, ejecutar las comprobaciones no destructivas de la fase 1:
+- Crear ramas `feat/*`, `fix/*` o `chore/*` desde `develop`; flujo normal por PR:
+  rama de tarea → `develop` → `staging` → `main`. Revisar cambios, CI aplicable
+  y realizar validación humana antes de cada merge. El usuario hace todos los
+  commits, pushes, PR y merges; el agente solo prepara cambios y sugiere comandos.
+- Excepción: el usuario puede hacer push directo manual a `staging`.
+- En este repositorio, `.github/workflows/ci.yml` se dispara solo con PR dirigidos
+  a `develop` o `main`. Ejecuta lint, typecheck, unitarias, build, integración con
+  base limpia y E2E. No se dispara para PR dirigidos a `staging` ni para pushes
+  directos a esa rama; por eso esos ingresos requieren revisión y validación humana
+  en el entorno de staging, sin asumir que CI corrió allí. El PR `staging` → `main`
+  sí activa el CI completo.
+- `.github/workflows/deploy-staging-db.yml` es independiente: solo `workflow_dispatch`
+  y con barrera manual antes de migrar la base de staging. No es un CI automático
+  de aplicación ni existe aquí un workflow de migración a producción.
 
-- `git status` y `git diff --check` para confirmar que solo aparecen archivos esperados.
-- `git rev-parse --verify develop` y comprobar que la rama activa es `feat/staging-environment` creada desde `develop`.
-- Revisar que `staging` aún no existe y que `.atl/`, `.env.local` y otros artefactos locales están ignorados o no rastreados.
-- `pnpm install --frozen-lockfile` solo si la fase 1 introduce cambios en `package.json`. En INF-01 no debería haberlos.
-- `rg` para confirmar que la documentación nueva no contiene `service_role`, `access_token`, `project_ref` con valor, `db_password` ni correos reales.
+## Migraciones remotas
 
-Migraciones de esquema:
-
-- Si la fase introduce migración nueva, antes de cualquier `db push`:
-    - `pnpm db:reset:local` ejecutado y verificado.
-    - ejecutar localmente las pruebas de integración focalizadas del contrato afectado.
-    - confirmar que CI pasó para el commit actual, incluidas las suites completas,
-      lint, typecheck, build e integración desde base limpia.
-    - `supabase db push --dry-run` revisado y comparado con la lista de migraciones esperadas.
-
-Sin migraciones nuevas (caso de la fase 1):
-
-- Confirmar que no hay archivos en `supabase/migrations/` modificados.
-- No ejecutar `supabase db start` ni `pnpm db:reset` durante la fase 1; las acciones remotas no forman parte de la verificación local.
-- Validar manualmente que la documentación describe los gates que las fases 2 a 5 sí exigirán.
-
-Build de la aplicación:
-
-- `pnpm lint`, `pnpm typecheck` y `pnpm build` cuando la fase 1 modifique código de la app. En INF-01 fase 1 no debería haberlos.
+- Para cambios de esquema, aplicar localmente la migración y ejecutar las pruebas
+  de integración focalizadas del contrato afectado.
+- Antes de migrar Supabase staging, el usuario debe verificar CI aplicable, revisar
+  `supabase db push --dry-run` y ejecutar manualmente el workflow autorizado. No
+  ejecutar operaciones remotas ni el workflow desde el agente.
 
 ## Matriz de verificado/no verificado
 
@@ -177,11 +173,3 @@ Cada entrega debe cerrar con dos listas explícitas:
 
 - Verificado: comandos ejecutados y su resultado.
 - No verificado: comprobaciones omitidas por estar fuera de alcance de la fase, con justificación.
-
-## Verificación de configuración de fase 3
-
-- Validar `vercel.json` como JSON y confirmar que solo deshabilita deployments desde `main`.
-- Validar el workflow mediante un parser YAML disponible localmente, sin ejecutarlo.
-- Confirmar que el workflow contiene únicamente `workflow_dispatch`, `environment: staging`, `concurrency`, referencias a `secrets.*`/`vars.*` y la barrera explícita antes de `db push`.
-- Confirmar que no contiene valores de secretos, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_*` sensibles, comandos de bootstrap, E2E remoto ni triggers automáticos.
-- No ejecutar `supabase login`, `supabase link`, `supabase db push`, `supabase db push --dry-run`, deploys ni workflows como parte de fase 3.

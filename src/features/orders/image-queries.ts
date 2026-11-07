@@ -2,11 +2,12 @@ import { getCurrentProfile } from "@/lib/auth/current-profile";
 import { createClient } from "@/lib/supabase/server";
 
 import {
+  buildOrderDesignPreviewObjectPath,
   ORDER_DESIGN_BUCKET,
   ORDER_DESIGN_SIGNED_URL_TTL_SECONDS,
   type OrderDesignContentType,
 } from "./image-contracts";
-import { orderDesignImageReadUrlSchema } from "./image-schemas";
+import { orderDesignImageByIdReadUrlSchema, orderDesignImageReadUrlSchema } from "./image-schemas";
 
 export type OrderDesignImage = {
   id: string;
@@ -26,6 +27,8 @@ export type OrderDesignImageReadUrl = OrderDesignImage & {
   signedUrl: string;
   expiresAt: string;
 };
+
+export type OrderDesignImagePreviewReadUrl = OrderDesignImageReadUrl & { isPreview: boolean };
 
 function toOrderDesignImage(image: {
   id: string;
@@ -73,6 +76,8 @@ async function getReadableImageQuery(orderId: string) {
   return { images, primaryImage: images.find((image) => image.isPrimary) ?? null, supabase };
 }
 
+type ReadableImageQuery = NonNullable<Awaited<ReturnType<typeof getReadableImageQuery>>>;
+
 export async function getOrderDesignImage(orderId: string): Promise<OrderDesignImage | null> {
   const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
   if (!parsed.success) return null;
@@ -113,6 +118,26 @@ export async function getOrderDesignImageReadUrl(orderId: string): Promise<Order
   };
 }
 
+export async function getOrderDesignImageOriginalReadUrl(orderId: string, imageId: string): Promise<OrderDesignImageReadUrl | null> {
+  const parsed = orderDesignImageByIdReadUrlSchema.safeParse({ orderId, imageId });
+  if (!parsed.success) return null;
+
+  const result = await getReadableImageQuery(parsed.data.orderId);
+  const image = result?.images.find((candidate) => candidate.id === parsed.data.imageId);
+  if (!result || !image) return null;
+
+  const { data, error } = await result.supabase.storage
+    .from(ORDER_DESIGN_BUCKET)
+    .createSignedUrl(image.objectPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
+  if (error || !data?.signedUrl) throw new Error("No se pudo generar el acceso temporal a la imagen.");
+
+  return {
+    ...image,
+    signedUrl: data.signedUrl,
+    expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
+  };
+}
+
 export async function getOrderDesignImagesReadUrls(orderId: string): Promise<OrderDesignImageReadUrl[]> {
   const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
   if (!parsed.success) return [];
@@ -132,4 +157,59 @@ export async function getOrderDesignImagesReadUrls(orderId: string): Promise<Ord
       expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
     };
   }));
+}
+
+export async function getOrderDesignImagePreviewReadUrl(orderId: string): Promise<OrderDesignImagePreviewReadUrl | null> {
+  const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
+  if (!parsed.success) return null;
+
+  const result = await getReadableImageQuery(parsed.data);
+  if (!result?.primaryImage) return null;
+
+  return signPreviewOrOriginal(result.supabase, result.primaryImage);
+}
+
+export async function getOrderDesignImagesPreviewReadUrls(orderId: string): Promise<OrderDesignImagePreviewReadUrl[]> {
+  const parsed = orderDesignImageReadUrlSchema.shape.orderId.safeParse(orderId);
+  if (!parsed.success) return [];
+
+  const result = await getReadableImageQuery(parsed.data);
+  if (!result?.images.length) return [];
+
+  return Promise.all(result.images.map((image) => signPreviewOrOriginal(result.supabase, image)));
+}
+
+async function signPreviewOrOriginal(
+  supabase: ReadableImageQuery["supabase"],
+  image: OrderDesignImage,
+): Promise<OrderDesignImagePreviewReadUrl> {
+  const previewPath = buildOrderDesignPreviewObjectPath(image.objectPath);
+  const preview = await supabase.storage
+    .from(ORDER_DESIGN_BUCKET)
+    .createSignedUrl(previewPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
+
+  if (preview.error || !preview.data?.signedUrl) {
+    if (!preview.error || !/not found|does not exist|no such object/i.test(preview.error.message)) {
+      throw new Error("No se pudo generar el acceso temporal a la imagen.");
+    }
+
+    const original = await supabase.storage
+      .from(ORDER_DESIGN_BUCKET)
+      .createSignedUrl(image.objectPath, ORDER_DESIGN_SIGNED_URL_TTL_SECONDS);
+    if (original.error || !original.data?.signedUrl) throw new Error("No se pudo generar el acceso temporal a la imagen.");
+
+    return {
+      ...image,
+      signedUrl: original.data.signedUrl,
+      expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
+      isPreview: false,
+    };
+  }
+
+  return {
+    ...image,
+    signedUrl: preview.data.signedUrl,
+    expiresAt: new Date(Date.now() + ORDER_DESIGN_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
+    isPreview: true,
+  };
 }

@@ -1,6 +1,6 @@
 # Runbook de staging y previews — Digraf
 
-Documento operativo para los entornos no locales de Digraf durante INF-01. Complementa a `docs/decisions.md`, `docs/agent-guides/architecture.md` y `docs/agent-guides/verification.md`.
+Documento operativo de staging, previews y promoción entre entornos. Complementa a `docs/decisions.md`, `docs/agent-guides/architecture.md` y `docs/agent-guides/verification.md`.
 
 ## Topología
 
@@ -9,8 +9,18 @@ Documento operativo para los entornos no locales de Digraf durante INF-01. Compl
 | Local            | `pnpm dev`                                                   | Supabase local (`pnpm db:start`) | Sintéticos                                                               | n/a                   |
 | Preview por rama | Vercel Preview del proyecto `digraf-staging`                 | Supabase Cloud `digraf-staging`  | Sintéticos, prefijo `STG-<rama>-<fecha>-<caso>`, correos `@example.test` | Vercel Authentication |
 | Staging estable  | Vercel Preview, rama `staging` del proyecto `digraf-staging` | Supabase Cloud `digraf-staging`  | Sintéticos                                                               | Vercel Authentication |
+| Producción       | Proyecto asociado a `main`                                   | Supabase de producción separado | Reales                                                                   | Configuración externa |
 
-`main` no se despliega en este proyecto (`vercel.json` con `git.deploymentEnabled.main = false`). Producción futura tendrá su propio proyecto Vercel y su propio Supabase.
+## Flujo Git
+
+1. Crear ramas `feat/*`, `fix/*` o `chore/*` desde `develop`; el trabajo habitual ocurre allí.
+2. Recorrido normal por PR: rama de tarea → `develop` → `staging` → `main`.
+3. Antes de cada merge, revisar los cambios, los controles CI aplicables y completar la validación humana.
+4. El usuario realiza commits, pushes, PR y merges manualmente. Excepcionalmente, puede hacer push directo a `staging`.
+
+CI actual (`.github/workflows/ci.yml`): se dispara en PR con destino `develop` o `main`; corre lint, typecheck, unitarias, build, integración y E2E. **No se dispara en PR hacia `staging` ni en push directo a esa rama.** La promoción `staging` → `main` sí genera un PR cubierto por CI. La validación de staging sigue siendo humana; no se modificaron workflows ni protecciones.
+
+El `vercel.json` del repositorio no define hoy el enrutamiento entre ramas y producción; esa asociación se gestiona fuera del repo y no se verifica ni cambia en este runbook.
 
 ## Custodia de secretos
 
@@ -35,8 +45,8 @@ Reglas:
 Antes de cualquier `supabase db push` contra staging:
 
 1. `pnpm db:reset:local` y comprobar que las cuentas locales vuelven a estar disponibles.
-2. `pnpm test` y `pnpm test:integration` en verde.
-3. `pnpm db:types` y `git diff --exit-code -- src/lib/supabase/database.types.ts` sin diferencias.
+2. Ejecutar las pruebas de integración focalizadas para la migración y el contrato afectado.
+3. Confirmar CI aplicable al PR correspondiente y regenerar tipos locales si cambia el esquema.
 4. Confirmar que el `project ref` de GitHub Environment `staging` coincide con el del proyecto.
 5. `supabase login --token "$SUPABASE_ACCESS_TOKEN"` y `supabase link --project-ref "$SUPABASE_PROJECT_ID"`.
 6. `supabase db push --dry-run` y revisar que aparezcan solo las migraciones esperadas.
@@ -54,22 +64,21 @@ Prohibiciones explícitas durante INF-01:
 ## Vercel Authentication y rama estable
 
 - Proyecto Vercel: `digraf-staging`. Nombre y equipo acordados con el dueño.
-- Rama estable: `staging`, creada una sola vez desde `develop`.
+- Rama estable: `staging`, rama de validación en nube dentro del recorrido `develop` → `staging` → `main`.
 - URL inicial: la generada por Vercel. No configurar dominio propio durante INF-01.
 - Activar Vercel Authentication para que previews y `staging` requieran autenticación.
-- Configurar en `vercel.json`:
-    - `git.deploymentEnabled.main = false` para impedir deploys desde `main`.
-    - Las ramas no listadas siguen el comportamiento por defecto de Vercel; no usar el archivo para sustituir la configuración del Dashboard.
-    - `staging`, `develop` y `feat/*` deben generar previews durante INF-01.
+- Enrutamiento de deployments:
+    - El archivo actual `vercel.json` no contiene reglas de branch deployment.
+    - `staging`, `develop` y `feat/*` deben generar previews; `main` se asocia al proyecto de producción mediante configuración externa.
 
 ## Checklist manual de fase 3
 
 Ejecutar en este orden, sin entregar credenciales al agente:
 
-1. Crear la rama remota `staging` desde `develop` mediante el flujo Git aprobado.
+1. Crear la rama remota `staging` desde `develop` mediante el flujo Git aprobado, si todavía no existe.
 2. Crear o conectar el proyecto Vercel `digraf-staging` al repositorio de GitHub.
-3. Mantener `staging` como rama Preview, no como Production Branch. El slot Production queda sin uso.
-4. Confirmar que `main` no genera deployments por `vercel.json`; si el Dashboard muestra una configuración incompatible, detenerse y resolverla manualmente.
+3. Mantener `staging` como rama Preview del proyecto `digraf-staging`; producción usa proyectos separados asociados a `main`.
+4. El dueño verifica manualmente el enrutamiento de `main` al proyecto de producción en la configuración externa de Vercel.
 5. Activar Vercel Authentication para previews y URLs de deployment. Esta opción requiere el Dashboard y no se reemplaza con `vercel.json`.
 6. En Vercel, crear únicamente variables Preview:
    - `NEXT_PUBLIC_SUPABASE_URL` con la URL de `digraf-staging`.
@@ -111,7 +120,7 @@ Toda modificación de variable requiere un nuevo deployment. Instant Rollback no
 - Bloquear ejecuciones concurrentes con un `concurrency` group a nivel de job.
 - Pasos: checkout, instalar Supabase CLI, link al project ref, dry-run, push y verificación de historial.
 - Sin triggers automáticos desde `push`, `pull_request` ni `schedule`.
-- No crear workflow equivalente para producción durante INF-01.
+- No existe actualmente un workflow de migraciones para producción en este repositorio; no se agrega en este cambio documental.
 
 ## Datos sintéticos y convenciones
 
@@ -163,7 +172,7 @@ Después del upsert, el script verifica login, email confirmado, perfil activo, 
 | Error de migración compatible        | Aplicar migración correctiva nueva. Nunca editar la migración original.                                                                  |
 | Migración destructiva no deseada     | Si el proyecto aún es reconstruible, recrear desde migraciones y bootstrap. No usar PITR porque el plan gratuito no lo ofrece.           |
 | Proyecto pausado por inactividad     | Restaurar desde el Dashboard de Supabase o recrear desde migraciones.                                                                    |
-| Confusión entre staging y producción | No promovida a producción. Verificar que `staging` siga siendo Preview branch protegida y que producción futura use proyectos separados. |
+| Confusión entre staging y producción | Verificar que `staging` siga usando datos sintéticos y que `main` apunte a los proyectos de producción separados. |
 
 ## Documentación y trazabilidad
 

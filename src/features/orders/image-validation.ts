@@ -17,6 +17,10 @@ export type ImageVerificationResult =
   | { ok: true; value: VerifiedOrderDesignImage }
   | { ok: false; error: ImageVerificationFailure };
 
+export type UploadedImageVerificationResult =
+  | { ok: true; value: VerifiedOrderDesignImage & { bytes: Uint8Array } }
+  | { ok: false; error: ImageVerificationFailure };
+
 function startsWith(bytes: Uint8Array, signature: number[]) {
   return signature.every((value, index) => bytes[index] === value);
 }
@@ -76,14 +80,16 @@ export async function verifyUploadedOrderDesignImage(
   objectPath: string,
   expectedContentType: OrderDesignContentType,
   expectedByteSize: number,
-): Promise<ImageVerificationResult> {
+): Promise<UploadedImageVerificationResult> {
   try {
     const { data, error } = await storage.download(objectPath);
     if (error || !data) {
       return { ok: false, error: { message: "No se pudo leer el objeto de imagen cargado." } };
     }
 
-    return verifyOrderDesignImageBytes(new Uint8Array(await data.arrayBuffer()), expectedContentType, expectedByteSize, objectPath);
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    const verification = verifyOrderDesignImageBytes(bytes, expectedContentType, expectedByteSize, objectPath);
+    return verification.ok ? { ok: true, value: { ...verification.value, bytes } } : verification;
   } catch {
     return { ok: false, error: { message: "No se pudo verificar el contenido de la imagen cargada." } };
   }

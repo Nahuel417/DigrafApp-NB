@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { ORDER_DESIGN_BUCKET } from "./image-contracts";
+import { buildOrderDesignPreviewObjectPath, isOrderDesignObjectPath, ORDER_DESIGN_BUCKET } from "./image-contracts";
 import { buildOrderDesignReconciliationPlan, type OrderDesignReconciliationPlan, type ReconciliationStorageObject } from "./image-reconciliation-plan";
 
 const STORAGE_PAGE_SIZE = 1000;
@@ -19,7 +19,11 @@ export type OrderDesignReconciliationResult = OrderDesignReconciliationPlan & {
 async function readReferencedPaths(admin: ReturnType<typeof createAdminClient>) {
   const { data, error } = await admin.from("order_design_images").select("object_path");
   if (error) throw new Error("No se pudieron leer las referencias vigentes de imágenes.");
-  return new Set((data ?? []).map((reference) => reference.object_path));
+  const paths = new Set((data ?? []).map((reference) => reference.object_path));
+  for (const path of [...paths]) {
+    if (isOrderDesignObjectPath(path)) paths.add(buildOrderDesignPreviewObjectPath(path));
+  }
+  return paths;
 }
 
 async function listAllStorageObjects(storage: ReturnType<typeof createAdminClient>["storage"]) {

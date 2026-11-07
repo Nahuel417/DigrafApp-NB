@@ -8,10 +8,11 @@ import { canConfirmPayment, canEditOrderDescription, canEditOrderLabels, canEdit
 import { createClient } from "@/lib/supabase/server";
 
 import { getOrderBoardSnapshot, getOrderMovementSnapshot } from "./queries";
+import { getOrderQuickViewData } from "./quick-view-queries";
 import { confirmOrderPaymentSchema, moveOrderSchema, reconcileOrderSchema, reversePaymentSchema, setOrderLabelSchema, type OrderLabel } from "./schemas";
-import { getOrderDetail, getOrderTimeline } from "../orders/detail-queries";
 
 export type MoveOrderActionState = MutationState & {
+  outcomeUnknown?: boolean;
   movedOrder?: {
     id: string;
     fromStageId: string;
@@ -279,9 +280,20 @@ export async function moveOrderAction(
   }
 
   const movedOrder = data?.[0];
-  if (!movedOrder) return mutationResult("error", "El movimiento no devolvió un resultado válido.");
+  if (!movedOrder) {
+    let reconciledOrder = null;
+    try {
+      reconciledOrder = await getOrderMovementSnapshot(parsed.data.orderId);
+    } catch {
+      // A failed read cannot establish whether the mutation committed.
+    }
+    const message = reconciledOrder
+      ? "Estado actualizado. Verificá el pedido antes de continuar."
+      : "Estado no confirmado. Recargá el tablero para verificar el movimiento.";
+    return { ...mutationResult("error", message), outcomeUnknown: true, ...(reconciledOrder ? { reconciledOrder } : {}) };
+  }
 
-  revalidatePath("/orders");
+  // The board applies this patch; authenticated detail reads are already dynamic.
   return {
     ...mutationResult("success", `PED-${String(movedOrder.public_number).padStart(6, "0")} se movió a ${movedOrder.stage_code}.`),
     movedOrder: {
@@ -380,44 +392,41 @@ export async function getOrderQuickViewAction(orderId: string): Promise<{ data?:
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive || profile.mustChangePassword) return { message: "No tenés permiso para ver este pedido." };
 
-  const [detail, timeline] = await Promise.all([
-    getOrderDetail(parsed.data.orderId),
-    getOrderTimeline(parsed.data.orderId),
-  ]);
-  if (!detail) return { message: "El pedido seleccionado no existe." };
+  const canReverse = canReversePayment(profile.role);
+  const quickView = await getOrderQuickViewData(parsed.data.orderId, canReverse);
+  if (!quickView) return { message: "El pedido seleccionado no existe." };
 
-  const paymentEvent = canReversePayment(profile.role) && detail.order.currentStage.code === "paid"
-    ? timeline.find((event) => event.type === "payment_confirmed" && typeof event.details.id === "string")
-    : null;
-
-  const lastMovement = timeline.find((event) => event.type === "stage_moved") ?? null;
   return {
     data: {
-      id: detail.order.id,
-      publicNumber: detail.order.publicNumber,
-      customerName: detail.order.customerName,
-      teamName: detail.order.teamName,
-      quantity: detail.order.quantity,
-      orderType: detail.order.orderType,
-      promisedDeliveryDate: detail.order.promisedDeliveryDate,
-      description: detail.order.description,
-      stageName: detail.order.currentStage.name,
-      stageCode: detail.order.currentStage.code,
-      expectedUpdatedAt: detail.order.updatedAt,
-      canReversePayment: canReversePayment(profile.role),
-      paymentId: typeof paymentEvent?.details.id === "string" ? paymentEvent.details.id : null,
+      id: quickView.order.id,
+      publicNumber: quickView.order.publicNumber,
+      customerName: quickView.order.customerName,
+      teamName: quickView.order.teamName,
+      quantity: quickView.order.quantity,
+      orderType: quickView.order.orderType,
+      promisedDeliveryDate: quickView.order.promisedDeliveryDate,
+      description: quickView.order.description,
+      stageName: quickView.order.currentStage.name,
+      stageCode: quickView.order.currentStage.code,
+      expectedUpdatedAt: quickView.order.updatedAt,
+      canReversePayment: canReverse,
+      paymentId: canReverse && quickView.order.currentStage.code === "paid" ? quickView.paymentId : null,
       canEditDescription: canEditOrderDescription(profile.role),
       canEditSensitive: canEditOrderSensitive(profile.role),
-      lastMovement: lastMovement ? {
-        actor: lastMovement.actorDisplayName,
-        fromStageId: lastMovement.fromStageId,
-        occurredAt: lastMovement.occurredAt,
-        toStageId: lastMovement.toStageId,
+      lastMovement: quickView.lastMovement ? {
+        actor: quickView.lastMovement.actor_display_name,
+        fromStageId: quickView.lastMovement.from_stage_id,
+        occurredAt: quickView.lastMovement.occurred_at,
+        toStageId: quickView.lastMovement.to_stage_id,
       } : null,
-      comments: timeline
-        .filter((event) => event.type === "commented" && event.commentBody)
-        .slice(0, 1)
-        .map((event) => ({ actor: event.actorDisplayName, body: event.commentBody!, occurredAt: event.occurredAt, id: event.id })),
+      comments: quickView.latestComment?.comment_body
+        ? [{
+          actor: quickView.latestComment.actor_display_name,
+          body: quickView.latestComment.comment_body,
+          occurredAt: quickView.latestComment.occurred_at,
+          id: quickView.latestComment.event_id,
+        }]
+        : [],
     },
   };
 }

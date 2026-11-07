@@ -22,12 +22,25 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Editar datos sensibles | Sí | Sí | Sí | No |
 | Purgar manualmente pedido anulado | Sí | Sí | No | No |
 | Importar y administrar precios, cotizar y descargar PDF | Sí | Sí | Sí | No |
+| Administrar stock de telas | Sí | Sí | No | No |
+| Consultar cantidades y fechas del stock | Sí | Sí | Sí | Sí |
+| Ver precios de compra por rollo | Sí | Sí | No | No |
 
 `super_admin`, `admin`, `attention` y `employee` son códigos estables. No deducir permisos de etiquetas de UI ni del estado de un store cliente.
 
 Solo Super admin crea credenciales. Define el email y una contraseña temporal, la comunica fuera de la aplicación y el usuario debe cambiarla en su primer ingreso. Super admin puede restablecer la contraseña de cualquier cuenta; cada restablecimiento vuelve a exigir el cambio en el siguiente ingreso. Admin no crea cuentas ni asigna o restablece contraseñas.
 
 Nadie puede elevar su propio privilegio. Admin solo puede cambiar roles entre `attention` y `employee` y desactivar usuarios con esos roles. Super admin puede administrar cualquier rol, pero el sistema debe impedir desactivar o degradar al último `super_admin` activo.
+
+## Stock de telas
+
+- El stock es un registro manual e independiente de pedidos, pagos y Caja. En esta entrega solo se administran telas, aunque la navegación usa el nombre general `Stock`.
+- Super admin y Admin pueden crear y renombrar telas, registrar compras y consumos, anular movimientos con motivo, y desactivar o reactivar telas. La desactivación solo se permite con saldo cero; no se borran telas ni movimientos.
+- Todas las cantidades son rollos enteros o medios. Cada material nuevo requiere nombre, cantidad inicial fechada y precio positivo en ARS por rollo, incluso si la cantidad inicial es cero. La cantidad se carga con dígitos y admite medios rollos; no acepta letras ni notación científica. Las aperturas históricas sin precio permanecen así; no se completan ni se backfillean. Cada compra conserva su fecha y precio positivo por rollo. Las fechas admiten hoy o días anteriores, nunca futuras.
+- Para el material seleccionado se muestran solo sus dos movimientos registrados más recientes, ordenados por hora de registro del servidor y luego ID; los anulados permanecen visibles y todo el historial sigue conservado en base de datos. Compras y consumo comparten un formulario adaptativo; solo las compras solicitan precio.
+- La salida que excedería el saldo se rechaza. Las anulaciones conservan el movimiento original y agregan una reversión con actor y hora de servidor; tampoco pueden dejar saldo negativo.
+- Cada acción de Stock se notifica únicamente mediante toast; no se agregan avisos de éxito inline. Los errores de campo permanecen junto a su input.
+- Todo rol operativo activo puede consultar cantidades, movimientos y fechas. Solo Super admin y Admin pueden consultar precios; RLS protege una relación separada de precios, sin incluirlos en las respuestas de lectura de otros roles. La interfaz no muestra quién registró cada operación.
 
 Las contraseñas se almacenan únicamente en Supabase Auth y nunca en perfiles, auditorías o logs. Toda autorización debe exigir un perfil activo para bloquear a un usuario desactivado aunque conserve una sesión previa.
 
@@ -172,6 +185,14 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 ## Comentarios, imágenes y auditoría
 
 Todos los roles internos pueden comentar tarjetas. Las imágenes de diseño se almacenan en un bucket privado con policies que reflejan los permisos del pedido; los cuatro roles internos pueden gestionar la colección y conservar la lectura interna autorizada.
+
+La galería del detalle no renueva URLs firmadas por el paso del tiempo. Conserva la renovación manual mediante `Renovar vista` y la recuperación ante errores de carga; cada renovación mantiene la autorización del servidor y la vigencia de cinco minutos, sin agregar caché compartida ni modificar los originales.
+
+Cada carga o reemplazo genera en el servidor una preview WebP privada de hasta 480 px, sin ampliar imágenes pequeñas. Se verifican bytes, tipo JPEG/PNG/WebP real y un máximo de 40 megapíxeles antes de procesar; las previews de archivos animados muestran el primer fotograma y el original permanece intacto. Tablero, vista rápida y galería usan la preview disponible; el original se abre solo mediante una acción explícita y autorizada. Las previews nuevas se guardan con `cacheControl: "0"`, sin extender mediante caché HTTP la vigencia del enlace firmado. Las imágenes anteriores sin preview conservan el original como respaldo, sin conversión durante la lectura. Reemplazo, eliminación, reconciliación y purga incluyen las previews derivadas.
+
+Las URLs de previews solo se reutilizan en memoria de la vista del tablero, dentro del mismo usuario y rol, hasta su vencimiento y por versión de imagen. El cambio de identidad descarta la caché; no se usa almacenamiento persistente ni caché compartida en el servidor. Los movimientos ordinarios exitosos devuelven el parche de la tarjeta sin invalidar rutas ni refrescar todo el tablero; el detalle consulta datos dinámicos y los conflictos conservan la reconciliación autorizada. Los enlaces privados de detalle y edición en la vista rápida no hacen prefetch.
+
+Si el RPC de movimiento responde sin error pero sin resultado, la operación queda con resultado desconocido: no se repite la mutación y se consulta el estado canónico. Una lectura válida actualiza la posición y versión sin atribuir éxito o rechazo al movimiento original. Si la lectura falta o falla, se muestra `Estado no confirmado. Recargá el tablero para verificar el movimiento.`; la posición optimista no se revierte como si el servidor hubiera rechazado la operación. Los rechazos explícitos y conflictos conservan su tratamiento previo.
 
 Toda operación sensible registra el actor autenticado y la hora del servidor. No confiar en timestamps o identificadores de actor provenientes del navegador.
 

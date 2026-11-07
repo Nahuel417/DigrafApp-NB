@@ -1,0 +1,182 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const actionState = vi.hoisted(() => ({ current: {} as Record<string, unknown>, pending: false }));
+
+vi.mock("react", async () => {
+  const actual = await vi.importActual<typeof import("react")>("react");
+  return { ...actual, useActionState: () => [actionState.current, vi.fn(), actionState.pending] };
+});
+vi.mock("@/hooks/use-mutation-toast", () => ({ useMutationToast: vi.fn() }));
+vi.mock("../actions", () => ({ executeStockOperationAction: vi.fn() }));
+
+import { useMutationToast } from "@/hooks/use-mutation-toast";
+
+import { StockOperationForm } from "./stock-operation-form";
+
+afterEach(() => {
+  cleanup();
+  actionState.current = {};
+  actionState.pending = false;
+  vi.clearAllMocks();
+});
+
+describe("StockOperationForm", () => {
+  it("keeps cancellation open after errors, closes on success and can reopen", () => {
+    const props = { action: "cancel" as const, initialDate: "2026-08-15", initialKey: "cancel-key", itemId: "fabric", movementId: "movement" };
+    const view = render(<StockOperationForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    fireEvent.change(screen.getByLabelText("Motivo de anulación"), { target: { value: "Carga duplicada" } });
+
+    actionState.current = { status: "error", toastId: "error", fieldErrors: { reason: ["Revisá el motivo"] } };
+    view.rerender(<StockOperationForm {...props} />);
+    expect(screen.getByRole("alertdialog", { name: "Confirmar anulación" })).toBeTruthy();
+    expect((screen.getByLabelText("Motivo de anulación") as HTMLInputElement).value).toBe("Carga duplicada");
+
+    actionState.current = { status: "success", resetKey: "cancel-next" };
+    view.rerender(<StockOperationForm {...props} />);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    expect(screen.getByRole("alertdialog", { name: "Confirmar anulación" })).toBeTruthy();
+    expect((screen.getByLabelText("Motivo de anulación") as HTMLInputElement).value).toBe("");
+  });
+
+  it("locks cancellation disclosure while its mutation is pending", () => {
+    const props = { action: "cancel" as const, initialDate: "2026-08-15", initialKey: "cancel-key", itemId: "a88facad-74c0-435c-9fe0-e9f2565c82d5", movementId: "7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d", itemName: "Lona" };
+    const view = render(<StockOperationForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular movimiento" }));
+    actionState.pending = true;
+    view.rerender(<StockOperationForm {...props} />);
+    expect((view.container.querySelector('button[aria-label="Anular movimiento"]') as HTMLButtonElement).disabled).toBe(true);
+    const dialog = screen.getByRole("alertdialog", { name: "Confirmar anulación" });
+    expect((within(dialog).getByRole("textbox", { name: "Motivo de anulación" }) as HTMLInputElement).disabled).toBe(true);
+    expect((within(dialog).getByRole("button", { name: "Cancelar" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(dialog).getByRole("button", { name: "Confirmar anulación" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("requires a price when adding material, including with a zero opening balance", () => {
+    const view = render(<StockOperationForm action="create" initialDate="2026-08-15" initialKey="create-key" />);
+    const form = view.container.querySelector("form");
+    if (!form) throw new Error("No se encontró el formulario de material.");
+
+    const name = screen.getByLabelText("Nombre del material") as HTMLInputElement;
+    const quantity = screen.getByLabelText("Cantidad (rollos)") as HTMLInputElement;
+    const price = screen.getByLabelText("Precio por rollo (ARS)") as HTMLInputElement;
+    const date = screen.getByLabelText("Fecha") as HTMLInputElement;
+
+    expect(name.required).toBe(true);
+    expect(quantity.value).toBe("0");
+    expect(price.required).toBe(true);
+    expect(price.name).toBe("price");
+    expect(date.required).toBe(true);
+    expect(date.max).toBe("2026-08-15");
+    expect(new FormData(form).get("price")).toBe("");
+  });
+
+  it("uses one adaptive purchase and consumption form with a live balance effect", () => {
+    const view = render(
+      <StockOperationForm
+        action="purchase"
+        allowMovementSelection
+        availableQuantity={1.5}
+        initialDate="2026-08-15"
+        initialKey="movement-key"
+        itemId="a88facad-74c0-435c-9fe0-e9f2565c82d5"
+        itemName="Lona"
+      />,
+    );
+
+    const form = view.container.querySelector("form");
+    if (!form) throw new Error("No se encontró el formulario de movimientos.");
+    const operation = screen.getByRole("combobox", { name: "Tipo de movimiento" });
+    expect(screen.getByLabelText("Precio por rollo (ARS)")).toBeTruthy();
+    expect(screen.getByText(/Saldo disponible: 1,5 rollos/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Cantidad comprada (rollos)"), { target: { value: "0,5" } });
+    expect(screen.getByText(/Efecto en saldo: \+0,5 rollos/)).toBeTruthy();
+
+    fireEvent.click(operation);
+    fireEvent.click(screen.getByRole("option", { name: "Consumo" }));
+
+    expect(new FormData(form).get("action")).toBe("consumption");
+    expect(screen.getByLabelText("Cantidad consumida (rollos)")).toBeTruthy();
+    expect(screen.queryByLabelText("Precio por rollo (ARS)")).toBeNull();
+    expect(screen.getByText(/Efecto en saldo: −0,5 rollos/)).toBeTruthy();
+  });
+
+  it("opens the app confirmation modal with the reason and selected movement", () => {
+    render(
+      <StockOperationForm
+        action="cancel"
+        initialDate="2026-08-15"
+        initialKey="cancel-key"
+        itemId="a88facad-74c0-435c-9fe0-e9f2565c82d5"
+        itemName="Lona"
+        movementId="7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d"
+        movementLabel="compra de 1 rollo del 14/08/2026"
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /^Anular / });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("alertdialog", { name: "Confirmar anulación" });
+    const reason = within(dialog).getByLabelText("Motivo de anulación") as HTMLInputElement;
+    expect(reason.tagName).toBe("INPUT");
+    expect(within(dialog).getByText(/Anularás compra de 1 rollo/)).toBeTruthy();
+    fireEvent.change(reason, { target: { value: "Error en la carga" } });
+
+    const form = document.getElementById("stock-cancel-a88facad-74c0-435c-9fe0-e9f2565c82d5-7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d-form") as HTMLFormElement;
+    if (!form) throw new Error("No se encontró el formulario de anulación.");
+    expect(new FormData(form).get("movementId")).toBe("7a0abdef-b5c2-4d42-9997-d7dd9a2bd12d");
+    expect(new FormData(form).get("reason")).toBe("Error en la carga");
+    expect((within(dialog).getByRole("button", { name: "Confirmar anulación" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeTruthy();
+  });
+
+  it("rejects letters, exponent notation and negative values while typing, pasting or dropping prices", () => {
+    render(
+      <StockOperationForm
+        action="purchase"
+        initialDate="2026-08-15"
+        initialKey="purchase-key"
+        itemId="a88facad-74c0-435c-9fe0-e9f2565c82d5"
+        itemName="Lona"
+      />,
+    );
+    const price = screen.getByLabelText("Precio por rollo (ARS)") as HTMLInputElement;
+    price.value = "123.45";
+    price.setSelectionRange(price.value.length, price.value.length);
+
+    for (const key of ["x", "e", "-"]) expect(fireEvent.keyDown(price, { key })).toBe(false);
+    for (const invalid of ["letters", "1e3", "-20"]) {
+      expect(fireEvent.paste(price, { clipboardData: { getData: () => invalid } })).toBe(false);
+      expect(fireEvent.drop(price, { dataTransfer: { getData: () => invalid } })).toBe(false);
+    }
+    expect(price.value).toBe("123.45");
+  });
+
+  it("blocks letters and non half-roll fractions while typing or pasting quantity", () => {
+    render(<StockOperationForm action="create" initialDate="2026-08-15" initialKey="create-key" />);
+    const quantity = screen.getByLabelText("Cantidad (rollos)") as HTMLInputElement;
+    quantity.value = "1";
+    quantity.setSelectionRange(quantity.value.length, quantity.value.length);
+
+    for (const key of ["x", "e", "-"]) expect(fireEvent.keyDown(quantity, { key })).toBe(false);
+    for (const invalid of ["letters", "0,25", "1e3", ",2"]) {
+      expect(fireEvent.paste(quantity, { clipboardData: { getData: () => invalid } })).toBe(false);
+      expect(fireEvent.drop(quantity, { dataTransfer: { getData: () => invalid } })).toBe(false);
+    }
+    expect(fireEvent.keyDown(quantity, { key: ",5" })).toBe(true);
+    expect(quantity.value).toBe("1");
+  });
+
+  it("uses the toast as the only notification for completed actions", () => {
+    actionState.current = { status: "success", message: "Material agregado.", toastId: "toast-1" };
+    render(<StockOperationForm action="create" initialDate="2026-08-15" initialKey="create-key" />);
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("Material agregado.")).toBeNull();
+    expect(vi.mocked(useMutationToast)).toHaveBeenCalledWith(expect.objectContaining({ status: "success", message: "Material agregado." }));
+  });
+});
