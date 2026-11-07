@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { processOrderPurgeRequest } from "../../supabase/functions/process-order-purge/index";
@@ -6,6 +8,15 @@ const originalPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-
 const previewPath = "orders/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.preview.webp";
 
 describe("process-order-purge secret gate", () => {
+  it("resolves the Supabase import through a function-local Deno configuration", () => {
+    const config = JSON.parse(readFileSync(new URL(
+      "../../supabase/functions/process-order-purge/deno.json",
+      import.meta.url,
+    ), "utf8"));
+
+    expect(config.imports["@supabase/supabase-js"]).toBe("npm:@supabase/supabase-js@2.110.5");
+  });
+
   it("rejects a missing secret before constructing a service-role client", async () => {
     const createClient = vi.fn();
     const response = await processOrderPurgeRequest(new Request("http://localhost", { method: "POST" }), {
