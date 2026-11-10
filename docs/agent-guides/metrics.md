@@ -1,0 +1,24 @@
+# Métricas
+
+El panel `/metrics` es una consulta agregada de información conservada. Solo lo pueden abrir perfiles activos `super_admin` y `admin` que no deban cambiar su contraseña. El acceso se vuelve a validar en la página, la acción de servidor y la RPC; mostrar u ocultar navegación nunca concede permisos.
+
+## Definiciones
+
+- Los períodos son inclusivos y se interpretan con `America/Argentina/Cordoba`. El período inicial son los últimos siete días, incluido hoy. También están disponibles hoy, mes actual, mes anterior y un rango personalizado.
+- La caja suma los movimientos efectivos por fecha de movimiento; excluye anulaciones y saldos de apertura. Los filtros de producto y catálogo no cambian caja ni incidencias. El saldo neto es ingresos menos egresos, no una medida de ganancia.
+- El total incluye cada incidencia una vez por fecha de carga. La cantidad de devoluciones y su desglose de motivos incluyen únicamente incidencias `complaint_with_return`; cada motivo elegido en esas incidencias cuenta una vez. Las incidencias internas y los reclamos sin devolución no aportan motivos al desglose de devoluciones. Una corrección no crea otra incidencia y no se registran unidades devueltas.
+- Las ventas se atribuyen a pagos confirmados activos, según su fecha de confirmación. Las reversas se excluyen hasta una nueva confirmación. Los renglones de conjunto no se suman como prendas sueltas; los conjuntos comunes y premium se informan por separado.
+- El ranking incluye productos activos elegibles, también con cero ventas. Los productos desactivados no están disponibles en el ranking ni como opciones de filtro. Los atributos de catálogo solo se filtran cuando están persistidos, incluidos los formatos históricos compatibles.
+- Los datos anteriores pueden estar incompletos si información operativa ya fue purgada. No se reconstruyen registros ni se alteran las reglas de purga.
+
+## Consulta y caché
+
+La pantalla consulta recién cuando se abre y solicita únicamente el resumen de caja y prendas sueltas. `Ver detalle` carga gráficos, rankings, incidencias y opciones de catálogo solo cuando se solicita. El shell autenticado conserva en memoria hasta doce resultados por cuenta, sesión y filtros normalizados; reingresar reutiliza el resumen y, si ya existe, muestra el detalle en caché. Actualizar manualmente refresca el resumen y también el detalle cuando ya está disponible. No se usa TTL, almacenamiento del navegador, polling ni actualización por foco. El cambio de cuenta, sesión o cierre de sesión limpia resultados y filtros; las respuestas tardías de otra sesión se descartan. La caché no reemplaza la autorización de servidor.
+
+La vista muestra estados de carga, error recuperable y resultados vacíos, además del momento de consulta. No presenta un aviso visible sobre purgas; los datos históricos siguen limitados a registros conservados y no se reconstruyen. Los importes se formatean desde decimales exactos. Las RPC entregan agregados, no filas operativas; la consulta inicial no genera series, rankings, incidencias ni opciones de catálogo.
+
+## Presentación
+
+Las series diarias se agrupan dentro de las RPC existentes por fecha local de Córdoba y completan los días sin movimientos con cero. La línea separa prendas sueltas y conjuntos comunes/premium; las áreas comparan ingresos y egresos sin apilar ni calcular ganancia; el anillo compara conjuntos y no aparece cuando el total es cero. Los rankings de productos y motivos de devolución usan barras, con tabla o lista textual como alternativa. Los gráficos usan Recharts v3 mediante el componente Chart de shadcn/ui, con unidades, fechas y tooltips en español. Los importes de las series se conservan como decimales exactos para totales, tabla y tooltip; la conversión numérica se usa solo para coordenadas visuales.
+
+La vista mantiene visibles el período y las fechas seleccionadas. El botón `Filtros` pliega o despliega los seis filtros de catálogo; antes de solicitar el detalle, esos selectores quedan deshabilitados con una explicación. `Limpiar filtros` restablece solo los filtros y conserva el rango de fechas. La franja superior muestra ingresos, egresos, saldo neto y prendas sueltas; los conteos de conjuntos comunes/premium y de incidencias aparecen bajo `Ver detalle`, sin sumar unidades de categorías diferentes. Caja y ventas diarias ocupan dos paneles; conjuntos, ranking de productos y motivos de devolución se mantienen separados en una grilla responsive.

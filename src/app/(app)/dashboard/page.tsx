@@ -1,9 +1,10 @@
-import { Calculator, ClipboardPlus, CircleCheck, Kanban, LayoutGrid, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
+import { Calculator, ChartNoAxesCombined, ClipboardPlus, CircleCheck, Kanban, LayoutGrid, ListOrdered, ListTree, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 
 import { MutationNotice } from "@/components/mutation-notice";
 import { Badge } from "@/components/ui/badge";
 import { roleLabel } from "@/features/users/schemas";
+import { canViewMetrics } from "@/features/metrics/access";
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canCreateManualOrder, canManageCatalogs, canManagePrices, canManageStages, canManageUsers, canOperateCash } from "@/lib/auth/permissions";
 
@@ -16,6 +17,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { allowed: canCreateManualOrder(profile.role), description: "Alta manual de pedidos con sus especificaciones.", href: "/orders/new", icon: ClipboardPlus, label: "Nuevo pedido" },
     { allowed: canManageCatalogs(profile.role), description: "Prendas, telas, cuellos y moldes disponibles.", href: "/catalogs", icon: ListTree, label: "Catálogos" },
     { allowed: canManagePrices(profile.role), description: "Precios y cotizaciones transitorias.", href: "/commercial", icon: Calculator, label: "Cotizador" },
+    { allowed: canViewMetrics(profile.role), description: "Caja, incidencias y ventas confirmadas dentro de un período.", href: "/metrics", icon: ChartNoAxesCombined, label: "Métricas" },
     { allowed: canManageStages(profile.role), description: "Recorrido operativo configurable del tablero.", href: "/stages", icon: ListOrdered, label: "Etapas" },
     { allowed: canManageUsers(profile.role), description: "Perfiles internos, roles y accesos del equipo.", href: "/users", icon: Users, label: "Usuarios" },
   ].filter((item) => item.allowed);

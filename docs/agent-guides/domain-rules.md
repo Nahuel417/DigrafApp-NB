@@ -18,6 +18,7 @@ Leer esta guía antes de modificar roles, pedidos, tablero, pagos, caja, catálo
 | Confirmar pago | Sí | Sí | Sí | No |
 | Ver y operar caja | Sí | Sí | Sí | No |
 | Cerrar caja | Sí | Sí | No | No |
+| Consultar métricas | Sí | Sí | No | No |
 | Comentar pedido | Sí | Sí | Sí | Sí |
 | Editar datos sensibles | Sí | Sí | Sí | No |
 | Purgar manualmente pedido anulado | Sí | Sí | No | No |
@@ -144,7 +145,7 @@ Decisión durable PR2: Atención recibe la autoridad equivalente a Admin únicam
 - Cada pedido admite incidencias independientes, visibles únicamente en su detalle. Cada una conserva fecha de carga del servidor, un tipo (`internal`, `complaint_without_return` o `complaint_with_return`) y uno o varios motivos fijos: Falla de costura, Diseño, Pedido incompleto, Problema en calandrado y Atención al público (`customer_service`). Se pueden seleccionar hasta los cinco motivos, sin cambiar los permisos por tipo. No hay notas, adjuntos ni campo de quién detectó la falla.
 - Empleado registra únicamente incidencias internas en pedidos que ya puede consultar. Super admin, Admin y Atención registran cualquier tipo y pueden corregir tipo y motivos; cada revisión conserva los valores anteriores, actor técnico y hora de servidor. Empleado no puede corregir. No hay eliminación de incidencias.
 - Se pueden cargar en cualquier etapa operativa, sin modificar etapas, pagos ni caja. Los entregados archivados admiten carga y corrección para los roles con acceso actual; no se amplía el acceso de Empleado al Archivo. Anulados y purgados rechazan toda carga o corrección.
-- Las incidencias y sus revisiones se conservan vinculadas al tombstone del pedido tras la purga, sin copiar datos del cliente. No se agrega una pantalla de métricas en esta entrega. En futuras métricas cada incidencia cuenta una vez en el total y una vez por cada motivo elegido; la fecha es la de carga y las correcciones no crean incidencias adicionales.
+- Las incidencias y sus revisiones se conservan vinculadas al tombstone del pedido tras la purga, sin copiar datos del cliente. En métricas cada incidencia cuenta una vez en el total por fecha de carga. El contador de devoluciones y su desglose incluyen solo incidencias `complaint_with_return`, contando una vez cada motivo elegido en ellas; las incidencias internas y los reclamos sin devolución no aportan motivos a ese desglose. Las correcciones no crean incidencias adicionales y no se registran unidades devueltas.
 - La RPC `save_order_incident` usa el actor autenticado, idempotencia por solicitud y revisión esperada. El bloqueo del pedido serializa las escrituras con anulación/purga; una corrección desactualizada se rechaza sin perder la revisión vigente. Tablas y revisiones no admiten escrituras directas de usuarios autenticados.
 
 ## Pago y caja
@@ -171,6 +172,7 @@ M12 agrega una única entrada de servidor para la reversión: `reverse_order_pay
 - Admin/Atención cargan el saldo inicial y pueden editarlo mientras la caja está abierta.
 - La edición de saldo inicial requiere auditoría de valor anterior, valor nuevo, actor y timestamp; incluir motivo cuando corresponda.
 - Saldo final = saldo inicial + ingresos válidos − egresos válidos.
+- Métricas de caja usan movimientos efectivos por fecha de movimiento, excluyen anulaciones y saldos de apertura; el neto de ingresos y egresos no representa ganancia.
 - Admin/Atención pueden crear ingresos y egresos manuales.
 - Egresos iniciales: materiales/insumos, sueldos, servicios, mantenimiento/equipos y otros. Admin puede sumar categorías.
 - Movimientos manuales se editan solo con caja abierta.
