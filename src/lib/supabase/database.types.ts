@@ -1272,6 +1272,15 @@ isOneToOne: false
               "cash_day_id": string,"categories": Json,"closed_at": string,"closed_by": string,"closed_by_display_name": string,"closing_balance": number,"closure_kind": string,"current_balance": string,"movements": Json,"opening_balance": number,"opening_updated_at": string,"operational_date": string
             }[]
                            },
+"get_metrics_dashboard":
+{ Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to": string,"p_upper_pattern_id": string }; Returns: Json
+                           },
+"get_metrics_sales":
+{ Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to": string,"p_upper_pattern_id": string }; Returns: Json
+                           },
+"get_metrics_summary":
+{ Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to": string,"p_upper_pattern_id": string }; Returns: Json
+                           },
 "get_order_board":
 { Args: { "p_search"?: string }; Returns: {
               "current_stage_id": string,"customer_name": string,"id": string,"image_updated_at": string,"label": Database["public"]['Enums']["order_label"],"payment_confirmed_at": string,"product_name": string,"promised_delivery_date": string,"public_number": number,"quantity": number,"team_name": string,"total_amount": number,"updated_at": string
@@ -1347,6 +1356,12 @@ isOneToOne: false
       } },
 "m7_image_fingerprint":
 { Args: { "p_action": string,"p_expected_image_updated_at": string,"p_image_id": string,"p_object_path": string,"p_order_id": string }; Returns: string
+                           },
+"metrics_configuration_matches":
+{ Args: { "p_configuration": Json,"p_filter_id": string,"p_kind": string }; Returns: boolean
+                           },
+"metrics_sales_projection":
+{ Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to_exclusive": string,"p_upper_pattern_id": string }; Returns: Json
                            },
 "move_order":
 { Args: { "p_expected_updated_at": string,"p_from_stage_id": string,"p_idempotency_key": string,"p_order_id": string,"p_to_stage_id": string }; Returns: {
