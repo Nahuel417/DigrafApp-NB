@@ -15,7 +15,7 @@ import { formatArs } from "@/lib/money/decimal";
 
 import { getMetricsDashboardAction, getMetricsSalesAction, getMetricsSummaryAction } from "../actions";
 import { type MetricsDashboard, type MetricsOption, type MetricsProduct, type MetricsSales, type MetricsSummary, metricsProductTypes } from "../contract";
-import { normalizeMetricsFilters, resolveMetricsDateRange, type MetricsFilters, type MetricsPeriod } from "../filters";
+import { normalizeMetricsFilters, resolveMetricsDateRange, type MetricsPeriod } from "../filters";
 import { useMetricsCache } from "./metrics-cache-provider";
 
 const MetricsCashChart = dynamic(() => import("./metrics-charts").then((module) => module.MetricsCashChart));
@@ -89,6 +89,15 @@ function productLabel(product: MetricsProduct) {
   return productKindLabels[product.kind];
 }
 
+function summaryFromDashboard(dashboard: MetricsDashboard, sales: MetricsSales): MetricsSummary {
+  return {
+    generated_at: dashboard.generated_at,
+    period: dashboard.period,
+    cash: { income: dashboard.cash.income, expense: dashboard.cash.expense, net: dashboard.cash.net },
+    loose_garments: sales.loose_garments,
+  };
+}
+
 function MetricsLoading() {
   return (
     <section aria-busy="true" aria-label="Cargando métricas" className="flex flex-col gap-5" role="status">
@@ -150,33 +159,22 @@ export function MetricsDashboard() {
   const detailRequested = Boolean(scope && detailRequest?.scope === scope && detailRequest.filterKey === requestKey);
   const detailEnabled = Boolean(detailRequested || (cachedDashboard && (!hasCatalogFilters || cachedSales)));
 
-  const loadSummary = useCallback(async (refresh = false) => {
+  const loadSummary = useCallback((refresh = false) => {
     if (!ready || !scope || !normalizedFilters || !requestKey || !periodKey) return;
+    const cachedDashboard = cache.peek(periodKey);
+    if (!refresh && cachedDashboard && (hasCatalogFilters ? salesCache.peek(requestKey) : cachedDashboard.sales)) return;
+
     const version = ++summaryRequestVersion.current;
-    setSummaryLoading(true);
-    setSummaryError(null);
-
-    try {
-      const dashboard = cache.peek(periodKey);
-      const sales = hasCatalogFilters ? salesCache.peek(requestKey) : dashboard?.sales;
-      if (!refresh && dashboard && sales) {
-        const summary: MetricsSummary = {
-          generated_at: dashboard.generated_at,
-          period: dashboard.period,
-          cash: { income: dashboard.cash.income, expense: dashboard.cash.expense, net: dashboard.cash.net },
-          loose_garments: sales.loose_garments,
-        };
+    summaryCache.get(requestKey, () => getMetricsSummaryAction(normalizedFilters), { refresh }).then(
+      (summary) => {
         if (summaryRequestVersion.current === version) setSummarySnapshot({ scope, filterKey: requestKey, summary });
-        return;
-      }
-
-      const summary = await summaryCache.get(requestKey, () => getMetricsSummaryAction(normalizedFilters), { refresh });
-      if (summaryRequestVersion.current === version) setSummarySnapshot({ scope, filterKey: requestKey, summary });
-    } catch {
-      if (summaryRequestVersion.current === version) setSummaryError({ scope, filterKey: requestKey });
-    } finally {
+      },
+      () => {
+        if (summaryRequestVersion.current === version) setSummaryError({ scope, filterKey: requestKey });
+      },
+    ).finally(() => {
       if (summaryRequestVersion.current === version) setSummaryLoading(false);
-    }
+    });
   }, [cache, hasCatalogFilters, normalizedFilters, periodKey, ready, requestKey, salesCache, scope, summaryCache]);
 
   const loadDetails = useCallback(async (refresh = false) => {
@@ -204,42 +202,41 @@ export function MetricsDashboard() {
   }, [ready, filters, initializeFilters]);
 
   useEffect(() => {
-    if (!ready || !filters) {
-      summaryRequestVersion.current += 1;
-      detailRequestVersion.current += 1;
-      setSummarySnapshot(null);
-      setDetailSnapshot(null);
-      setSummaryError(null);
-      setDetailError(null);
-      setSummaryLoading(false);
-      setDetailLoading(false);
-      return;
-    }
     if (requestKey) void loadSummary();
-  }, [filters, loadSummary, ready, requestKey]);
+  }, [loadSummary, requestKey]);
 
-  useEffect(() => {
-    if (detailEnabled && requestKey) void loadDetails();
-  }, [detailEnabled, loadDetails, requestKey]);
-
-  const summary = summarySnapshot?.scope === scope && summarySnapshot.filterKey === requestKey
-    ? summarySnapshot.summary
-    : requestKey ? summaryCache.peek(requestKey) : undefined;
   const dashboard = detailSnapshot?.scope === scope && detailSnapshot.periodKey === periodKey && detailSnapshot.filterKey === requestKey
     ? detailSnapshot.dashboard
     : cachedDashboard;
   const sales = detailSnapshot?.scope === scope && detailSnapshot.periodKey === periodKey && detailSnapshot.filterKey === requestKey
     ? detailSnapshot.sales
     : hasCatalogFilters ? cachedSales : dashboard?.sales;
+  const cachedSummary = dashboard && sales ? summaryFromDashboard(dashboard, sales) : undefined;
+  const summary = summarySnapshot?.scope === scope && summarySnapshot.filterKey === requestKey
+    ? summarySnapshot.summary
+    : requestKey ? summaryCache.peek(requestKey) ?? cachedSummary : undefined;
   const metrics = dashboard && sales ? { ...dashboard, sales } : null;
   const productOptions = dashboard?.filters.products ?? [];
   const currentSummaryError = summaryError?.scope === scope && summaryError.filterKey === requestKey;
   const currentDetailError = detailError?.scope === scope && detailError.periodKey === periodKey && detailError.filterKey === requestKey;
-  const loading = summaryLoading || detailLoading;
+  const loading = summaryLoading || detailLoading || (!summary && !currentSummaryError);
+
+  function requestSummary(refresh: boolean) {
+    setSummaryError(null);
+    setSummaryLoading(true);
+    void loadSummary(refresh);
+  }
 
   function refreshMetrics() {
-    if (detailEnabled) void Promise.all([loadSummary(true), loadDetails(true)]);
-    else void loadSummary(true);
+    if (!ready || !filters) return;
+    requestSummary(true);
+    if (detailEnabled) void loadDetails(true);
+  }
+
+  function requestDetails() {
+    if (!scope || !requestKey) return;
+    setDetailRequest({ scope, filterKey: requestKey });
+    void loadDetails();
   }
 
   function updateCatalogFilter(key: CatalogFilterKey, value: string) {
@@ -364,7 +361,7 @@ export function MetricsDashboard() {
         <Alert className="mt-5" role="alert" variant="destructive">
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>No se pudieron cargar las métricas. Intentá nuevamente.</span>
-            <Button className="group" disabled={summaryLoading} onClick={() => void loadSummary(true)} size="sm" type="button" variant="outline">
+            <Button className="group" disabled={summaryLoading} onClick={() => requestSummary(true)} size="sm" type="button" variant="outline">
               <RefreshCw aria-hidden="true" className="transition-transform duration-200 group-hover:rotate-180 group-focus-visible:rotate-180 group-active:scale-90 motion-reduce:transition-none" data-icon="inline-start" />
               Reintentar
             </Button>
@@ -397,7 +394,7 @@ export function MetricsDashboard() {
 
           {!detailEnabled ? (
             <div className="mt-5">
-              <Button aria-controls="metrics-detail" aria-expanded="false" className="group" disabled={summaryLoading} onClick={() => scope && requestKey && setDetailRequest({ scope, filterKey: requestKey })} type="button" variant="outline">
+              <Button aria-controls="metrics-detail" aria-expanded="false" className="group" disabled={summaryLoading} onClick={requestDetails} type="button" variant="outline">
                 <ChartNoAxesCombined aria-hidden="true" className="transition-transform duration-150 group-hover:scale-110 group-focus-visible:scale-110 group-active:scale-95 motion-reduce:transform-none" data-icon="inline-start" />
                 Ver detalle
               </Button>

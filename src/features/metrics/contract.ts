@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { normalizeAggregateMoney } from "../../lib/money/decimal";
 
-const productTypeSchema = z.enum(["individual", "set", "premium_set", "flag", "bag", "shield"]);
+export type MetricsProductTypeValue = "individual" | "set" | "premium_set" | "flag" | "bag" | "shield";
 
 const optionSchema = z.object({ id: z.uuid(), name: z.string() });
 const cashDailySeriesSchema = z.object({ date: z.iso.date(), income: z.string(), expense: z.string() });
@@ -59,7 +59,6 @@ const metricsDashboardSchema = z.object({
   }),
 });
 
-export type MetricsProductTypeValue = z.infer<typeof productTypeSchema>;
 export type MetricsProduct = z.infer<typeof productSchema>;
 export type MetricsOption = z.infer<typeof optionSchema>;
 export type MetricsCashDaily = z.infer<typeof cashDailySeriesSchema>;

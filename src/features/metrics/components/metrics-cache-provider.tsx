@@ -34,9 +34,9 @@ function sessionScope(session: { access_token: string; user: { id: string } } | 
 }
 
 export function MetricsCacheProvider({ profileId, children }: { profileId: string; children: React.ReactNode }) {
-  const cacheRef = useRef(new MetricsRequestCache<MetricsDashboard>(12));
-  const salesCacheRef = useRef(new MetricsRequestCache<MetricsSales>(12));
-  const summaryCacheRef = useRef(new MetricsRequestCache<MetricsSummary>(12));
+  const [cache] = useState(() => new MetricsRequestCache<MetricsDashboard>(12));
+  const [salesCache] = useState(() => new MetricsRequestCache<MetricsSales>(12));
+  const [summaryCache] = useState(() => new MetricsRequestCache<MetricsSummary>(12));
   const scopeRef = useRef<string | null | undefined>(undefined);
   const [ready, setReady] = useState(false);
   const [scope, setScope] = useState<string | null>(null);
@@ -50,9 +50,9 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
     const applySession = (session: { access_token: string; user: { id: string } } | null) => {
       const scope = sessionScope(session, profileId);
       if (scope !== scopeRef.current) {
-        cacheRef.current.setScope(scope);
-        salesCacheRef.current.setScope(scope);
-        summaryCacheRef.current.setScope(scope);
+        cache.setScope(scope);
+        salesCache.setScope(scope);
+        summaryCache.setScope(scope);
         scopeRef.current = scope;
         setScope(scope);
         setFilters(null);
@@ -76,7 +76,7 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [profileId]);
+  }, [cache, profileId, salesCache, summaryCache]);
 
   const initializeFilters = useCallback(() => {
     setFilters((current) => {
@@ -86,7 +86,10 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
     });
   }, []);
 
-  const value = useMemo(() => ({ cache: cacheRef.current, salesCache: salesCacheRef.current, summaryCache: summaryCacheRef.current, ready, scope, filters, period, setFilters, setPeriod, initializeFilters }), [ready, scope, filters, period, initializeFilters]);
+  const value = useMemo(
+    () => ({ cache, salesCache, summaryCache, ready, scope, filters, period, setFilters, setPeriod, initializeFilters }),
+    [cache, salesCache, summaryCache, ready, scope, filters, period, initializeFilters],
+  );
   return <MetricsCacheContext.Provider value={value}>{children}</MetricsCacheContext.Provider>;
 }
 

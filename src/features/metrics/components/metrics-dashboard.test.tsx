@@ -153,7 +153,6 @@ describe("MetricsDashboard", () => {
     expect(screen.getByText("Incidencias", { selector: "dt" }).nextElementSibling?.textContent).toBe("2");
     expect(screen.getByText("Devoluciones de productos", { selector: "dt" }).nextElementSibling?.textContent).toBe("1");
     const productChart = screen.getByRole("group", { name: "Unidades vendidas por producto" });
-    const setChart = screen.getByRole("group", { name: "Proporción de conjuntos vendidos" });
     expect(within(productChart).getByText("Remera")).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ventas diarias por categoría" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ingresos y egresos diarios" })).toBeTruthy();
