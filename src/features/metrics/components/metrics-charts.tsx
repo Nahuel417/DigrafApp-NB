@@ -32,8 +32,28 @@ const setsConfig: ChartConfig = {
 };
 
 const reasonsConfig: ChartConfig = {
-  count: { label: "Devoluciones", color: "var(--primary)" },
+  internal: { label: "Internas", color: "var(--primary)" },
+  without_return: { label: "Reclamo sin devolución", color: "var(--warning-foreground)" },
+  returns: { label: "Devolución", color: "var(--error)" },
 };
+
+const reasonDotClass = {
+  internal: "bg-primary",
+  without_return: "bg-warning-foreground",
+  returns: "bg-error",
+} as const;
+
+const incidentsConfig: ChartConfig = {
+  internal: { label: "Incidencia interna", color: "var(--primary)" },
+  without_return: { label: "Reclamo sin devolución", color: "var(--warning-foreground)" },
+  with_return: { label: "Devolución", color: "var(--error)" },
+};
+
+const incidentDotClass = {
+  internal: "bg-primary",
+  without_return: "bg-warning-foreground",
+  with_return: "bg-error",
+} as const;
 
 const fullDateFormatter = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -125,45 +145,126 @@ export function MetricsCashChart({ series }: { series: MetricsCashDaily[] }) {
   );
 }
 
-export function MetricsReasonChart({ reasons }: { reasons: Array<{ code: string; label: string; count: number }> }) {
-  const recordedReasons = reasons.filter((reason) => reason.count > 0).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es-AR"));
+type ReasonKind = "internal" | "without_return" | "returns";
+type ReasonBreakdown = { code: string; label: string; internal: number; without_return: number; returns: number };
+
+export function MetricsReasonChart({ reasons, kinds }: {
+  reasons: ReasonBreakdown[];
+  kinds: ReasonKind[];
+}) {
+  const recordedReasons = reasons
+    .map((reason) => {
+      const total = reason.internal + reason.without_return + reason.returns;
+      const lastKind = [...kinds].reverse().find((kind) => reason[kind] > 0);
+      return {
+        ...reason,
+        total,
+        label_internal: lastKind === "internal" ? total : null,
+        label_without_return: lastKind === "without_return" ? total : null,
+        label_returns: lastKind === "returns" ? total : null,
+      };
+    })
+    .filter((reason) => reason.total > 0)
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label, "es-AR"));
   const chartHeight = Math.max(140, recordedReasons.length * 44 + 40);
-  const maxReasonCount = reasons.reduce((max, reason) => Math.max(max, reason.count), 0);
+  const maxReasonTotal = recordedReasons.reduce((max, reason) => Math.max(max, reason.total), 0);
+  // Leave room after the longest bar so the total label stays inside the chart.
+  const axisMax = Math.max(1, maxReasonTotal * 1.15);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {maxReasonCount > 0 ? (
-        <section aria-labelledby="metrics-return-reasons-chart-heading" className="min-w-0">
-          <h3 className="sr-only" id="metrics-return-reasons-chart-heading">Motivos de devolución</h3>
+      {recordedReasons.length > 0 ? (
+        <section aria-labelledby="metrics-reasons-chart-heading" className="min-w-0">
+          <h3 className="sr-only" id="metrics-reasons-chart-heading">Motivos por área</h3>
+          <ul aria-label="Tipos de incidencia en el gráfico" className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {kinds.map((kind) => (
+              <li className="flex items-center gap-1.5" key={kind}>
+                <span aria-hidden="true" className={`size-2 rounded-full ${reasonDotClass[kind]}`} />
+                {reasonsConfig[kind].label}
+              </li>
+            ))}
+          </ul>
           <ChartContainer
-            aria-labelledby="metrics-return-reasons-chart-heading"
+            aria-labelledby="metrics-reasons-chart-heading"
             className="aspect-auto min-w-0 w-full"
             config={reasonsConfig}
             initialDimension={{ width: 640, height: chartHeight }}
             role="group"
             style={{ height: chartHeight }}
           >
-            <BarChart accessibilityLayer data={recordedReasons} layout="vertical" margin={{ left: 0, right: 28, top: 4, bottom: 4 }}>
+            <BarChart accessibilityLayer data={recordedReasons} layout="vertical" margin={{ left: 0, right: 32, top: 4, bottom: 4 }}>
               <CartesianGrid horizontal={false} />
-              <XAxis allowDecimals={false} axisLine={false} tickFormatter={formatCount} tickLine={false} type="number" domain={[0, maxReasonCount]} />
+              <XAxis allowDecimals={false} domain={[0, axisMax]} hide type="number" />
               <YAxis axisLine={false} dataKey="label" interval={0} tickFormatter={formatProductTick} tickLine={false} type="category" width={150} />
-              <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${formatCount(Number(value))} devoluciones`} />} cursor={false} />
-              <Bar barSize={22} dataKey="count" fill="var(--color-count)" isAnimationActive={false} radius={[0, 4, 4, 0]}>
-                <LabelList dataKey="count" position="right" fill="var(--foreground)" fontSize={12} />
-              </Bar>
+              <ChartTooltip content={<ChartTooltipContent />} cursor={false} />
+              {kinds.map((kind) => (
+                <Bar barSize={22} dataKey={kind} fill={`var(--color-${kind})`} isAnimationActive={false} key={kind} stackId="reasons">
+                  <LabelList dataKey={`label_${kind}`} fill="var(--foreground)" fontSize={12} position="right" />
+                </Bar>
+              ))}
             </BarChart>
           </ChartContainer>
         </section>
-      ) : <MetricsChartEmpty message="No hay motivos de devolución en el período." />}
+      ) : <MetricsChartEmpty message="No hay motivos de incidencias en el período." />}
       <ul aria-label="Incidencias por motivo" className="sr-only">
-        {reasons.map((reason) => (
-          <li className="flex items-center justify-between gap-3 py-2.5 text-sm" key={reason.code}>
-            <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-primary" /><span>{reason.label}</span></span>
-            <span className="shrink-0 font-mono tabular-nums text-muted-foreground">{formatCount(reason.count)}</span>
+        {recordedReasons.map((reason) => (
+          <li key={reason.code}>
+            {reason.label}: {kinds.map((kind) => `${reason[kind]} ${String(reasonsConfig[kind].label).toLowerCase()}`).join(", ")}.
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+export function MetricsIncidentChart({ total, returns, internal, withoutReturn }: {
+  total: number;
+  returns: number;
+  internal: number;
+  withoutReturn: number;
+}) {
+  const incidentData = [
+    { type: "internal" as const, name: "Internas", quantity: internal },
+    { type: "without_return" as const, name: "Reclamo sin devolución", quantity: withoutReturn },
+    { type: "with_return" as const, name: "Devolución", quantity: returns },
+  ].filter((item) => item.quantity > 0);
+  const percentage = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1, style: "percent" });
+
+  return (
+    <section aria-labelledby="metrics-incident-chart-heading" className="min-w-0">
+      <h3 className="sr-only" id="metrics-incident-chart-heading">Composición de incidencias</h3>
+      {total > 0 && incidentData.length ? (
+        <>
+          <ChartContainer
+            aria-labelledby="metrics-incident-chart-heading"
+            className="aspect-auto min-h-[210px] min-w-0 w-full"
+            config={incidentsConfig}
+            initialDimension={{ width: 320, height: 210 }}
+            role="group"
+            style={{ height: 210 }}
+          >
+            <PieChart accessibilityLayer>
+              <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => `${String(incidentsConfig[String(name)]?.label ?? name)}: ${formatCount(Number(value))} (${percentage.format(Number(value) / total)})`} />} cursor={false} />
+              <Pie data={incidentData} dataKey="quantity" innerRadius={62} isAnimationActive={false} label={{ position: "inside", dataKey: "quantity", fill: "var(--card)", fontSize: 12, fontWeight: 600 }} nameKey="type" outerRadius={86} paddingAngle={3} stroke="var(--card)" strokeWidth={3}>
+                {incidentData.map((item) => <Cell fill={`var(--color-${item.type})`} key={item.type} />)}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+          <p className="sr-only">Total: <strong>{formatCount(total)}</strong> incidencias</p>
+          <ul aria-label="Incidencias por tipo" className="mt-4 flex flex-col gap-3 border-t border-border pt-4 text-xs">
+            {incidentData.map((item) => (
+              <li className="flex items-center justify-between gap-3" key={item.type}>
+                <span className="flex items-center gap-2">
+                  <span aria-hidden="true" className={`size-2 rounded-full ${incidentDotClass[item.type]}`} />
+                  {item.name}:
+                </span>
+                <span className="font-mono tabular-nums text-muted-foreground">{formatCount(item.quantity)} ({percentage.format(item.quantity / total)})</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : <MetricsChartEmpty message="No hay incidencias en el período." />}
+    </section>
   );
 }
 
