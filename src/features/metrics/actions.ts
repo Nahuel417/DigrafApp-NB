@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 import { canViewMetrics } from "./access";
-import { parseMetricsDashboard, parseMetricsSales, parseMetricsSummary } from "./contract";
+import { parseMetricsDashboard, parseMetricsSales, parseMetricsSummary, type MetricsDashboard } from "./contract";
 import { normalizeMetricsFilters } from "./filters";
 
 type GeneratedMetricsArgs = Database["public"]["Functions"]["get_metrics_dashboard"]["Args"];
@@ -108,4 +108,55 @@ export async function getMetricsSalesAction(input: unknown) {
   }
 
   return parseMetricsSales(data);
+}
+
+export async function getMetricsFilterOptionsAction(): Promise<MetricsDashboard["filters"]> {
+  const profile = await requireActiveProfile();
+  if (!canViewMetrics(profile.role)) throw new Error("No tenés permiso para consultar las métricas.");
+
+  const supabase = await createClient();
+  const [productsResult, itemsResult, optionsResult] = await Promise.all([
+    supabase.from("catalog_products").select("id, name, kind, garment_layer").eq("is_active", true).order("kind").order("name"),
+    supabase.from("catalog_items").select("id, name, kind").eq("is_active", true).order("kind").order("name"),
+    supabase.from("catalog_product_options")
+      .select("name, catalog_products!inner(is_active), catalog_product_option_values!inner(id, value, is_active)")
+      .eq("is_active", true)
+      .eq("catalog_products.is_active", true)
+      .eq("catalog_product_option_values.is_active", true),
+  ]);
+  if (productsResult.error || itemsResult.error || optionsResult.error) {
+    throw new Error("No se pudieron cargar los filtros de métricas. Intentá nuevamente.");
+  }
+
+  const items = {
+    fabric: [] as Array<{ id: string; name: string }>,
+    neckline: [] as Array<{ id: string; name: string }>,
+    upper_pattern: [] as Array<{ id: string; name: string }>,
+    lower_pattern: [] as Array<{ id: string; name: string }>,
+  };
+  for (const item of itemsResult.data) {
+    if (item.kind === "fabric" || item.kind === "neckline" || item.kind === "upper_pattern" || item.kind === "lower_pattern") {
+      items[item.kind].push({ id: item.id, name: item.name });
+    }
+  }
+
+  const optionKinds: Record<string, keyof typeof items | undefined> = {
+    fabric: "fabric", tela: "fabric", neckline: "neckline", cuello: "neckline",
+    "upper pattern": "upper_pattern", "molde superior": "upper_pattern",
+    "lower pattern": "lower_pattern", "molde inferior": "lower_pattern",
+  };
+  for (const option of optionsResult.data) {
+    const kind = optionKinds[option.name.trim().toLowerCase()];
+    if (!kind) continue;
+    for (const value of option.catalog_product_option_values) items[kind].push({ id: value.id, name: value.value });
+  }
+  for (const options of Object.values(items)) options.sort((a, b) => a.name.localeCompare(b.name, "es-AR") || a.id.localeCompare(b.id));
+
+  return {
+    products: productsResult.data,
+    fabrics: items.fabric,
+    necklines: items.neckline,
+    upper_patterns: items.upper_pattern,
+    lower_patterns: items.lower_pattern,
+  };
 }

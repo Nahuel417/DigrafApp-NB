@@ -8,13 +8,16 @@ import { MetricsDashboard } from "./metrics-dashboard";
 const mocks = vi.hoisted(() => ({
   getDashboard: vi.fn(),
   getSummary: vi.fn(),
-  cache: { get: vi.fn((_key: string, load: () => Promise<unknown>, _options?: { refresh?: boolean }) => load()), peek: vi.fn(() => undefined) },
-  salesCache: { get: vi.fn((_key: string, load: () => Promise<unknown>, _options?: { refresh?: boolean }) => load()), peek: vi.fn(() => undefined) },
-  summaryCache: { get: vi.fn((_key: string, load: () => Promise<unknown>, _options?: { refresh?: boolean }) => load()), peek: vi.fn(() => undefined) },
+  getFilterOptions: vi.fn(),
+  cache: { values: new Map<string, unknown>(), get: vi.fn(), peek: vi.fn() },
+  salesCache: { values: new Map<string, unknown>(), get: vi.fn(), peek: vi.fn() },
+  filterOptionsCache: { values: new Map<string, unknown>(), get: vi.fn(), peek: vi.fn() },
   getSales: vi.fn(),
   initializeFilters: vi.fn(),
   setFilters: vi.fn(),
   setPeriod: vi.fn(),
+  hasQueried: false,
+  markQueried: vi.fn(),
   ready: true,
   filters: null as null | {
     from: string;
@@ -28,14 +31,16 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../actions", () => ({ getMetricsDashboardAction: mocks.getDashboard, getMetricsSalesAction: mocks.getSales, getMetricsSummaryAction: mocks.getSummary }));
+vi.mock("../actions", () => ({ getMetricsDashboardAction: mocks.getDashboard, getMetricsFilterOptionsAction: mocks.getFilterOptions, getMetricsSalesAction: mocks.getSales, getMetricsSummaryAction: mocks.getSummary }));
 vi.mock("./metrics-cache-provider", () => ({
   useMetricsCache: () => ({
     cache: mocks.cache,
     salesCache: mocks.salesCache,
-    summaryCache: mocks.summaryCache,
+    filterOptionsCache: mocks.filterOptionsCache,
     ready: mocks.ready,
     scope: "profile:session",
+    hasQueried: mocks.hasQueried,
+    markQueried: () => { mocks.hasQueried = true; mocks.markQueried(); },
     filters: mocks.filters,
     period: "last7",
     setFilters: mocks.setFilters,
@@ -54,9 +59,14 @@ const metrics = {
     daily_series: [{ date: "2026-11-07", income: "12.34", expense: "3.21" }],
   },
   incidents: {
-    total: 2,
+    total: 4,
     returns: 1,
-    reasons: [{ code: "sewing", label: "Falla de costura", count: 1 }],
+    internal: 1,
+    without_return: 2,
+    reasons: [
+      { code: "sewing", label: "Falla de costura", internal: 1, without_return: 1, returns: 1 },
+      { code: "design", label: "Diseño", internal: 0, without_return: 1, returns: 0 },
+    ],
   },
   sales: {
     products: [{ id: "a0000000-0000-4000-8000-000000000001", name: "Remera", kind: "garment", garment_layer: "upper", quantity: 3 }],
@@ -93,18 +103,25 @@ const filters = {
 
 beforeEach(() => {
   mocks.ready = true;
+  mocks.hasQueried = false;
   mocks.filters = filters;
   mocks.getDashboard.mockClear();
   mocks.getSummary.mockClear();
+  mocks.getFilterOptions.mockReset().mockResolvedValue(metrics.filters);
   mocks.getSales.mockClear();
   mocks.getDashboard.mockResolvedValue(metrics);
   mocks.getSummary.mockResolvedValue(summary);
-  mocks.cache.get.mockClear();
-  mocks.salesCache.get.mockClear();
-  mocks.summaryCache.get.mockClear();
-  mocks.summaryCache.peek.mockReturnValue(undefined);
-  mocks.cache.peek.mockReturnValue(undefined);
-  mocks.salesCache.peek.mockReturnValue(undefined);
+  for (const cache of [mocks.cache, mocks.salesCache, mocks.filterOptionsCache]) {
+    cache.values.clear();
+    cache.get.mockReset().mockImplementation(async (key: string, load: () => Promise<unknown>, options?: { refresh?: boolean }) => {
+      if (!options?.refresh && cache.values.has(key)) return cache.values.get(key);
+      const value = await load();
+      cache.values.set(key, value);
+      return value;
+    });
+    cache.peek.mockReset().mockImplementation((key: string) => cache.values.get(key));
+  }
+  mocks.markQueried.mockClear();
   mocks.initializeFilters.mockClear();
   mocks.setFilters.mockClear();
   mocks.setPeriod.mockClear();
@@ -113,99 +130,103 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("MetricsDashboard", () => {
-  it("loads only the summary first and fetches detail only after the user requests it", async () => {
+  it("shows ranked attribute quantities and separate product type units", async () => {
+    mocks.getDashboard.mockResolvedValueOnce({ ...metrics, sales: { ...metrics.sales, rankings: {
+      fabric: [{ id: "fabric", name: "Jersey", quantity: 14 }],
+      neckline: [{ id: "neckline", name: "Redondo", quantity: 9 }],
+      upper_pattern: [], lower_pattern: [],
+      product_type: [{ id: "set", name: "Conjunto común", quantity: 7 }],
+    } } });
     render(<MetricsDashboard />);
-
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
+    const fabrics = within(await screen.findByRole("region", { name: "Telas más vendidas" }));
+    expect(fabrics.getByText("Jersey")).toBeTruthy();
+    expect(fabrics.getByText("14")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Cuellos más vendidos" })).getByText("Redondo")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Ventas por tipo de producto" })).getByText("7")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Moldes superiores más vendidos" })).getByText("No hay ventas con este atributo registrado.")).toBeTruthy();
+  });
+  it("waits for Consultar and then renders the summary and complete metrics detail", async () => {
+    render(<MetricsDashboard />);
     expect(await screen.findByRole("heading", { name: "Métricas" })).toBeTruthy();
-    expect(await screen.findByText("$ 12,34", { selector: "dd" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Consultar" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Resumen del período" })).toBeNull();
+    expect(mocks.getDashboard).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Consultar" }));
+    expect(await screen.findByRole("region", { name: "Caja del período" })).toBeTruthy();
     const headlines = within(screen.getByRole("region", { name: "Resumen del período" }));
     expect(headlines.getByText("Ingresos", { selector: "dt" }).nextElementSibling?.textContent).toBe("$ 12,34");
     expect(headlines.getByText("Egresos", { selector: "dt" }).nextElementSibling?.textContent).toBe("$ 3,21");
     expect(headlines.getByText("Saldo neto", { selector: "dt" }).nextElementSibling?.textContent).toBe("$ 9,13");
     expect(headlines.getByText("Prendas sueltas", { selector: "dt" }).nextElementSibling?.textContent).toBe("3");
-    expect(headlines.getByText("Ingresos", { selector: "dt" }).className).toContain("text-success-foreground");
-    expect(headlines.getByText("Ingresos", { selector: "dt" }).nextElementSibling?.className).toContain("text-success-foreground");
-    expect(headlines.getByText("Egresos", { selector: "dt" }).className).toContain("text-error");
-    expect(headlines.getByText("Egresos", { selector: "dt" }).nextElementSibling?.className).toContain("text-error");
-    expect(headlines.queryByText("Conjuntos comunes", { selector: "dt" })).toBeNull();
-    expect(headlines.queryByText("Conjuntos premium", { selector: "dt" })).toBeNull();
-    expect(headlines.queryByText("Incidencias", { selector: "dt" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Caja del período" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Ranking de productos" })).toBeNull();
-    expect(screen.queryByText(/Los datos históricos pueden estar incompletos/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Ver detalle" })).toBeTruthy();
-    expect(mocks.getSummary).toHaveBeenCalledOnce();
-    expect(mocks.getSummary).toHaveBeenCalledWith(mocks.filters);
-    expect(mocks.getDashboard).not.toHaveBeenCalled();
-    expect(mocks.getSales).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
-    expect(await screen.findByText("Consultá el detalle para filtrar por catálogo.")).toBeTruthy();
-    expect((screen.getByRole("combobox", { name: "Producto o prenda" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("combobox", { name: "Tipo de producto" }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Ver detalle" }));
-    expect(await screen.findByRole("region", { name: "Caja del período" })).toBeTruthy();
-    const setCounts = within(await screen.findByRole("list", { name: "Conjuntos vendidos por tipo" })).getAllByRole("listitem");
-    expect(setCounts[0]?.textContent?.replace(/\s/g, "")).toContain("Comunes:2");
-    expect(setCounts[1]?.textContent?.replace(/\s/g, "")).toContain("Premium:1");
-    expect(screen.getByText("Incidencias", { selector: "dt" }).nextElementSibling?.textContent).toBe("2");
-    expect(screen.getByText("Devoluciones de productos", { selector: "dt" }).nextElementSibling?.textContent).toBe("1");
-    const productChart = screen.getByRole("group", { name: "Unidades vendidas por producto" });
-    expect(within(productChart).getByText("Remera")).toBeTruthy();
-    const productsQuery = screen.getByRole("region", { name: "Consulta de productos" });
-    expect(within(screen.getByRole("region", { name: "Productos vendidos" })).queryByRole("table", { name: "Ranking de productos vendidos", hidden: true })).toBeNull();
-    expect(within(productsQuery).getByText("Consultar productos (1)")).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Ventas diarias por categoría" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Ingresos y egresos diarios" })).toBeTruthy();
-    expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText("Falla de costura")).toBeTruthy();
-    expect(screen.getByText(/Solo se incluyen productos activos/)).toBeTruthy();
-    expect(mocks.getDashboard).toHaveBeenCalledTimes(1);
+    const incidents = within(screen.getByRole("region", { name: "Incidencias" }));
+    expect(await incidents.findByText("Reclamo sin devolución:")).toBeTruthy();
+    const incidentReasons = within(screen.getByRole("region", { name: "Motivos de incidencias" }));
+    expect(incidentReasons.getByText("Todas las incidencias", { selector: "dt" })).toBeTruthy();
+    expect(incidentReasons.getByText("4", { selector: "dd" })).toBeTruthy();
+    expect(await screen.findByRole("group", { name: "Ventas diarias por categoría" })).toBeTruthy();
+    expect(await screen.findByRole("group", { name: "Ingresos y egresos diarios" })).toBeTruthy();
+    expect(mocks.getDashboard).toHaveBeenCalledOnce();
     expect(mocks.getDashboard).toHaveBeenCalledWith({ ...mocks.filters, productId: null, fabricId: null, necklineId: null, upperPatternId: null, lowerPatternId: null, productType: null });
-
-    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
-
-    await waitFor(() => expect(mocks.getDashboard).toHaveBeenCalledTimes(2));
-    expect(mocks.getSummary).toHaveBeenCalledTimes(2);
-    expect(mocks.cache.get.mock.calls.at(-1)?.[2]).toEqual({ refresh: true });
-    expect(mocks.summaryCache.get.mock.calls.at(-1)?.[2]).toEqual({ refresh: true });
+    expect(mocks.getSummary).not.toHaveBeenCalled();
+    expect(mocks.getSales).not.toHaveBeenCalled();
   });
 
-  it("toggles catalog filters without loading data and keeps closed fields out of the accessibility tree", async () => {
+  it("filters incident reasons by kind and updates the selected total", async () => {
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     render(<MetricsDashboard />);
-    await screen.findByRole("heading", { name: "Métricas" });
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
+    const panel = within(await screen.findByRole("region", { name: "Motivos de incidencias" }));
+    expect((await panel.findByRole("group", { name: "Motivos por área" })).textContent).toContain("Diseño");
 
-    const toggle = screen.getByRole("button", { name: "Filtros" });
+    fireEvent.keyDown(panel.getByRole("combobox", { name: "Tipo de incidencia" }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "Internas" }));
+
+    await waitFor(() => expect(panel.getByText("1", { selector: "dd" })).toBeTruthy());
+    const legend = within(panel.getByRole("list", { name: "Tipos de incidencia en el gráfico" }));
+    expect(legend.getByText("Internas")).toBeTruthy();
+    expect(legend.queryByText("Devolución")).toBeNull();
+    const reasonsChart = within(await panel.findByRole("group", { name: "Motivos por área" }));
+    expect(reasonsChart.getByText("Falla de costura")).toBeTruthy();
+    expect(reasonsChart.queryByText("Diseño")).toBeNull();
+  });
+
+  it("keeps the all-incident default and an empty reason state when there are no incidents", async () => {
+    mocks.getDashboard.mockResolvedValue({
+      ...metrics,
+      incidents: {
+        ...metrics.incidents,
+        total: 0,
+        returns: 0,
+        internal: 0,
+        without_return: 0,
+        reasons: metrics.incidents.reasons.map((reason) => ({ ...reason, internal: 0, without_return: 0, returns: 0 })),
+      },
+    });
+    render(<MetricsDashboard />);
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
+
+    const panel = within(await screen.findByRole("region", { name: "Motivos de incidencias" }));
+    expect(panel.getByText("Todas las incidencias", { selector: "dt" })).toBeTruthy();
+    expect(panel.getByRole("combobox", { name: "Tipo de incidencia" }).textContent).toContain("Todas las incidencias");
+    expect(await panel.findByText("No hay motivos de incidencias en el período.")).toBeTruthy();
+    expect(panel.queryByRole("group", { name: "Motivos por área" })).toBeNull();
+  });
+
+  it("loads catalog options once when filters open and keeps fields accessible", async () => {
+    render(<MetricsDashboard />);
+    const toggle = await screen.findByRole("button", { name: "Filtros" });
     const catalogPanel = document.getElementById("metrics-catalog-filters");
-    const productFilter = screen.getByLabelText("Producto o prenda");
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(catalogPanel?.getAttribute("aria-hidden")).toBe("true");
-    expect(catalogPanel?.hasAttribute("inert")).toBe(true);
-    expect(productFilter.closest("#metrics-catalog-filters")).toBe(catalogPanel);
-    const clearButton = screen.getByRole("button", { name: "Limpiar filtros" });
-    expect((clearButton as HTMLButtonElement).disabled).toBe(true);
-    expect(clearButton.getAttribute("title")).toBe("Limpiar filtros");
-    const dashboardCalls = mocks.getDashboard.mock.calls.length;
-    const summaryCalls = mocks.getSummary.mock.calls.length;
-    const salesCalls = mocks.getSales.mock.calls.length;
-
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByLabelText("Producto o prenda")).toBeTruthy();
-    for (const label of ["Tela", "Cuello", "Molde superior", "Molde inferior", "Tipo de producto"]) {
-      expect(screen.getByLabelText(label)).toBeTruthy();
-    }
-    expect(catalogPanel?.getAttribute("aria-hidden")).toBe("false");
-    expect(catalogPanel?.hasAttribute("inert")).toBe(false);
+    expect((await screen.findByRole("combobox", { name: "Producto o prenda" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("combobox", { name: "Tipo de producto" })).toBeTruthy();
     fireEvent.click(toggle);
-
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(catalogPanel?.getAttribute("aria-hidden")).toBe("true");
-    expect(catalogPanel?.hasAttribute("inert")).toBe(true);
-    expect(mocks.getDashboard).toHaveBeenCalledTimes(dashboardCalls);
-    expect(mocks.getSummary).toHaveBeenCalledTimes(summaryCalls);
-    expect(mocks.getSales).toHaveBeenCalledTimes(salesCalls);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(mocks.getFilterOptions).toHaveBeenCalledOnce());
+    expect(mocks.getDashboard).not.toHaveBeenCalled();
+    expect(mocks.getSales).not.toHaveBeenCalled();
   });
 
   it("clears every catalog filter while preserving the selected date range", async () => {
@@ -221,89 +242,58 @@ describe("MetricsDashboard", () => {
       productType: "set" as const,
     };
     mocks.filters = activeFilters;
-    mocks.getSales.mockResolvedValue(metrics.sales);
     render(<MetricsDashboard />);
-    await screen.findByRole("heading", { name: "Métricas" });
-
-    const clearButton = screen.getByRole("button", { name: "Limpiar filtros" });
-    expect((clearButton as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(clearButton);
-
+    fireEvent.click(await screen.findByRole("button", { name: "Limpiar filtros" }));
     const updateFilters = mocks.setFilters.mock.calls.at(-1)?.[0];
     expect(typeof updateFilters).toBe("function");
     if (typeof updateFilters !== "function") throw new Error("Expected a catalog filter update.");
-    expect(updateFilters(activeFilters)).toEqual({
-      ...activeFilters,
-      productId: null,
-      fabricId: null,
-      necklineId: null,
-      upperPatternId: null,
-      lowerPatternId: null,
-      productType: null,
-    });
+    expect(updateFilters(activeFilters)).toEqual({ ...activeFilters, productId: null, fabricId: null, necklineId: null, upperPatternId: null, lowerPatternId: null, productType: null });
     expect(mocks.setPeriod).not.toHaveBeenCalled();
   });
 
-  it("shows a recoverable error when loading metrics fails", async () => {
-    mocks.getSummary.mockRejectedValueOnce(new Error("No se pudieron cargar las métricas. Intentá nuevamente."));
-
+  it("shows a recoverable error and retries a failed first consultation", async () => {
+    mocks.getDashboard.mockRejectedValueOnce(new Error("Request failed"));
     render(<MetricsDashboard />);
-
-    expect((await screen.findByRole("alert")).textContent).toContain("No se pudieron cargar las métricas. Intentá nuevamente.");
-    expect(screen.getByRole("button", { name: "Reintentar" })).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("No se pudieron cargar todos los datos de métricas.");
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("region", { name: "Caja del período" })).toBeTruthy();
+    expect(mocks.getDashboard).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the valid summary visible when deferred detail fails", async () => {
-    mocks.getDashboard.mockRejectedValueOnce(new Error("No se pudieron cargar las métricas. Intentá nuevamente."));
-
+  it("keeps period-wide data visible when a filtered sales request fails", async () => {
+    mocks.filters = { ...filters, productId: "a0000000-0000-4000-8000-000000000001" };
+    mocks.getSales.mockRejectedValue(new Error("Request failed"));
     render(<MetricsDashboard />);
-    expect(await screen.findByText("$ 12,34", { selector: "dd" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Ver detalle" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
 
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText("$ 12,34", { selector: "dd" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reintentar detalle" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Caja del período" }).getAttribute("aria-busy")).toBe("false");
+    expect(screen.getByRole("region", { name: "Ventas por categoría" }).getAttribute("aria-busy")).toBe("true");
+    expect(mocks.getSales).toHaveBeenCalledOnce();
+    expect(mocks.getSales).toHaveBeenCalledWith(mocks.filters);
   });
 
-  it("refreshes a summary without requesting detail unless detail was requested", async () => {
-    render(<MetricsDashboard />);
-    await screen.findByText("$ 12,34", { selector: "dd" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
-    await waitFor(() => expect(mocks.getSummary).toHaveBeenCalledTimes(2));
-    expect(mocks.getDashboard).not.toHaveBeenCalled();
-    expect(mocks.getSales).not.toHaveBeenCalled();
-  });
-
-  it("keeps the empty product state and avoids drawing a zero-total set donut", async () => {
+  it("keeps empty product and zero-set states after the first consultation", async () => {
     mocks.getDashboard.mockResolvedValueOnce({
       ...metrics,
       sales: { products: [], loose_garments: 0, sets: { common: 0, premium: 0 }, daily_series: [{ date: "2026-11-07", loose_garments: 0, sets: { common: 0, premium: 0 } }] },
     });
-    mocks.getDashboard.mockClear();
-
     render(<MetricsDashboard />);
-
-    await screen.findByText("$ 12,34", { selector: "dd" });
-    fireEvent.click(screen.getByRole("button", { name: "Ver detalle" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
     expect(await screen.findByText("No hay productos para los filtros elegidos.")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Unidades vendidas por producto" })).toBeNull();
     expect(screen.getByText("No hay conjuntos vendidos en el período.")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Proporción de conjuntos vendidos" })).toBeNull();
-    expect(mocks.getDashboard).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show a previous session result while new filters are loading", async () => {
-    let resolveNext!: (value: typeof summary) => void;
-    const view = render(<MetricsDashboard />);
-    expect(await screen.findByText("$ 12,34", { selector: "dd" })).toBeTruthy();
-
-    mocks.getSummary.mockImplementationOnce(() => new Promise((resolve) => { resolveNext = resolve; }));
-    mocks.filters = { ...filters, from: "2026-10-31" };
-    view.rerender(<MetricsDashboard />);
-
-    expect(screen.queryByText("$ 12,34", { selector: "dd" })).toBeNull();
-    resolveNext({ ...summary, period: { from: "2026-10-31", to: summary.period.to } });
-    await waitFor(() => expect(screen.getByText("$ 12,34", { selector: "dd" })).toBeTruthy());
+  it("forces the cached range to refresh when Actualizar is clicked", async () => {
+    render(<MetricsDashboard />);
+    fireEvent.click(await screen.findByRole("button", { name: "Consultar" }));
+    await screen.findByRole("region", { name: "Caja del período" });
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
+    await waitFor(() => expect(mocks.getDashboard).toHaveBeenCalledTimes(2));
+    expect(mocks.cache.get.mock.calls.at(-1)?.[2]).toEqual({ refresh: true });
   });
 });
