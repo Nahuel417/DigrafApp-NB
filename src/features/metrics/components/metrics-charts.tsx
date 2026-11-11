@@ -1,10 +1,12 @@
 "use client";
 
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { PackageOpen } from "lucide-react";
+import { useState } from "react";
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatArs } from "@/lib/money/decimal";
 
 import type { MetricsCashDaily, MetricsProduct, MetricsSalesDaily } from "../contract";
@@ -33,10 +35,19 @@ const reasonsConfig: ChartConfig = {
   count: { label: "Devoluciones", color: "var(--primary)" },
 };
 
-const dateFormatter = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+const fullDateFormatter = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-function formatDateTick(value: string) {
-  return dateFormatter.format(new Date(`${value}T00:00:00.000Z`));
+function formatDateTick(value: string, sameMonth: boolean) {
+  const day = value.slice(8, 10);
+  return sameMonth ? day : `${day}/${value.slice(5, 7)}`;
+}
+
+function formatDateTooltip(value: unknown) {
+  return typeof value === "string" ? fullDateFormatter.format(new Date(`${value}T00:00:00.000Z`)) : "";
+}
+
+function formatProductTick(value: string) {
+  return value.length > 23 ? `${value.slice(0, 22).trimEnd()}…` : value;
 }
 
 function formatCount(value: number) {
@@ -62,6 +73,7 @@ function formatCashTooltip(payload: unknown, dataKey: unknown) {
 }
 
 export function MetricsCashChart({ series }: { series: MetricsCashDaily[] }) {
+  const sameMonth = series.every((day) => day.date.slice(0, 7) === series[0]?.date.slice(0, 7));
   const data = series.map((day) => ({
     ...day,
     income_coordinate: Number(day.income),
@@ -69,9 +81,12 @@ export function MetricsCashChart({ series }: { series: MetricsCashDaily[] }) {
   }));
 
   return (
-    <section aria-labelledby="metrics-cash-chart-heading" className="mt-5 min-w-0 border-t border-border/60 pt-5">
-      <h3 className="mb-2 text-sm font-medium" id="metrics-cash-chart-heading">Ingresos y egresos diarios</h3>
-      <p className="mb-2 text-xs text-muted-foreground">Importes en ARS; el saldo neto no representa la ganancia.</p>
+    <section aria-labelledby="metrics-cash-chart-heading" className="min-w-0">
+      <h3 className="sr-only" id="metrics-cash-chart-heading">Ingresos y egresos diarios</h3>
+      <ul aria-label="Series de caja" className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <li className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-primary" />Ingresos</li>
+        <li className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-warning-foreground" />Egresos</li>
+      </ul>
       {data.length ? (
         <>
           <ChartContainer
@@ -84,20 +99,16 @@ export function MetricsCashChart({ series }: { series: MetricsCashDaily[] }) {
           >
             <AreaChart accessibilityLayer data={data} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
               <CartesianGrid vertical={false} />
-              <XAxis axisLine={false} dataKey="date" tickFormatter={formatDateTick} tickLine={false} />
-              <YAxis axisLine={false} tickFormatter={(value: number) => value.toLocaleString("es-AR", { maximumFractionDigits: 0 })} tickLine={false} width={72} />
+              <XAxis axisLine={false} dataKey="date" interval="preserveStartEnd" minTickGap={28} tickFormatter={(value: string) => formatDateTick(value, sameMonth)} tickLine={false} tickMargin={12} />
+              <YAxis axisLine={false} tickFormatter={(value: number) => value.toLocaleString("es-AR", { notation: "compact", maximumFractionDigits: 1 })} tickLine={false} width={52} />
               <ChartTooltip
-                content={<ChartTooltipContent formatter={(_value, _name, item) => formatCashTooltip(item.payload, item.dataKey)} />}
+                content={<ChartTooltipContent labelFormatter={formatDateTooltip} formatter={(_value, _name, item) => formatCashTooltip(item.payload, item.dataKey)} />}
                 cursor={false}
               />
               <Area dataKey="income_coordinate" fill="var(--color-income_coordinate)" fillOpacity={0.14} isAnimationActive={false} stroke="var(--color-income_coordinate)" strokeWidth={2} type="monotone" />
               <Area dataKey="expense_coordinate" fill="var(--color-expense_coordinate)" fillOpacity={0.14} isAnimationActive={false} stroke="var(--color-expense_coordinate)" strokeWidth={2} type="monotone" />
             </AreaChart>
           </ChartContainer>
-          <ul aria-label="Series de caja" className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <li className="flex items-center gap-2"><span aria-hidden="true" className="size-2 rounded-full bg-primary" />Ingresos</li>
-            <li className="flex items-center gap-2"><span aria-hidden="true" className="size-2 rounded-full bg-warning-foreground" />Egresos</li>
-          </ul>
           <Table aria-label="Detalle diario de ingresos y egresos" className="sr-only">
             <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Ingresos</TableHead><TableHead>Egresos</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -115,6 +126,8 @@ export function MetricsCashChart({ series }: { series: MetricsCashDaily[] }) {
 }
 
 export function MetricsReasonChart({ reasons }: { reasons: Array<{ code: string; label: string; count: number }> }) {
+  const recordedReasons = reasons.filter((reason) => reason.count > 0).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es-AR"));
+  const chartHeight = Math.max(140, recordedReasons.length * 44 + 40);
   const maxReasonCount = reasons.reduce((max, reason) => Math.max(max, reason.count), 0);
 
   return (
@@ -126,16 +139,18 @@ export function MetricsReasonChart({ reasons }: { reasons: Array<{ code: string;
             aria-labelledby="metrics-return-reasons-chart-heading"
             className="aspect-auto min-w-0 w-full"
             config={reasonsConfig}
-            initialDimension={{ width: 320, height: Math.max(200, reasons.length * 36 + 48) }}
+            initialDimension={{ width: 640, height: chartHeight }}
             role="group"
-            style={{ height: Math.max(200, reasons.length * 36 + 48) }}
+            style={{ height: chartHeight }}
           >
-            <BarChart accessibilityLayer data={reasons} layout="vertical" margin={{ left: 4, right: 16, top: 8, bottom: 24 }}>
+            <BarChart accessibilityLayer data={recordedReasons} layout="vertical" margin={{ left: 0, right: 28, top: 4, bottom: 4 }}>
               <CartesianGrid horizontal={false} />
-              <XAxis allowDecimals={false} axisLine={false} dataKey="count" domain={[0, maxReasonCount || 1]} label={{ value: "Devoluciones", position: "insideBottom", offset: -16 }} tickFormatter={formatCount} tickLine={false} type="number" />
-              <YAxis axisLine={false} dataKey="label" interval={0} tickLine={false} type="category" width={140} />
+              <XAxis allowDecimals={false} axisLine={false} tickFormatter={formatCount} tickLine={false} type="number" domain={[0, maxReasonCount]} />
+              <YAxis axisLine={false} dataKey="label" interval={0} tickFormatter={formatProductTick} tickLine={false} type="category" width={150} />
               <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${formatCount(Number(value))} devoluciones`} />} cursor={false} />
-              <Bar barSize={18} dataKey="count" fill="var(--color-count)" isAnimationActive={false} radius={[0, 3, 3, 0]} />
+              <Bar barSize={22} dataKey="count" fill="var(--color-count)" isAnimationActive={false} radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="count" position="right" fill="var(--foreground)" fontSize={12} />
+              </Bar>
             </BarChart>
           </ChartContainer>
         </section>
@@ -153,6 +168,7 @@ export function MetricsReasonChart({ reasons }: { reasons: Array<{ code: string;
 }
 
 export function MetricsSalesChart({ dailySeries }: { dailySeries: MetricsSalesDaily[] }) {
+  const sameMonth = dailySeries.every((day) => day.date.slice(0, 7) === dailySeries[0]?.date.slice(0, 7));
   const salesData = dailySeries.map((day) => ({
     ...day,
     common_sets: day.sets.common,
@@ -161,7 +177,12 @@ export function MetricsSalesChart({ dailySeries }: { dailySeries: MetricsSalesDa
 
   return (
     <section aria-labelledby="metrics-daily-sales-chart-heading" className="min-w-0">
-      <h3 className="mb-2 text-sm font-medium" id="metrics-daily-sales-chart-heading">Ventas diarias por categoría</h3>
+      <h3 className="sr-only" id="metrics-daily-sales-chart-heading">Ventas diarias por categoría</h3>
+      <ul aria-label="Categorías de ventas" className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <li className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-primary" />Sueltas</li>
+        <li className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-success-foreground" />Comunes</li>
+        <li className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-warning-foreground" />Premium</li>
+      </ul>
       {salesData.length ? (
         <>
           <ChartContainer
@@ -174,19 +195,19 @@ export function MetricsSalesChart({ dailySeries }: { dailySeries: MetricsSalesDa
           >
             <LineChart accessibilityLayer data={salesData} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
               <CartesianGrid vertical={false} />
-              <XAxis axisLine={false} dataKey="date" tickFormatter={formatDateTick} tickLine={false} />
+              <XAxis axisLine={false} dataKey="date" interval="preserveStartEnd" minTickGap={28} tickFormatter={(value: string) => formatDateTick(value, sameMonth)} tickLine={false} tickMargin={12} />
               <YAxis allowDecimals={false} axisLine={false} tickFormatter={formatCount} tickLine={false} width={52} />
-              <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${formatCount(Number(value))} unidades`} />} cursor={false} />
+              <ChartTooltip content={<ChartTooltipContent labelFormatter={formatDateTooltip} formatter={(value) => `${formatCount(Number(value))} unidades`} />} cursor={false} />
               <Line dataKey="loose_garments" dot={false} isAnimationActive={false} stroke="var(--color-loose_garments)" strokeWidth={2} type="monotone" />
               <Line dataKey="common_sets" dot={false} isAnimationActive={false} stroke="var(--color-common_sets)" strokeWidth={2} type="monotone" />
               <Line dataKey="premium_sets" dot={false} isAnimationActive={false} stroke="var(--color-premium_sets)" strokeWidth={2} type="monotone" />
             </LineChart>
           </ChartContainer>
-          <ul aria-label="Categorías de ventas" className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <li className="flex items-center gap-2"><span aria-hidden="true" className="size-2 rounded-full bg-primary" />Prendas sueltas</li>
-            <li className="flex items-center gap-2"><span aria-hidden="true" className="size-2 rounded-full bg-success-foreground" />Conjuntos comunes</li>
-            <li className="flex items-center gap-2"><span aria-hidden="true" className="size-2 rounded-full bg-warning-foreground" />Conjuntos premium</li>
-          </ul>
+          <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4 text-center">
+            <div><dt className="text-[11px] text-muted-foreground">Prendas sueltas</dt><dd className="mt-1 font-mono text-lg tabular-nums">{formatCount(dailySeries.reduce((sum, day) => sum + day.loose_garments, 0))}</dd></div>
+            <div><dt className="text-[11px] text-muted-foreground">Conjuntos comunes</dt><dd className="mt-1 font-mono text-lg tabular-nums">{formatCount(dailySeries.reduce((sum, day) => sum + day.sets.common, 0))}</dd></div>
+            <div><dt className="text-[11px] text-muted-foreground">Conjuntos premium</dt><dd className="mt-1 font-mono text-lg tabular-nums">{formatCount(dailySeries.reduce((sum, day) => sum + day.sets.premium, 0))}</dd></div>
+          </dl>
           <Table aria-label="Detalle diario de ventas" className="sr-only">
             <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Prendas sueltas</TableHead><TableHead>Conjuntos comunes</TableHead><TableHead>Conjuntos premium</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -249,30 +270,48 @@ export function MetricsSetsChart({ sets }: { sets: { common: number; premium: nu
 }
 
 export function MetricsProductChart({ products }: { products: MetricsProduct[] }) {
-  const maxProductQuantity = products.reduce((max, product) => Math.max(max, product.quantity), 0);
+  const [order, setOrder] = useState("most");
+  const rankedProducts = [...products].filter((product) => order === "least" || product.quantity > 0)
+    .sort((a, b) => (order === "least" ? a.quantity - b.quantity : b.quantity - a.quantity) || a.name.localeCompare(b.name, "es-AR"))
+    .slice(0, 6);
+  const maxProductQuantity = rankedProducts.reduce((max, product) => Math.max(max, product.quantity), 0);
 
   if (!products.length) return null;
-  if (maxProductQuantity === 0) return <MetricsChartEmpty message="No hay unidades vendidas para estos productos en el período." />;
 
   return (
     <section aria-labelledby="metrics-product-chart-heading" className="min-w-0">
       <h3 className="sr-only" id="metrics-product-chart-heading">Unidades vendidas por producto</h3>
+      <div className="mb-4 flex justify-end">
+        <Select value={order} onValueChange={setOrder}>
+          <SelectTrigger aria-label="Orden del ranking" className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup><SelectItem value="most">Más vendidos</SelectItem><SelectItem value="least">Menos vendidos</SelectItem></SelectGroup></SelectContent>
+        </Select>
+      </div>
+      {rankedProducts.length ? <>
       <ChartContainer
         aria-labelledby="metrics-product-chart-heading"
         className="aspect-auto min-w-0 w-full"
         config={productConfig}
-        initialDimension={{ width: 320, height: Math.max(220, products.length * 36 + 48) }}
+        initialDimension={{ width: 320, height: 260 }}
         role="group"
-        style={{ height: Math.max(220, products.length * 36 + 48) }}
+        style={{ height: 260 }}
       >
-        <BarChart accessibilityLayer data={products} layout="vertical" margin={{ left: 4, right: 16, top: 8, bottom: 24 }}>
+        <BarChart accessibilityLayer data={rankedProducts} layout="vertical" margin={{ left: 0, right: 28, top: 4, bottom: 8 }}>
           <CartesianGrid horizontal={false} />
-          <XAxis allowDecimals={false} axisLine={false} dataKey="quantity" domain={[0, maxProductQuantity || 1]} label={{ value: "Unidades", position: "insideBottom", offset: -16 }} tickFormatter={formatCount} tickLine={false} type="number" />
-          <YAxis axisLine={false} dataKey="name" interval={0} tickLine={false} type="category" width={140} />
+          <XAxis allowDecimals={false} axisLine={false} dataKey="quantity" domain={[0, maxProductQuantity || 1]} tickFormatter={formatCount} tickLine={false} type="number" />
+          <YAxis axisLine={false} dataKey="name" interval={0} tickFormatter={formatProductTick} tickLine={false} type="category" width={128} />
           <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${formatCount(Number(value))} unidades`} />} cursor={false} />
-          <Bar barSize={18} dataKey="quantity" fill="var(--color-quantity)" isAnimationActive={false} radius={[0, 3, 3, 0]} />
+          <Bar barSize={18} dataKey="quantity" fill="var(--color-quantity)" isAnimationActive={false} radius={[0, 3, 3, 0]}>
+            <LabelList dataKey="quantity" position="right" fill="var(--foreground)" fontSize={11} />
+          </Bar>
         </BarChart>
       </ChartContainer>
+      <Table aria-label="Productos del ranking" className="sr-only">
+        <TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Unidades</TableHead></TableRow></TableHeader>
+        <TableBody>{rankedProducts.map((product) => <TableRow key={product.id}><TableCell>{product.name}</TableCell><TableCell>{formatCount(product.quantity)}</TableCell></TableRow>)}</TableBody>
+      </Table>
+      </> : <MetricsChartEmpty message="No hay unidades vendidas para estos productos en el período." />}
+      <p className="mt-4 flex justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>{rankedProducts.length} de {products.length} productos</span><span>Unidades</span></p>
     </section>
   );
 }

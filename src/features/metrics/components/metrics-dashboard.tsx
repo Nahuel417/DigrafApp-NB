@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, CalendarDays, ChartNoAxesCombined, ChevronDown, Filter, RefreshCw, RotateCcw, Shirt, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CalendarDays, ChartNoAxesCombined, ChevronDown, Filter, RefreshCw, RotateCcw, Shirt, Table2, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -425,23 +425,45 @@ export function MetricsDashboard() {
             </MetricsPanel>
           </div>
 
-          <div className="mt-5 grid min-w-0 items-start gap-5 lg:grid-cols-2 xl:grid-cols-[0.8fr_1.25fr_1fr]">
+          <div className="mt-5 grid min-w-0 items-start gap-5 lg:grid-cols-[0.8fr_1.2fr]">
             <MetricsPanel description="Comunes frente a premium" number="03" title="Conjuntos vendidos">
               <MetricsSetsChart sets={metrics.sales.sets} />
             </MetricsPanel>
 
-            <MetricsPanel description="Ranking por unidades pagadas" number="04" title="Ranking de productos">
+            <MetricsPanel description="Hasta 6 productos por unidades pagadas" number="04" title="Productos vendidos">
               <MetricsProductChart products={metrics.sales.products} />
+            </MetricsPanel>
+          </div>
+
+          <div className="mt-5">
+            <MetricsPanel description="Conteos del período y motivos registrados" number="05" title="Incidencias y devoluciones">
+              <dl className="mb-5 grid grid-cols-2 gap-3 border-b border-border pb-4">
+                <div><dt className="text-xs text-muted-foreground">Incidencias</dt><dd className="mt-1 font-mono text-2xl font-medium tabular-nums">{metrics.incidents.total.toLocaleString("es-AR")}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Devoluciones de productos</dt><dd className="mt-1 font-mono text-2xl font-medium tabular-nums">{metrics.incidents.returns.toLocaleString("es-AR")}</dd></div>
+              </dl>
+              <p className="mb-3 text-xs text-muted-foreground">Devoluciones por motivo</p>
+              <MetricsReasonChart reasons={metrics.incidents.reasons} />
+            </MetricsPanel>
+          </div>
+
+          <section aria-labelledby="metrics-products-query-heading" className="mt-7 min-w-0 rounded-xl border border-border bg-card p-5 shadow-sm">
+            <header className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Table2 aria-hidden="true" className="size-5" /></span>
+              <div>
+                <h2 className="text-lg font-semibold" id="metrics-products-query-heading">Consulta de productos</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Detalle completo para el período y los filtros seleccionados.</p>
+              </div>
+            </header>
               {metrics.sales.products.length ? (
                 <details className="group mt-4 border-t border-border pt-3 [interpolate-size:allow-keywords] [&::details-content]:h-0 [&::details-content]:overflow-clip [&::details-content]:opacity-0 [&::details-content]:[transition:height_200ms_ease,opacity_200ms_ease,content-visibility_200ms_allow-discrete] [&[open]::details-content]:h-auto [&[open]::details-content]:opacity-100 motion-reduce:[&::details-content]:transition-none">
-                  <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-                    <span>{metrics.sales.products.length.toLocaleString("es-AR")} productos · Ver tabla</span>
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+                    <span>Consultar productos ({metrics.sales.products.length.toLocaleString("es-AR")})</span>
                     <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
                   </summary>
                   <p className="my-3 text-xs leading-relaxed text-muted-foreground">Solo se incluyen productos activos del catálogo; los desactivados no están disponibles para este ranking ni como filtros.</p>
-                  <div className="overflow-x-auto">
+                  <div className="max-h-96 overflow-auto rounded-lg border border-border">
                   <Table aria-label="Ranking de productos vendidos">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-muted">
                       <TableRow><TableHead>Producto</TableHead><TableHead className="hidden sm:table-cell">Tipo</TableHead><TableHead className="text-right">Unidades</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
@@ -457,16 +479,7 @@ export function MetricsDashboard() {
                   </div>
                 </details>
               ) : <p className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">No hay productos para los filtros elegidos.</p>}
-            </MetricsPanel>
-
-            <MetricsPanel description="Motivos de devolución registrados" number="05" title="Incidencias">
-              <MetricsReasonChart reasons={metrics.incidents.reasons} />
-              <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4">
-                <div><dt className="text-xs text-muted-foreground">Incidencias</dt><dd className="mt-1 font-mono text-sm font-medium tabular-nums">{metrics.incidents.total.toLocaleString("es-AR")}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Devoluciones de productos</dt><dd className="mt-1 font-mono text-sm font-medium tabular-nums">{metrics.incidents.returns.toLocaleString("es-AR")}</dd></div>
-              </dl>
-            </MetricsPanel>
-          </div>
+          </section>
           </div>
           ) : null}
         </>
