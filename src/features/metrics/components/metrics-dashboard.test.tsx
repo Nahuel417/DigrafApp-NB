@@ -154,6 +154,9 @@ describe("MetricsDashboard", () => {
     expect(screen.getByText("Devoluciones de productos", { selector: "dt" }).nextElementSibling?.textContent).toBe("1");
     const productChart = screen.getByRole("group", { name: "Unidades vendidas por producto" });
     expect(within(productChart).getByText("Remera")).toBeTruthy();
+    const productsQuery = screen.getByRole("region", { name: "Consulta de productos" });
+    expect(within(screen.getByRole("region", { name: "Productos vendidos" })).queryByRole("table", { name: "Ranking de productos vendidos", hidden: true })).toBeNull();
+    expect(within(productsQuery).getByText("Consultar productos (1)")).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ventas diarias por categoría" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ingresos y egresos diarios" })).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText("Falla de costura")).toBeTruthy();
