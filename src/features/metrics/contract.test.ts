@@ -14,7 +14,7 @@ const baseDashboard = {
       { date: "2026-11-07", income: "0", expense: "3.21" },
     ],
   },
-  incidents: { total: 0, returns: 0, reasons: [] },
+  incidents: { total: 0, returns: 0, internal: 0, without_return: 0, reasons: [] },
   sales: {
     products: [],
     loose_garments: 3,

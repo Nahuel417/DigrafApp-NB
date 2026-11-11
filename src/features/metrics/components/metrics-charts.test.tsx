@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MetricsCashChart, MetricsCharts, MetricsProductChart, MetricsReasonChart, MetricsSalesChart } from "./metrics-charts";
+import { MetricsCashChart, MetricsCharts, MetricsIncidentChart, MetricsProductChart, MetricsReasonChart, MetricsSalesChart } from "./metrics-charts";
 
 const dailySales = [
   { date: "2026-11-06", loose_garments: 3, sets: { common: 0, premium: 0 } },
@@ -15,7 +15,8 @@ const cashSeries = [
   { date: "2026-11-07", income: "0.00", expense: "300.25" },
 ];
 
-const reasons = [{ code: "sewing", label: "Falla de costura", count: 2 }];
+const reasonKinds = ["internal", "without_return", "returns"] as Array<"internal" | "without_return" | "returns">;
+const reasons = [{ code: "sewing", label: "Falla de costura", internal: 1, without_return: 0, returns: 1 }];
 
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
 afterEach(() => {
@@ -25,15 +26,68 @@ afterEach(() => {
 });
 
 describe("MetricsCharts", () => {
-  it("charts only recorded return reasons without removing zero-count text alternatives", () => {
-    render(<MetricsReasonChart reasons={[
-      { code: "sewing", label: "Falla de costura", count: 0 },
-      { code: "quality", label: "Problema en calidad", count: 1 },
+  it("stacks only recorded reasons and keeps the visible breakdown as text", () => {
+    render(<MetricsReasonChart kinds={reasonKinds} reasons={[
+      { code: "sewing", label: "Falla de costura", internal: 0, without_return: 0, returns: 0 },
+      { code: "quality", label: "Problema en calidad", internal: 1, without_return: 0, returns: 1 },
     ]} />);
-    const chart = within(screen.getByRole("group", { name: "Motivos de devolución" }));
+    const chartElement = screen.getByRole("group", { name: "Motivos por área" });
+    const chart = within(chartElement);
     expect(chart.getByText("Problema en calidad")).toBeTruthy();
     expect(chart.queryByText("Falla de costura")).toBeNull();
-    expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText("Falla de costura")).toBeTruthy();
+    const segmentWidths = [...chartElement.querySelectorAll(".recharts-rectangle")]
+      .filter((bar) => bar.getAttribute("fill")?.startsWith("var(--color-"))
+      .map((bar) => Number(bar.getAttribute("width")));
+    expect(segmentWidths).toHaveLength(2);
+    expect(segmentWidths.every((width) => width > 0)).toBe(true);
+    expect(chart.getByText("2")).toBeTruthy();
+    const totalLabel = chartElement.querySelector<SVGTextElement>(".recharts-label");
+    const firstSegment = chartElement.querySelector<SVGRectElement>('.recharts-rectangle[fill="var(--color-internal)"]');
+    expect(totalLabel).toBeTruthy();
+    expect(firstSegment).toBeTruthy();
+    const labelY = Number(totalLabel!.getAttribute("y"));
+    const segmentCenterY = Number(firstSegment!.getAttribute("y")) + Number(firstSegment!.getAttribute("height")) / 2;
+    expect(Math.abs(labelY - segmentCenterY)).toBeLessThanOrEqual(6);
+    const alternative = within(screen.getByRole("list", { name: "Incidencias por motivo" }));
+    expect(alternative.getByText(/Problema en calidad/)).toBeTruthy();
+    expect(alternative.queryByText(/Falla de costura/)).toBeNull();
+  });
+
+  it("aligns the total with its bar when the final stacked kind is zero", () => {
+    render(<MetricsReasonChart kinds={reasonKinds} reasons={[
+      { code: "design", label: "Diseño", internal: 1, without_return: 0, returns: 0 },
+    ]} />);
+    const chart = screen.getByRole("group", { name: "Motivos por área" });
+    const totalLabel = chart.querySelector<SVGTextElement>(".recharts-label");
+    const bar = chart.querySelector<SVGRectElement>('.recharts-rectangle[fill="var(--color-internal)"]');
+
+    expect(within(chart).getByText("1")).toBeTruthy();
+    expect(totalLabel).toBeTruthy();
+    expect(bar).toBeTruthy();
+    const labelY = Number(totalLabel!.getAttribute("y"));
+    const barCenterY = Number(bar!.getAttribute("y")) + Number(bar!.getAttribute("height")) / 2;
+    expect(Math.abs(labelY - barCenterY)).toBeLessThanOrEqual(6);
+  });
+
+  it("shows the per-kind breakdown when hovering a reason", async () => {
+    render(<MetricsReasonChart kinds={reasonKinds} reasons={[
+      { code: "sewing", label: "Falla de costura", internal: 1, without_return: 1, returns: 1 },
+    ]} />);
+    const chart = screen.getByRole("group", { name: "Motivos por área" });
+
+    const surface = await waitFor(() => {
+      const element = chart.querySelector<HTMLElement>(".recharts-surface");
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    surface.focus();
+    fireEvent.keyDown(surface, { key: "ArrowRight" });
+
+    const tooltip = await screen.findByRole("status");
+    expect(tooltip.textContent).toContain("Falla de costura");
+    expect(tooltip.textContent).toContain("Internas");
+    expect(tooltip.textContent).toContain("Reclamo sin devolución");
+    expect(tooltip.textContent).toContain("Devolución");
   });
   it("keeps month boundaries unambiguous and category totals separate", () => {
     render(<MetricsSalesChart dailySeries={[
@@ -69,7 +123,7 @@ describe("MetricsCharts", () => {
     render(
       <>
         <MetricsCashChart series={cashSeries} />
-        <MetricsReasonChart reasons={reasons} />
+        <MetricsReasonChart kinds={reasonKinds} reasons={reasons} />
         <MetricsCharts
           dailySeries={dailySales}
           products={[{ id: "a0000000-0000-4000-8000-000000000001", name: "Remera", kind: "garment", garment_layer: "upper", quantity: 3 }]}
@@ -81,7 +135,7 @@ describe("MetricsCharts", () => {
     expect(screen.getByRole("group", { name: "Ventas diarias por categoría" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ingresos y egresos diarios" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Proporción de conjuntos vendidos" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Motivos de devolución" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Motivos por área" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Unidades vendidas por producto" })).toBeTruthy();
     expect(within(screen.getByRole("group", { name: "Ingresos y egresos diarios" })).getByText("06")).toBeTruthy();
     expect(within(screen.getByRole("group", { name: "Ventas diarias por categoría" })).queryByText("06/11")).toBeNull();
@@ -95,7 +149,7 @@ describe("MetricsCharts", () => {
     const cashTable = within(screen.getByRole("table", { name: "Detalle diario de ingresos y egresos" }));
     expect(cashTable.getByText("$ 1.200,50")).toBeTruthy();
     expect(cashTable.getByText("$ 300,25")).toBeTruthy();
-    expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText("Falla de costura")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText(/Falla de costura/)).toBeTruthy();
   });
 
   it("shows a true empty state instead of drawing a zero-total set donut", () => {
@@ -107,10 +161,43 @@ describe("MetricsCharts", () => {
     expect(screen.queryByRole("group", { name: "Proporción de conjuntos vendidos" })).toBeNull();
   });
 
+  it("explains incident totals with a three-kind composition and text alternative", () => {
+    render(<MetricsIncidentChart internal={2} returns={1} total={4} withoutReturn={1} />);
+
+    const chart = within(screen.getByRole("group", { name: "Composición de incidencias" }));
+    expect(chart.getByText("2")).toBeTruthy();
+    expect(chart.getAllByText("1")).toHaveLength(2);
+    const rows = within(screen.getByRole("list", { name: "Incidencias por tipo" })).getAllByRole("listitem")
+      .map((item) => item.textContent?.replace(/\s/g, ""));
+    expect(rows).toContain("Internas:2(50%)");
+    expect(rows).toContain("Reclamosindevolución:1(25%)");
+    expect(rows).toContain("Devolución:1(25%)");
+  });
+
+  it("includes the incident type, count, and percentage in the slice tooltip", async () => {
+    render(<MetricsIncidentChart internal={2} returns={1} total={4} withoutReturn={1} />);
+    const chart = screen.getByRole("group", { name: "Composición de incidencias" });
+
+    await waitFor(() => expect(chart.querySelectorAll(".recharts-sector")).toHaveLength(3));
+    fireEvent.mouseEnter(chart.querySelectorAll(".recharts-sector")[0]!);
+
+    const tooltip = await screen.findByRole("status");
+    expect(tooltip.textContent).toContain("Incidencia interna");
+    expect(tooltip.textContent).toContain("2");
+    expect(tooltip.textContent).toContain("50%");
+  });
+
+  it("shows an incident empty state instead of a zero-total donut", () => {
+    render(<MetricsIncidentChart internal={0} returns={0} total={0} withoutReturn={0} />);
+
+    expect(screen.getByText("No hay incidencias en el período.")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Composición de incidencias" })).toBeNull();
+  });
+
   it("replaces zero-only ranking and reason axes with honest empty states", () => {
     render(
       <>
-        <MetricsReasonChart reasons={[{ ...reasons[0]!, count: 0 }]} />
+        <MetricsReasonChart kinds={reasonKinds} reasons={[{ ...reasons[0]!, internal: 0, without_return: 0, returns: 0 }]} />
         <MetricsCharts
           dailySeries={[]}
           products={[{ id: "a0000000-0000-4000-8000-000000000001", name: "Remera", kind: "garment", garment_layer: "upper", quantity: 0 }]}
@@ -120,9 +207,9 @@ describe("MetricsCharts", () => {
     );
 
     expect(screen.getByText("No hay unidades vendidas para estos productos en el período.")).toBeTruthy();
-    expect(screen.getByText("No hay motivos de devolución en el período.")).toBeTruthy();
+    expect(screen.getByText("No hay motivos de incidencias en el período.")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Unidades vendidas por producto" })).toBeNull();
-    expect(screen.queryByRole("group", { name: "Motivos de devolución" })).toBeNull();
-    expect(within(screen.getByRole("list", { name: "Incidencias por motivo" })).getByText("0")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Motivos por área" })).toBeNull();
+    expect(screen.getByRole("list", { name: "Incidencias por motivo" }).children).toHaveLength(0);
   });
 });

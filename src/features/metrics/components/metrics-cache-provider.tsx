@@ -3,16 +3,18 @@
 import { createClient } from "@/lib/supabase/browser";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import type { MetricsDashboard, MetricsSales, MetricsSummary } from "../contract";
+import type { MetricsDashboard, MetricsSales } from "../contract";
 import { resolveMetricsDateRange, type MetricsFilters, type MetricsPeriod } from "../filters";
 import { MetricsRequestCache } from "../request-cache";
 
 type MetricsCacheContextValue = {
   cache: MetricsRequestCache<MetricsDashboard>;
   salesCache: MetricsRequestCache<MetricsSales>;
-  summaryCache: MetricsRequestCache<MetricsSummary>;
+  filterOptionsCache: MetricsRequestCache<MetricsDashboard["filters"]>;
   ready: boolean;
   scope: string | null;
+  hasQueried: boolean;
+  markQueried: () => void;
   filters: MetricsFilters | null;
   period: MetricsPeriod;
   setFilters: (filters: MetricsFilters | null | ((current: MetricsFilters | null) => MetricsFilters | null)) => void;
@@ -36,12 +38,13 @@ function sessionScope(session: { access_token: string; user: { id: string } } | 
 export function MetricsCacheProvider({ profileId, children }: { profileId: string; children: React.ReactNode }) {
   const [cache] = useState(() => new MetricsRequestCache<MetricsDashboard>(12));
   const [salesCache] = useState(() => new MetricsRequestCache<MetricsSales>(12));
-  const [summaryCache] = useState(() => new MetricsRequestCache<MetricsSummary>(12));
+  const [filterOptionsCache] = useState(() => new MetricsRequestCache<MetricsDashboard["filters"]>(1));
   const scopeRef = useRef<string | null | undefined>(undefined);
   const [ready, setReady] = useState(false);
   const [scope, setScope] = useState<string | null>(null);
   const [filters, setFilters] = useState<MetricsFilters | null>(null);
   const [period, setPeriod] = useState<MetricsPeriod>("last7");
+  const [hasQueried, setHasQueried] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -52,11 +55,12 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
       if (scope !== scopeRef.current) {
         cache.setScope(scope);
         salesCache.setScope(scope);
-        summaryCache.setScope(scope);
+        filterOptionsCache.setScope(scope);
         scopeRef.current = scope;
         setScope(scope);
         setFilters(null);
         setPeriod("last7");
+        setHasQueried(false);
       }
       setReady(Boolean(scope));
     };
@@ -76,7 +80,7 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [cache, profileId, salesCache, summaryCache]);
+  }, [cache, filterOptionsCache, profileId, salesCache]);
 
   const initializeFilters = useCallback(() => {
     setFilters((current) => {
@@ -85,10 +89,11 @@ export function MetricsCacheProvider({ profileId, children }: { profileId: strin
       return { ...range, productId: null, fabricId: null, necklineId: null, upperPatternId: null, lowerPatternId: null, productType: null };
     });
   }, []);
+  const markQueried = useCallback(() => setHasQueried(true), []);
 
   const value = useMemo(
-    () => ({ cache, salesCache, summaryCache, ready, scope, filters, period, setFilters, setPeriod, initializeFilters }),
-    [cache, salesCache, summaryCache, ready, scope, filters, period, initializeFilters],
+    () => ({ cache, salesCache, filterOptionsCache, ready, scope, hasQueried, markQueried, filters, period, setFilters, setPeriod, initializeFilters }),
+    [cache, salesCache, filterOptionsCache, ready, scope, hasQueried, markQueried, filters, period, initializeFilters],
   );
   return <MetricsCacheContext.Provider value={value}>{children}</MetricsCacheContext.Provider>;
 }

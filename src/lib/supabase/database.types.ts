@@ -1357,10 +1357,18 @@ isOneToOne: false
 "m7_image_fingerprint":
 { Args: { "p_action": string,"p_expected_image_updated_at": string,"p_image_id": string,"p_object_path": string,"p_order_id": string }; Returns: string
                            },
+"metrics_component_attributes":
+{ Args: { "p_configuration": Json,"p_layer": string }; Returns: {
+              "id": string,"kind": string,"name": string
+            }[]
+                           },
 "metrics_configuration_matches":
 { Args: { "p_configuration": Json,"p_filter_id": string,"p_kind": string }; Returns: boolean
                            },
 "metrics_sales_projection":
+{ Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to_exclusive": string,"p_upper_pattern_id": string }; Returns: Json
+                           },
+"metrics_sales_totals":
 { Args: { "p_fabric_id": string,"p_from": string,"p_lower_pattern_id": string,"p_neckline_id": string,"p_product_id": string,"p_product_type": string,"p_to_exclusive": string,"p_upper_pattern_id": string }; Returns: Json
                            },
 "move_order":

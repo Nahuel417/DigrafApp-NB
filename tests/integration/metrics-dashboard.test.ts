@@ -151,6 +151,56 @@ function fixture() {
 }
 
 describe("metrics dashboard RPC", () => {
+  it("denies direct helper execution while allowing the guarded sales RPC", () => {
+    const data = fixture();
+    const rows = sql(`${data.setup}
+      select pg_temp.reject($probe$select public.metrics_component_attributes('{}'::jsonb, 'upper')$probe$);
+      select pg_temp.reject($probe$select public.metrics_sales_projection(now(), now(), null, null, null, null, null, null)$probe$);
+      select pg_temp.reject($probe$select public.metrics_sales_totals(now(), now(), null, null, null, null, null, null)$probe$);
+      ${data.salesCall()} rollback;`).split(/\r?\n/).filter((line) => line.startsWith("{"));
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]!).rankings).toBeDefined();
+  });
+  it("ranks recorded attributes by paid component quantities, including shared legacy set fabric", () => {
+    const data = fixture();
+    const rows = sql(`${data.setup} ${data.salesCall()} ${data.salesCall({ productType: "set" })} ${data.salesCall({}, "2100-01-01", "2100-01-01")} rollback;`)
+      .split(/\r?\n/).filter((line) => line.startsWith("{"));
+    const sales = JSON.parse(rows[0]!);
+    expect(sales.rankings.fabric.find((item: { id: string }) => item.id === data.ids.legacyFabric).quantity).toBe(14);
+    expect(sales.rankings.fabric.find((item: { id: string }) => item.id === data.ids.modernValue).quantity).toBe(5);
+    expect(sales.rankings.neckline.find((item: { id: string }) => item.id === data.ids.legacyNeckline).quantity).toBe(9);
+    expect(sales.rankings.upper_pattern.find((item: { id: string }) => item.id === data.ids.legacyUpperPattern).quantity).toBe(9);
+    expect(sales.rankings.lower_pattern.find((item: { id: string }) => item.id === data.ids.legacyLowerPattern).quantity).toBe(5);
+    expect(sales.rankings.product_type).toEqual([
+      { id: "set", name: "Conjunto común", quantity: 7 },
+      { id: "individual", name: "Prenda suelta", quantity: 7 },
+      { id: "premium_set", name: "Conjunto premium", quantity: 1 },
+    ]);
+    const sets = JSON.parse(rows[1]!);
+    expect(sets.rankings.fabric.find((item: { id: string }) => item.id === data.ids.legacyFabric).quantity).toBe(10);
+    expect(JSON.parse(rows[2]!).rankings.fabric).toEqual([]);
+    expect(parseMetricsSales(sales).rankings).toEqual(sales.rankings);
+  });
+
+  it("counts modern set parts separately without duplicating repeated selections and preserves existing totals", () => {
+    const data = fixture();
+    const rows = sql(`${data.setup}
+      reset role;
+      update public.order_lines set configuration = jsonb_set(configuration, '{lower,options}',
+        (configuration #> '{upper,options}') || (configuration #> '{upper,options}'))
+      where order_id = '${data.ids.commonOrder}';
+      set local role authenticated;
+      ${data.salesCall({ fabricId: data.ids.modernValue })}
+      ${data.call({ fabricId: data.ids.modernValue })}
+      reset role;
+      select (public.metrics_sales_projection('2099-12-31 03:00+00', '2100-01-01 03:00+00', null, null, null, null, null, null) - 'rankings')
+        = public.metrics_sales_totals('2099-12-31 03:00+00', '2100-01-01 03:00+00', null, null, null, null, null, null);
+      rollback;`).split(/\r?\n/);
+    const results = rows.filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
+    expect(results[0].rankings.fabric.find((item: { id: string }) => item.id === data.ids.modernValue).quantity).toBe(7);
+    expect(results[1].sales.rankings).toEqual(results[0].rankings);
+    expect(rows).toContain("t");
+  });
   it("returns only compact guarded summary totals matching the existing aggregates", () => {
     const data = fixture();
     const results = sql(`${data.setup}
@@ -240,7 +290,7 @@ describe("metrics dashboard RPC", () => {
     expect(() => parseMetricsDashboard(JSON.parse(rows[0]!))).not.toThrow();
     const metrics = JSON.parse(rows[0]!) as {
       cash: { income: string; expense: string; net: string };
-      incidents: { total: number; returns: number; reasons: Array<{ code: string; count: number }> };
+      incidents: { total: number; returns: number; internal: number; without_return: number; reasons: Array<{ code: string; internal: number; without_return: number; returns: number }> };
       sales: { loose_garments: number; sets: { common: number; premium: number }; products: Array<{ id: string; quantity: number }> };
     };
     expect(metrics.cash).toEqual({
@@ -251,11 +301,11 @@ describe("metrics dashboard RPC", () => {
     });
     expect(metrics.incidents.total).toBe(3);
     expect(metrics.incidents.returns).toBe(1);
-    expect(metrics.incidents.reasons.map(({ code, count }) => ({ code, count }))).toEqual(expect.arrayContaining([
-      { code: "sewing", count: 1 },
-      { code: "design", count: 1 },
-    ]));
-    expect(metrics.incidents.reasons.find(({ code }) => code === "customer_service")?.count).toBe(0);
+    expect(metrics.incidents.internal).toBe(1);
+    expect(metrics.incidents.without_return).toBe(1);
+    expect(metrics.incidents.reasons.find(({ code }) => code === "sewing")).toMatchObject({ internal: 1, without_return: 0, returns: 1 });
+    expect(metrics.incidents.reasons.find(({ code }) => code === "design")).toMatchObject({ internal: 0, without_return: 1, returns: 1 });
+    expect(metrics.incidents.reasons.find(({ code }) => code === "customer_service")).toMatchObject({ internal: 0, without_return: 0, returns: 0 });
     expect(metrics.sales.loose_garments).toBe(7);
     expect(metrics.sales.sets).toEqual({ common: 7, premium: 1 });
     expect(metrics.sales.products.find((product) => product.id === data.ids.shirt)?.quantity).toBe(3);

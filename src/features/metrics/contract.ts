@@ -19,7 +19,16 @@ const productSchema = z.object({
   quantity: z.number().int().nonnegative(),
 });
 
+const attributeRankingSchema = z.array(z.object({ id: z.string(), name: z.string(), quantity: z.number().int().nonnegative() }));
+
 const metricsSalesSchema = z.object({
+  rankings: z.object({
+    fabric: attributeRankingSchema,
+    neckline: attributeRankingSchema,
+    upper_pattern: attributeRankingSchema,
+    lower_pattern: attributeRankingSchema,
+    product_type: attributeRankingSchema,
+  }).optional(),
   products: z.array(productSchema),
   loose_garments: z.number().int().nonnegative(),
   sets: z.object({ common: z.number().int().nonnegative(), premium: z.number().int().nonnegative() }),
@@ -47,7 +56,15 @@ const metricsDashboardSchema = z.object({
   incidents: z.object({
     total: z.number().int().nonnegative(),
     returns: z.number().int().nonnegative(),
-    reasons: z.array(z.object({ code: z.string(), label: z.string(), count: z.number().int().nonnegative() })),
+    internal: z.number().int().nonnegative(),
+    without_return: z.number().int().nonnegative(),
+    reasons: z.array(z.object({
+      code: z.string(),
+      label: z.string(),
+      internal: z.number().int().nonnegative(),
+      without_return: z.number().int().nonnegative(),
+      returns: z.number().int().nonnegative(),
+    })),
   }),
   sales: metricsSalesSchema,
   filters: z.object({
