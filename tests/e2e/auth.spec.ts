@@ -62,7 +62,7 @@ test("requires changing the temporary password before entering the app", async (
   try {
     await page.goto("/login");
     await page.getByLabel("Email").fill(user.email);
-    await page.getByLabel("Contraseña").fill(temporaryPassword);
+    await page.getByLabel("Contraseña", { exact: true }).fill(temporaryPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
 
     await expect(page).toHaveURL(/\/change-password$/);
@@ -82,6 +82,23 @@ test("requires changing the temporary password before entering the app", async (
   }
 });
 
+test("toggles password visibility from the keyboard without submitting", async ({ page }) => {
+  await page.goto("/login");
+  const password = page.getByLabel("Contraseña", { exact: true });
+  await password.fill("Example123");
+  await expect(password).toHaveAttribute("type", "password");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Mostrar contraseña", exact: true })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(password).toHaveAttribute("type", "text");
+  await expect(page.getByRole("button", { name: "Ocultar contraseña", exact: true })).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(password).toHaveAttribute("type", "password");
+  await expect(password).toHaveValue("Example123");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText("Ingresá un email válido.", { exact: true })).toHaveCount(0);
+});
+
 test("associates validation errors with login fields", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill("email-invalido");
@@ -89,7 +106,7 @@ test("associates validation errors with login fields", async ({ page }) => {
 
   await expect(page.getByLabel("Email")).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByText("Ingresá un email válido.").first()).toBeVisible();
-  await expect(page.getByLabel("Contraseña")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel("Contraseña", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByText("Ingresá tu contraseña.").first()).toBeVisible();
 });
 
@@ -99,7 +116,7 @@ test("rejects a new password without a number", async ({ page }) => {
   try {
     await page.goto("/login");
     await page.getByLabel("Email").fill(user.email);
-    await page.getByLabel("Contraseña").fill(temporaryPassword);
+    await page.getByLabel("Contraseña", { exact: true }).fill(temporaryPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
 
     await page.getByLabel("Nueva contraseña", { exact: true }).fill("SoloLetras");
@@ -119,7 +136,7 @@ test("blocks an inactive user even with valid credentials", async ({ page }) => 
   try {
     await page.goto("/login");
     await page.getByLabel("Email").fill(user.email);
-    await page.getByLabel("Contraseña").fill(temporaryPassword);
+    await page.getByLabel("Contraseña", { exact: true }).fill(temporaryPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
 
     await expect(page).toHaveURL(/\/login$/);

@@ -141,7 +141,7 @@ test.describe("Detalle y colaboración M5/M6", () => {
   async function login(page: Page, identity: { email: string }) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(identity.email);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   }

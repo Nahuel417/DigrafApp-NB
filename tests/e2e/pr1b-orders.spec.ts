@@ -66,7 +66,7 @@ test("PR1B completa alta multiítem, edición, búsqueda y detalle", async ({ pa
     productIds.push(flag.data.id);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/orders/new");

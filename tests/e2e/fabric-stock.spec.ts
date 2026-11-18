@@ -81,7 +81,7 @@ test.describe("Stock de telas", () => {
   async function login(page: Page, identity: Identity) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(identity.email);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   }
@@ -220,32 +220,49 @@ test.describe("Stock de telas", () => {
     assertBrowserClean();
   });
 
-  for (const identityName of ["attention", "employee"] as const) {
-    test(`${identityName} consulta cantidades y fechas sin recibir precios ni acciones`, async ({ page }) => {
-      const assertBrowserClean = watchBrowserErrors(page);
-      const identity = identityName === "attention" ? attention : employee;
-      await login(page, identity);
-      await page.goto(`/stock?item=${itemId}`);
+  test("Atención consulta cantidades y fechas sin recibir precios ni acciones", async ({ page }) => {
+    const assertBrowserClean = watchBrowserErrors(page);
+    await login(page, attention);
+    await page.goto(`/stock?item=${itemId}`);
 
-      await expect(page.getByRole("heading", { name: fabricName, exact: true })).toBeVisible();
-      await expect(page.getByText("Saldo: 1,5 rollos", { exact: true })).toBeVisible();
-      await expect(page.getByText(`Fecha: ${displayDate(openingDate)}`, { exact: true })).toHaveCount(0);
-      const history = page.locator('section[aria-labelledby="stock-history-heading"]');
-      const latestMovements = history.locator("ol > li");
-      await expect(latestMovements).toHaveCount(2);
-      await expect(latestMovements.nth(0)).toContainText("Salida");
-      await expect(latestMovements.nth(1)).toContainText("Compra");
-      await expect(history.getByText(`Fecha: ${displayDate(purchaseDate)}`, { exact: true })).toHaveCount(2);
-      await expect(page.getByText("Precio por rollo:")).toHaveCount(0);
-      await expect(page.getByRole("combobox", { name: "Tipo de movimiento" })).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Registrar salida", exact: true })).toHaveCount(0);
-      const html = await page.content();
-      for (const credential of [serviceRoleKey, publishableKey]) {
-        if (credential) expect(html.includes(credential)).toBe(false);
-      }
-      assertBrowserClean();
-    });
-  }
+    await expect(page.getByRole("heading", { name: fabricName, exact: true })).toBeVisible();
+    await expect(page.getByText("Saldo: 1,5 rollos", { exact: true })).toBeVisible();
+    await expect(page.getByText(`Fecha: ${displayDate(openingDate)}`, { exact: true })).toHaveCount(0);
+    const history = page.locator('section[aria-labelledby="stock-history-heading"]');
+    const latestMovements = history.locator("ol > li");
+    await expect(latestMovements).toHaveCount(2);
+    await expect(latestMovements.nth(0)).toContainText("Salida");
+    await expect(latestMovements.nth(1)).toContainText("Compra");
+    await expect(history.getByText(`Fecha: ${displayDate(purchaseDate)}`, { exact: true })).toHaveCount(2);
+    await expect(page.getByText("Precio por rollo:")).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Tipo de movimiento" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Registrar salida", exact: true })).toHaveCount(0);
+    const html = await page.content();
+    for (const credential of [serviceRoleKey, publishableKey]) {
+      if (credential) expect(html.includes(credential)).toBe(false);
+    }
+    assertBrowserClean();
+  });
+
+  test("Empleado consulta el saldo y puede operar sin ver el historial ni acciones administrativas", async ({ page }) => {
+    const assertBrowserClean = watchBrowserErrors(page);
+    await login(page, employee);
+    await page.goto(`/stock?item=${itemId}`);
+
+    await expect(page.getByRole("heading", { name: fabricName, exact: true })).toBeVisible();
+    await expect(page.getByText("Saldo: 1,5 rollos", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agregar material", exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "Compra", exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "Salida", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Movimientos", exact: true })).toHaveCount(0);
+    await expect(page.getByText("Precio por rollo:")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^(Renombrar|Anular|Activar|Desactivar)/ })).toHaveCount(0);
+    const html = await page.content();
+    for (const credential of [serviceRoleKey, publishableKey]) {
+      if (credential) expect(html.includes(credential)).toBe(false);
+    }
+    assertBrowserClean();
+  });
 
   test("Admin anula un movimiento desde el modal y conserva el motivo", async ({ page }, testInfo) => {
     const assertBrowserClean = watchBrowserErrors(page);
