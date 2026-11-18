@@ -91,6 +91,10 @@ pnpm db:types
 - Para cambios de interfaz, ejecutar E2E focalizados del flujo afectado cuando
   existan. Si un comportamiento visual importante no tiene E2E, verificarlo
   manualmente en navegador. CI ejecuta la suite E2E completa.
+- Si cambia el login, ejecutar `pnpm test:e2e tests/e2e/auth.spec.ts --retries=0`
+  antes de subir el cambio. Usar etiquetas exactas para los campos y rol con
+  nombre accesible exacto para los botones; no usar `.first()` para ocultar
+  coincidencias ambiguas.
 
 ## Matriz mínima por riesgo
 

@@ -38,7 +38,7 @@ test.describe("Select compartido", () => {
   test("preserva geometría, scroll, foco y selección al abrir un Select", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/cash?tab=expense");

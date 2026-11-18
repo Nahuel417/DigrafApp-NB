@@ -48,7 +48,7 @@ test.describe("Order incidents", () => {
   async function login(page: Page, actor: Identity, orderId: string) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(actor.email);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto(`/orders/${orderId}`);
