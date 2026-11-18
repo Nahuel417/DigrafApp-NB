@@ -60,7 +60,7 @@ async function createVisualUser(userEmail: string, userPassword: string, display
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Ingresar" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
@@ -171,7 +171,7 @@ test.describe("referencia visual", () => {
   test("cambio de contraseña", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(changePasswordEmail);
-    await page.getByLabel("Contraseña").fill(temporaryPassword);
+    await page.getByLabel("Contraseña", { exact: true }).fill(temporaryPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/change-password$/);
     await page.goto("/change-password");

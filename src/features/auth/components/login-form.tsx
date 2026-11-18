@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { Eye, LockKeyhole, Mail } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -16,6 +16,7 @@ const initialState: MutationState = {};
 
 export function LoginForm() {
   const [state, formAction] = useActionState(loginAction, initialState);
+  const [showPassword, setShowPassword] = useState(false);
   useMutationToast(state);
   const emailErrors = state.fieldErrors?.email?.map((message) => ({ message }));
   const passwordErrors = state.fieldErrors?.password?.map((message) => ({ message }));
@@ -49,14 +50,25 @@ export function LoginForm() {
               aria-describedby={passwordErrors?.length ? "password-error" : undefined}
               aria-invalid={Boolean(passwordErrors?.length)}
               autoComplete="current-password"
-              className="h-10 rounded-xl border-0 bg-transparent pl-10 pr-10 font-sans shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:h-10"
+              className="h-10 rounded-xl border-0 bg-transparent pl-10 pr-12 font-sans shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:h-10"
               id="password"
               name="password"
               placeholder="••••••••"
               required
-              type="password"
+              type={showPassword ? "text" : "password"}
             />
-            <Eye aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
+            <button
+              aria-controls="password"
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-pressed={showPassword}
+              className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
+              onClick={() => setShowPassword((visible) => !visible)}
+              type="button"
+            >
+              {showPassword
+                ? <EyeOff aria-hidden="true" className="size-[18px]" />
+                : <Eye aria-hidden="true" className="size-[18px]" />}
+            </button>
           </div>
           <FieldError errors={passwordErrors} id="password-error" />
         </Field>

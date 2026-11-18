@@ -38,7 +38,7 @@ test("Super admin crea un usuario desde la gestión interna", async ({ page }) =
 
     await page.goto("/login");
     await page.getByLabel("Email").fill(managerEmail);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/users");
@@ -115,7 +115,7 @@ test("Admin visualiza otros Admin y activa o desactiva personal operativo", asyn
 
     await page.goto("/login");
     await page.getByLabel("Email").fill(users[0].email!);
-    await page.getByLabel("Contraseña").fill(password);
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/users");
