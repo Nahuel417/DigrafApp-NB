@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { StockDetailActions } from "@/features/stock/components/stock-detail-actions";
 import { StockOperationForm } from "@/features/stock/components/stock-operation-form";
-import { canManageFabricStock } from "@/features/stock/permissions";
+import { canManageFabricStock, canOperateStock, canViewStockHistory } from "@/features/stock/permissions";
 import {
   formatStockDate,
   formatStockDateTime,
@@ -40,6 +40,9 @@ export default async function StockPage({
 }) {
   const profile = await requireActiveProfile();
   const canManage = canManageFabricStock(profile.role);
+  const canCreate = canOperateStock(profile.role, "create");
+  const canOperate = canOperateStock(profile.role, "purchase");
+  const canViewHistory = canViewStockHistory(profile.role);
   const { item: selectedItemId } = await searchParams;
   const operationalDate = currentStockDate();
 
@@ -60,7 +63,7 @@ export default async function StockPage({
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
   let history = null;
   let historyError = false;
-  if (selectedItem) {
+  if (selectedItem && canViewHistory) {
     try {
       history = await getStockHistory(selectedItem.id, canManage);
     } catch {
@@ -80,7 +83,7 @@ export default async function StockPage({
         </div>
       </header>
 
-      {canManage ? (
+      {canCreate ? (
         <section aria-labelledby="stock-create-heading" className="rounded-3xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="mb-3">
             <h2 className="text-base font-semibold" id="stock-create-heading">Agregar material</h2>
@@ -139,7 +142,7 @@ export default async function StockPage({
           {!selectedItem ? (
             <div className="px-5 py-6 sm:px-6">
               <h2 className="font-semibold" id="stock-detail-heading">Detalle de tela</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Elegí una tela para consultar sus movimientos y fechas.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Elegí una tela para ver su saldo y estado.</p>
             </div>
           ) : (
             <>
@@ -155,24 +158,30 @@ export default async function StockPage({
                 </p>
               </header>
 
-              {canManage ? (
+              {canOperate ? (
                 <div className="flex flex-col gap-3 border-b p-4 sm:p-5">
-                  <StockDetailActions
-                    initialDate={operationalDate}
-                    initialKeys={{ activate: randomUUID(), consumption: randomUUID(), purchase: randomUUID(), rename: randomUUID() }}
-                    isActive={selectedItem.is_active}
-                    itemId={selectedItem.id}
-                    itemName={selectedItem.name}
-                    key={selectedItem.id}
-                  />
+                  {selectedItem.is_active || canManage ? (
+                    <StockDetailActions
+                      canManage={canManage}
+                      initialDate={operationalDate}
+                      initialKeys={{ activate: randomUUID(), consumption: randomUUID(), purchase: randomUUID(), rename: randomUUID() }}
+                      isActive={selectedItem.is_active}
+                      itemId={selectedItem.id}
+                      itemName={selectedItem.name}
+                      key={selectedItem.id}
+                    />
+                  ) : null}
                   {!selectedItem.is_active ? (
-                    <p className="text-sm text-muted-foreground">La tela está desactivada. Reactivala para registrar compras o salidas.</p>
-                  ) : selectedItem.quantity === 0 ? null : (
+                    <p className="text-sm text-muted-foreground">
+                      La tela está desactivada. {canManage ? "Reactivála para registrar compras o salidas." : "Pedile a administración que la reactive."}
+                    </p>
+                  ) : selectedItem.quantity === 0 ? null : canManage ? (
                     <p className="text-sm text-muted-foreground">Para desactivarla, primero dejá el saldo en cero.</p>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
 
+              {canViewHistory ? (
               <section aria-labelledby="stock-history-heading" className="p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-semibold" id="stock-history-heading">Movimientos</h3>
@@ -253,6 +262,7 @@ export default async function StockPage({
                   <p className="text-sm text-muted-foreground">No hay movimientos para mostrar.</p>
                 )}
               </section>
+              ) : null}
             </>
           )}
         </section>

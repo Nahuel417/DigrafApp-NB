@@ -14,6 +14,7 @@ type StockDetailOperation = "activate" | "consumption" | "purchase" | "rename";
 export type StockDetailOperationKeys = Record<StockDetailOperation, string>;
 
 type StockDetailActionsProps = {
+  canManage: boolean;
   initialDate: string;
   initialKeys: StockDetailOperationKeys;
   isActive: boolean;
@@ -37,14 +38,14 @@ function actionLabel(action: StockDetailOperation, isActive: boolean) {
   }
 }
 
-export function StockDetailActions({ initialDate, initialKeys, isActive, itemId, itemName }: StockDetailActionsProps) {
+export function StockDetailActions({ canManage, initialDate, initialKeys, isActive, itemId, itemName }: StockDetailActionsProps) {
   const [activeAction, setActiveAction] = useState<StockDetailOperation | null>(null);
   const [operationPending, setOperationPending] = useState(false);
   const [operationKeys, setOperationKeys] = useState(initialKeys);
   const triggerRefs = useRef<Partial<Record<StockDetailOperation, HTMLButtonElement | null>>>({});
   const panelId = `stock-${itemId}-operation-panel`;
   const headingId = `stock-${itemId}-operation-heading`;
-  const actions: StockDetailOperation[] = ["rename", "activate"];
+  const actions: StockDetailOperation[] = canManage ? ["rename", "activate"] : [];
   const operationHeading = activeAction === "activate"
     ? `${actionLabel(activeAction, isActive)} tela`
     : activeAction === "rename"

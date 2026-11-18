@@ -15,6 +15,7 @@ vi.mock("../actions", () => ({ executeStockOperationAction: vi.fn() }));
 import { StockDetailActions } from "./stock-detail-actions";
 
 const props = {
+  canManage: true,
   initialDate: "2026-08-15",
   initialKeys: {
     activate: "activate-key",
@@ -128,5 +129,23 @@ describe("StockDetailActions", () => {
     view.rerender(<StockDetailActions {...props} isActive={false} />);
     expect(toolbar().getByRole("button", { name: "Reactivar" }).classList.contains("text-destructive")).toBe(false);
     expect(toolbar().getByRole("button", { name: "Reactivar" }).classList.contains("text-success-foreground")).toBe(true);
+  });
+
+  it("lets employees register purchases and consumptions without management actions", () => {
+    render(<StockDetailActions {...props} canManage={false} />);
+    const actions = toolbar();
+
+    expect(actions.getByRole("radio", { name: "Compra" })).toBeTruthy();
+    expect(actions.getByRole("radio", { name: "Salida" })).toBeTruthy();
+    expect(actions.queryByRole("button", { name: "Renombrar" })).toBeNull();
+    expect(actions.queryByRole("button", { name: "Desactivar" })).toBeNull();
+
+    fireEvent.click(actions.getByRole("radio", { name: "Compra" }));
+    expect(screen.getByLabelText("Cantidad comprada (rollos)")).toBeTruthy();
+    expect(screen.getByLabelText("Precio por rollo (ARS)")).toBeTruthy();
+
+    fireEvent.click(actions.getByRole("radio", { name: "Salida" }));
+    expect(screen.getByLabelText("Cantidad consumida (rollos)")).toBeTruthy();
+    expect(screen.queryByLabelText("Precio por rollo (ARS)")).toBeNull();
   });
 });

@@ -207,11 +207,11 @@ describe.skipIf(!url || !key || !publicKey)("fabric stock", () => {
     const prices = await service.from("stock_purchase_prices").select("movement_id").eq("item_id", data.id);
     expect(prices).toMatchObject({ data: [], error: null });
   });
-  it("protects mutations and purchase prices at the database boundary for every role", async () => {
+  it("protects mutations and purchase prices at the database boundary for non-employee roles", async () => {
     const id = await create();
     await execute(clients.admin, "purchase", { itemId: id, quantity: "1", date: purchaseDate, price: "500" });
     const anonymous = createClient<Database>(url!, publicKey!, { auth: { persistSession: false } });
-    for (const role of ["attention", "employee", "inactive", "password"] as const) {
+    for (const role of ["attention", "inactive", "password"] as const) {
       const client = clients[role];
       const before = await snapshot(id);
       for (const action of ["create", "purchase", "consumption", "cancel", "rename", "activate"]) {
@@ -225,7 +225,7 @@ describe.skipIf(!url || !key || !publicKey)("fabric stock", () => {
       expect(requests.data ?? []).toEqual([]);
       expect(await snapshot(id)).toEqual(before);
       const visible = await client.from("stock_items").select("*").eq("id", id);
-      expect(visible.data?.length ?? 0).toBe(role === "attention" || role === "employee" ? 1 : 0);
+      expect(visible.data?.length ?? 0).toBe(role === "attention" ? 1 : 0);
       const direct = await client.from("stock_items").update({ name: "Bypass" }).eq("id", id);
       expect(direct.error).not.toBeNull();
     }
@@ -237,22 +237,77 @@ describe.skipIf(!url || !key || !publicKey)("fabric stock", () => {
       const itemsVisible = await clients[role].from("stock_items").select("*").eq("id", id);
       expect(itemsVisible.data).toHaveLength(1);
     }
-    for (const role of ["attention", "employee"] as const) {
-      const history = await clients[role].from("stock_movements").select("kind, movement_date, quantity").eq("item_id", id);
-      expect(history.error).toBeNull();
-      expect(history.data).toEqual(expect.arrayContaining([
-        expect.objectContaining({ kind: "opening", movement_date: date, quantity: 2 }),
-        expect.objectContaining({ kind: "purchase", movement_date: purchaseDate, quantity: 1 }),
-      ]));
-    }
+    const attentionHistory = await clients.attention.from("stock_movements").select("kind, movement_date, quantity").eq("item_id", id);
+    expect(attentionHistory.error).toBeNull();
+    expect(attentionHistory.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "opening", movement_date: date, quantity: 2 }),
+      expect.objectContaining({ kind: "purchase", movement_date: purchaseDate, quantity: 1 }),
+    ]));
+    const attentionCancellations = await clients.attention.from("stock_movement_cancellations").select("movement_id").eq("item_id", id);
+    expect(attentionCancellations).toMatchObject({ data: [], error: null });
+    const attentionEvents = await clients.attention.from("stock_item_events").select("action").eq("item_id", id);
+    expect(attentionEvents.error).toBeNull();
+    expect(attentionEvents.data).toEqual([expect.objectContaining({ action: "created" })]);
     expect((await execute(anonymous, "consumption", { itemId: id, quantity: "1", date })).error).not.toBeNull();
     const anonymousPrices = await anonymous.from("stock_purchase_prices").select("*").eq("item_id", id);
     expect(anonymousPrices.data ?? []).toEqual([]);
     expect(await snapshot(id)).toEqual(before);
 
-    await service.from("profiles").update({ role: "employee" }).eq("id", users[6]!);
+    await service.from("profiles").update({ role: "attention" }).eq("id", users[6]!);
     expect((await execute(clients.revoked, "consumption", { itemId: id, quantity: "1", date })).error).not.toBeNull();
     expect(await snapshot(id)).toEqual(before);
+  });
+  it("lets employees create, purchase and consume without reading history or prices", async () => {
+    const name = `Employee ${randomUUID()}`;
+    const created = await execute(clients.employee, "create", { name, quantity: "2", date, price: "100" });
+    expect(created.error).toBeNull();
+    const id = itemId(created.data);
+    items.push(id);
+    expect(created.data).toEqual({ item_id: id });
+    expect(await snapshot(id)).toMatchObject({ name, quantity: 2 });
+
+    const purchase = await execute(clients.employee, "purchase", { itemId: id, quantity: "1", date: purchaseDate, price: "150.50" });
+    expect(purchase.error).toBeNull();
+    expect(purchase.data).toEqual({ item_id: id });
+    const consumption = await execute(clients.employee, "consumption", { itemId: id, quantity: "0.5", date });
+    expect(consumption.error).toBeNull();
+    expect(consumption.data).toEqual({ item_id: id });
+    expect(await snapshot(id)).toMatchObject({ quantity: 2.5 });
+
+    const purchaseMovement = (await movements(id)).find((row) => row.kind === "purchase")!;
+    const deniedCancel = await execute(clients.employee, "cancel", { itemId: id, movementId: purchaseMovement.id, reason: "No permitido" });
+    expect(deniedCancel.error?.message).toBe("No tenés permiso para administrar el stock de telas.");
+    const deniedRename = await execute(clients.employee, "rename", { itemId: id, name: "No permitido" });
+    expect(deniedRename.error?.message).toBe("No tenés permiso para administrar el stock de telas.");
+    const deniedActivation = await execute(clients.employee, "activate", { itemId: id, active: false });
+    expect(deniedActivation.error?.message).toBe("No tenés permiso para administrar el stock de telas.");
+
+    const visible = await clients.employee.from("stock_items").select("id, name, quantity, is_active").eq("id", id).single();
+    expect(visible.error).toBeNull();
+    expect(visible.data).toMatchObject({ name, quantity: 2.5, is_active: true });
+
+    const blockedReads = await Promise.all([
+      clients.employee.from("stock_movements").select("id").eq("item_id", id),
+      clients.employee.from("stock_movement_cancellations").select("movement_id").eq("item_id", id),
+      clients.employee.from("stock_item_events").select("id").eq("item_id", id),
+      clients.employee.from("stock_purchase_prices").select("movement_id").eq("item_id", id),
+      clients.employee.from("stock_requests").select("request_key").eq("item_id", id),
+    ]);
+    for (const result of blockedReads) {
+      expect(result.error).toBeNull();
+      expect(result.data ?? []).toEqual([]);
+    }
+
+    const direct = await clients.employee.from("stock_items").update({ name: "Bypass" }).eq("id", id);
+    expect(direct.error).not.toBeNull();
+
+    expect((await movements(id)).map((row) => row.kind)).toEqual(expect.arrayContaining(["opening", "purchase", "consumption"]));
+    const servicePrices = await service.from("stock_purchase_prices").select("movement_id, amount").eq("item_id", id);
+    expect(servicePrices.error).toBeNull();
+    expect(servicePrices.data).toHaveLength(2);
+    const serviceRequests = await service.from("stock_requests").select("action").eq("item_id", id);
+    expect(serviceRequests.error).toBeNull();
+    expect(serviceRequests.data?.map((row) => row.action)).toEqual(expect.arrayContaining(["create", "purchase", "consumption"]));
   });
   it("serializes withdrawals and idempotent replay while rejecting conflicting keys", async () => {
     const id = await create("1");

@@ -7,7 +7,7 @@ import { getCurrentProfile } from "@/lib/auth/current-profile";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-import { canManageFabricStock } from "./permissions";
+import { canOperateStock } from "./permissions";
 import { stockOperationSchema, type StockOperation } from "./schemas";
 
 export type StockActionState = MutationState;
@@ -79,7 +79,7 @@ export async function executeStockOperationAction(
   }
 
   const profile = await getCurrentProfile();
-  if (!profile || !profile.isActive || profile.mustChangePassword || !canManageFabricStock(profile.role)) {
+  if (!profile || !profile.isActive || profile.mustChangePassword || !canOperateStock(profile.role, parsed.data.action)) {
     return mutationResult("error", "No tenés permiso para administrar el stock de telas.");
   }
 
