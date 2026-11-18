@@ -4,6 +4,8 @@ import { AppNavigation } from "@/components/app-navigation";
 import { BrandLockup } from "@/components/brand-lockup";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { LogoutForm } from "@/features/auth/components/logout-form";
+import { MetricsCacheProvider } from "@/features/metrics/components/metrics-cache-provider";
+import { canViewMetrics } from "@/features/metrics/access";
 import { roleLabel } from "@/features/users/schemas";
 import { requireActiveProfile } from "@/lib/auth/guards";
 import { canArchiveDeliveredOrder, canCreateManualOrder, canManageCatalogs, canManageOrderLifecycle, canManagePrices, canManageStages, canManageUsers, canOperateCash } from "@/lib/auth/permissions";
@@ -19,6 +21,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     canArchiveDeliveredOrder: canArchiveDeliveredOrder(profile.role),
     canOperateCash: canOperateCash(profile),
     canManagePrices: canManagePrices(profile.role),
+    canViewMetrics: canViewMetrics(profile.role),
   };
   const initials = profile.displayName
     .split(/\s+/)
@@ -27,6 +30,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     .join("");
 
   return (
+    <MetricsCacheProvider profileId={profile.id}>
     <div className="app-shell min-h-dvh bg-background lg:fixed lg:inset-0 lg:h-dvh lg:min-h-0 lg:w-full lg:overflow-hidden lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
       <a
         className="fixed left-3 top-3 z-50 -translate-y-20 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-md transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -86,5 +90,6 @@ export default async function AppLayout({ children }: Readonly<{ children: React
         <div className="lg:min-h-0" id="main-content" tabIndex={-1}>{children}</div>
       </div>
     </div>
+    </MetricsCacheProvider>
   );
 }

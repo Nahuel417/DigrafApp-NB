@@ -50,4 +50,15 @@ describe("app navigation archives entry", () => {
     expect(hrefs).not.toContain("/orders/archive");
     expect(hrefs).not.toContain("/orders/archive/delivered");
   });
+
+  it("shows metrics only when the metrics capability is granted", () => {
+    const { container, rerender } = render(<AppNavigation capabilities={fullCapabilities} />);
+    expect(hrefsFor(container)).not.toContain("/metrics");
+
+    rerender(<AppNavigation capabilities={{ ...fullCapabilities, canViewMetrics: false }} />);
+    expect(hrefsFor(container)).not.toContain("/metrics");
+
+    rerender(<AppNavigation capabilities={{ ...fullCapabilities, canViewMetrics: true }} />);
+    expect(hrefsFor(container)).toContain("/metrics");
+  });
 });

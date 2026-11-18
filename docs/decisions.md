@@ -53,6 +53,7 @@ Este documento registra decisiones confirmadas. Actualizarlo cuando se cierre un
 | Incidencias y reclamos | Confirmada | Incidencias independientes en el detalle: internas, reclamos sin devolución o con devolución; uno o varios motivos fijos de costura, diseño, pedido incompleto y calandrado. Fecha automática, sin detector visible ni observaciones. Empleado registra solo internas; Super admin/Admin/Atención registran y corrigen con historial. Se mantiene el acceso actual a pedidos archivados. No alteran etapas ni finanzas; anulados/purgados bloquean escrituras. Clasificaciones e historial técnico se conservan tras la purga sin copiar datos del cliente. Métricas quedan diferidas. |
 | Stock manual de telas | Confirmada | Registro independiente de pedidos y Caja; cantidades de rollos enteros o medios; cada material nuevo exige cantidad inicial fechada y precio ARS positivo por rollo, incluso con cantidad cero; las acciones se notifican solo con toast; aperturas históricas sin precio no se backfillean. Compras fechadas guardan precio positivo por rollo; consumos manuales y anulaciones con motivo usan RPC atómica e idempotente. Super admin/Admin administran y ven precios; Empleado crea telas y registra compras y salidas, sin consultar el historial ni precios históricos; todos los roles operativos activos consultan el saldo actual. RLS separa precios e historial, conserva movimientos y auditoría append-only, bloquea saldos negativos y solo permite desactivar con saldo cero. La pantalla muestra solo los dos movimientos registrados más recientes del material seleccionado para quienes pueden consultar el historial, incluidos anulados. |
 
+
 Las contraseñas pertenecen exclusivamente a Supabase Auth: no se guardan en perfiles, tablas de auditoría ni logs de la aplicación. La desactivación debe cortar el acceso a datos protegidos aunque el usuario conserve una sesión previa.
 
 El bootstrap administrativo recibe credenciales por variables de entorno o entrada interactiva, las comunica fuera de la aplicación y usa una clave privilegiada solo en ejecución server-side. Las cuentas creadas por este flujo se confirman automáticamente; no hay confirmación por email ni recuperación pública en M1. Si Auth y perfil quedan desincronizados, el procedimiento debe informar el estado y permitir reparar el perfil o limpiar Auth con confirmación explícita, sin ocultar huérfanos.
@@ -69,7 +70,7 @@ Approved: any current design image is required on every entry into Moldería, in
 
 ## Preguntas abiertas no bloqueantes
 
-- Definir la pantalla exacta de reportes, gráficos y exportaciones cuando entren en alcance.
+- Definir reportes adicionales y exportaciones fuera del panel de métricas cuando entren en alcance.
 - Definir UX y seguridad detallada del formulario público al iniciar esa fase: expiración de enlaces, adjuntos, validación y si crea pedido o solicitud.
 
 ## Regla de actualización

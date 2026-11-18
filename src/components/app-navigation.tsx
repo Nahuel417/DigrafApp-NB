@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Boxes, Calculator, CirclePlus, ClipboardList, Layers, LayoutGrid, ListChecks, Users, Wallet } from "lucide-react";
+import { Archive, Boxes, Calculator, ChartNoAxesCombined, CirclePlus, ClipboardList, Layers, LayoutGrid, ListChecks, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,6 +15,7 @@ export type AppNavigationCapabilities = {
   canArchiveDeliveredOrder: boolean;
   canOperateCash: boolean;
   canManagePrices?: boolean;
+  canViewMetrics?: boolean;
 };
 
 type AppNavigationProps = {
@@ -39,6 +40,7 @@ const navigationItems: Array<{
   { href: "/orders/new", icon: CirclePlus, label: "Nuevo pedido", capability: "canCreateOrders" },
   { href: "/catalogs", icon: Layers, label: "Catálogos", capability: "canManageCatalogs" },
   { href: "/commercial", icon: Calculator, label: "Cotizador", capability: "canManagePrices" },
+  { href: "/metrics", icon: ChartNoAxesCombined, label: "Métricas", capability: "canViewMetrics" },
   { href: "/stages", icon: ListChecks, label: "Etapas", capability: "canManageStages" },
   { href: "/users", icon: Users, label: "Usuarios", capability: "canManageUsers" },
 ];
