@@ -1,6 +1,9 @@
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { formatArs } from "@/lib/money/decimal";
+import { getCurrentProfile } from "@/lib/auth/current-profile";
+
+import { canViewStockHistory } from "./permissions";
 
 export type StockItem = Pick<Database["public"]["Tables"]["stock_items"]["Row"], "id" | "is_active" | "name" | "quantity">;
 export type StockMovement = Pick<Database["public"]["Tables"]["stock_movements"]["Row"], "created_at" | "id" | "item_id" | "kind" | "movement_date" | "quantity">;
@@ -17,6 +20,11 @@ export async function listStockItems() {
 }
 
 export async function getStockHistory(itemId: string, includePrices: boolean) {
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive || profile.mustChangePassword || !canViewStockHistory(profile.role)) {
+    throw new Error("No tenés permiso para consultar el historial de stock.");
+  }
+
   const supabase = await createClient();
   const { data: movements, error } = await supabase
     .from("stock_movements")

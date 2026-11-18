@@ -6,7 +6,11 @@ import { afterEach, expect, it, vi } from "vitest";
 const stock = vi.hoisted(() => ({ quantity: 0 }));
 
 vi.mock("@/lib/auth/guards", () => ({ requireActiveProfile: async () => ({ role: "employee" }) }));
-vi.mock("@/features/stock/permissions", () => ({ canManageFabricStock: () => false }));
+vi.mock("@/features/stock/permissions", () => ({
+  canManageFabricStock: () => false,
+  canOperateStock: (_role: string, action: string) => action === "create" || action === "purchase" || action === "consumption",
+  canViewStockHistory: () => false,
+}));
 vi.mock("@/features/stock/components/stock-detail-actions", () => ({ StockDetailActions: () => null }));
 vi.mock("@/features/stock/components/stock-operation-form", () => ({ StockOperationForm: () => null }));
 vi.mock("@/features/stock/schemas", () => ({ currentStockDate: () => "2026-11-03" }));
@@ -30,4 +34,7 @@ it.each([0, 1, 0.5, 1.5, 2])("colors the current stock consistently in list and 
   expect(within(material).getByText(String(quantity)).closest(`.${color}`)).not.toBeNull();
   const detail = screen.getByRole("region", { name: "Lona" });
   expect(within(detail).getByText(String(quantity)).closest(`.${color}`)).not.toBeNull();
+  expect(screen.getByRole("heading", { name: "Agregar material" })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Movimientos" })).toBeNull();
+  expect(screen.queryByText(/Precio por rollo:/)).toBeNull();
 });
